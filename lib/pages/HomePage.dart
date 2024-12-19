@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../widgets/HomeAppBar.dart';
-import '../widgets/ItemsWidget.dart';
+import '../widgets/AsnafDashboard.dart';
+import '../widgets/UserPoints.dart';
 
 class HomePage extends StatelessWidget {
   @override
@@ -58,10 +59,8 @@ class HomePage extends StatelessWidget {
                     ],
                   ),
                 ),
-                Container(
-                  margin: EdgeInsets.only(top: 5),
-                  child: ItemsWidget(),
-                )
+                AsnafDashboard(),
+                UserPoints(),
               ],
             ),
           ),

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-class ItemsWidget extends StatelessWidget {
+class AsnafDashboard extends StatelessWidget {
   Widget build(BuildContext context) {
     return GridView.count(
-      childAspectRatio: 0.7, // Keep the boxes square
+      childAspectRatio: 0.7,
       physics: NeverScrollableScrollPhysics(),
       crossAxisCount: 4,
       shrinkWrap: true,
@@ -12,8 +12,8 @@ class ItemsWidget extends StatelessWidget {
           Column(
             children: [
               Container(
-                height: 85, // Fixed height
-                width: 85,  // Fixed width
+                height: 85,
+                width: 85,
                 margin: EdgeInsets.symmetric(vertical: 8, horizontal: 10),
                 decoration: BoxDecoration(
                   color: Color(0xFFF1D789),
@@ -31,14 +31,20 @@ class ItemsWidget extends StatelessWidget {
                 ),
               ),
               SizedBox(height: 8),
-              Text(
-                getTextForIndex(i),
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
+              Container(
+                width: 85, // Limit the width of the text
+                child: Text(
+                  getTextForIndex(i),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.normal,
+                    color: Colors.white,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: true,
                 ),
-                textAlign: TextAlign.center,
               ),
             ],
           ),
@@ -50,13 +56,13 @@ class ItemsWidget extends StatelessWidget {
 String getTextForIndex(int index) {
   switch (index) {
     case 1:
-      return "Home";
+      return "Help Asnaf";
     case 2:
-      return "Documents";
+      return "Apply Aid";
     case 3:
-      return "Messages";
+      return "Application Status";
     case 4:
-      return "Gifts";
+      return "Redeem Rewards";
     default:
       return "";
   }

@@ -13,30 +13,28 @@ class UserPoints extends StatelessWidget {
           children: [
             Container(
               height: 76,
-              width: 160,
+              width: 180,
               margin: EdgeInsets.symmetric(vertical: 8, horizontal: 10),
               padding: EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: Color(0xFFFDB515),
                 borderRadius: BorderRadius.all(Radius.circular(10)),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start, // Align text to the left
+              child: Stack(
                 children: [
-                  // Points Title
-                  Text(
-                    "Points",
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w300,
-                      color: Colors.white,
-                    ),
-                  ),
-                  SizedBox(height: 5), // Space between title and value
-                  // Row with Points Value and Smiley Icon
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.start,
+                  // Points Text
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Text(
+                        "Points",
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w300,
+                          color: Colors.white,
+                        ),
+                      ),
+                      SizedBox(height: 5),
                       Text(
                         "159",
                         style: TextStyle(
@@ -45,13 +43,18 @@ class UserPoints extends StatelessWidget {
                           color: Colors.white,
                         ),
                       ),
-                      SizedBox(width: 5),
-                      Image.asset(
-                        "assets/Smiley.png",
-                        height: 20,
-                        fit: BoxFit.contain,
-                      ),
                     ],
+                  ),
+                  // Smiley Icon (Overlay on the right)
+                  Positioned(
+                    top: 14, // Adjust this to position it relative to the top
+                    right: 0, // Align it to the right
+                    child: Image.asset(
+                      "assets/Smiley.png",
+                      height: 40, // Adjust the size here
+                      width: 40,
+                      fit: BoxFit.contain,
+                    ),
                   ),
                 ],
               ),
@@ -62,48 +65,54 @@ class UserPoints extends StatelessWidget {
         Column(
           children: [
             Container(
-              height: 76,
-              width: 160,
+              height: 76, // Increased height for better alignment
+              width: 180,
               margin: EdgeInsets.symmetric(vertical: 8, horizontal: 10),
               padding: EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: Color(0xFFFDB515),
                 borderRadius: BorderRadius.all(Radius.circular(10)),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start, // Align text to the left
+              child: Stack(
                 children: [
-                  // Check-In Event Title
-                  Text(
-                    "Check-In Event",
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  SizedBox(height: 4), // Space between title and description
-                  // Row with Description and Calendar Icon
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          "Earn points by confirming your attendance",
+                  // Check-In Event Text
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Check-In Event",
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          "Earn points by confirming\nyour attendance",
                           style: TextStyle(
                             fontSize: 9,
                             fontWeight: FontWeight.normal,
                             color: Colors.white,
                           ),
                         ),
-                      ),
-                      SizedBox(width: 5), // Space between text and icon
-                      Image.asset(
-                        "assets/calendar.png", // Replace with your asset
-                        height: 20,
-                        fit: BoxFit.contain,
-                      ),
-                    ],
+                      ],
+                    ),
+                  ),
+                  // Calendar Icon (Stacked)
+                  Positioned(
+                    bottom: 0, // Positioned at the bottom of the container
+                    right: 0, // Aligned to the right
+                    child: Image.asset(
+                      "assets/calendar.png", // Replace with your asset
+                      height: 50, // Adjust the size here
+                      width: 50,
+                      fit: BoxFit.contain,
+                    ),
                   ),
                 ],
               ),

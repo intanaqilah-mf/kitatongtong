@@ -41,9 +41,8 @@ class _ApplyAidState extends State<ApplyAid> {
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
                     child: Stack(
                       children: [
-                        // Progress Bar Background
                         Container(
-                          height: 15, // Increased height for visibility
+                          height: 23,
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(10),
@@ -54,7 +53,7 @@ class _ApplyAidState extends State<ApplyAid> {
                           duration: Duration(milliseconds: 300),
                           curve: Curves.easeInOut,
                           width: MediaQuery.of(context).size.width * 0.74 * (currentStep / totalSteps),
-                          height: 15, // Same height as background
+                          height: 23, // Same height as background
                           decoration: BoxDecoration(
                             color: Colors.green,
                             borderRadius: BorderRadius.circular(10),
@@ -77,40 +76,61 @@ class _ApplyAidState extends State<ApplyAid> {
           ),
         ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "Share your personal details",
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.yellow,
-              ),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Centered Title and Subtitle
+          Center(
+            child: Column(
+              children: [
+                Text(
+                  "Share your personal details",
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFFFDB515),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                SizedBox(height: 8),
+                Text(
+                  "Fill in your personal details to begin your application",
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.yellow[200],
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ),
-            SizedBox(height: 8),
-            Text(
-              "Fill in your personal details to begin your application",
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.yellow[200],
-              ),
-            ),
-            SizedBox(height: 16),
-            // NRIC Field
-            buildTextField("NRIC"),
-            SizedBox(height: 16),
-            // Full Name Field
-            buildTextField("Full Name"),
-            SizedBox(height: 16),
-            // Email Field
-            buildTextField("Email"),
-            SizedBox(height: 16),
-            ElevatedButton(
+          ),
+          SizedBox(height: 16),
+          // NRIC Field
+          buildTextField("NRIC"),
+          SizedBox(height: 10),
+          // Full Name Field
+          buildTextField("Full Name"),
+          SizedBox(height: 10),
+          // Email Field
+          buildTextField("Email"),
+          SizedBox(height: 10),
+          // Mobile Number Field
+          buildMobileNumberField(),
+          SizedBox(height: 10),
+          buildTextField("Address Line 1"),
+          SizedBox(height: 10),
+          buildTextField("Address Line 2"),
+          SizedBox(height: 10),
+          buildTextField("City"),
+          SizedBox(height: 10),
+          buildTextField("Postcode"),
+          SizedBox(height: 10),
+          Spacer(), // Push the button to the bottom
+          Divider(color: Colors.white, thickness: 1), // White horizontal line
+          Center(
+            child: ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.yellow, // Background color (was primary)
+                backgroundColor: Color(0xFFFFCF40), // Background color (was primary)
                 foregroundColor: Colors.black, // Text color (was onPrimary)
               ),
               onPressed: () {
@@ -122,9 +142,8 @@ class _ApplyAidState extends State<ApplyAid> {
               },
               child: Text("Next"),
             ),
-
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -144,15 +163,65 @@ class _ApplyAidState extends State<ApplyAid> {
         ),
         SizedBox(height: 8),
         Container(
+          height: 30,
           decoration: BoxDecoration(
-            color: Color(0xFFF1D789),
+            color: Color(0xFFFFCF40),
             borderRadius: BorderRadius.circular(10),
           ),
           child: TextField(
             decoration: InputDecoration(
               border: InputBorder.none,
-              contentPadding: EdgeInsets.symmetric(horizontal: 12),
+              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Helper method to create the mobile number field
+  Widget buildMobileNumberField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "Mobile Number",
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+        SizedBox(height: 8),
+        Container(
+          height: 30,
+          decoration: BoxDecoration(
+            color: Color(0xFFFFCF40),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                child: Text(
+                  "+60",
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
+                ),
+              ),
+              VerticalDivider(color: Colors.black, thickness: 1),
+              Expanded(
+                child: TextField(
+                  decoration: InputDecoration(
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ],

@@ -12,8 +12,8 @@ class UserPoints extends StatelessWidget {
         Column(
           children: [
             Container(
-              height: 100,
-              width: 150,
+              height: 76,
+              width: 160,
               margin: EdgeInsets.symmetric(vertical: 8, horizontal: 10),
               padding: EdgeInsets.all(10),
               decoration: BoxDecoration(
@@ -27,8 +27,8 @@ class UserPoints extends StatelessWidget {
                   Text(
                     "Points",
                     style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w300,
                       color: Colors.white,
                     ),
                   ),
@@ -40,12 +40,12 @@ class UserPoints extends StatelessWidget {
                       Text(
                         "159",
                         style: TextStyle(
-                          fontSize: 24,
+                          fontSize: 17,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                         ),
                       ),
-                      SizedBox(width: 5), // Space between text and icon
+                      SizedBox(width: 5),
                       Image.asset(
                         "assets/Smiley.png",
                         height: 20,
@@ -62,8 +62,8 @@ class UserPoints extends StatelessWidget {
         Column(
           children: [
             Container(
-              height: 100,
-              width: 150,
+              height: 76,
+              width: 160,
               margin: EdgeInsets.symmetric(vertical: 8, horizontal: 10),
               padding: EdgeInsets.all(10),
               decoration: BoxDecoration(
@@ -77,12 +77,12 @@ class UserPoints extends StatelessWidget {
                   Text(
                     "Check-In Event",
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 16,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
                     ),
                   ),
-                  SizedBox(height: 5), // Space between title and description
+                  SizedBox(height: 4), // Space between title and description
                   // Row with Description and Calendar Icon
                   Row(
                     mainAxisAlignment: MainAxisAlignment.start,
@@ -91,7 +91,7 @@ class UserPoints extends StatelessWidget {
                         child: Text(
                           "Earn points by confirming your attendance",
                           style: TextStyle(
-                            fontSize: 10,
+                            fontSize: 9,
                             fontWeight: FontWeight.normal,
                             color: Colors.white,
                           ),

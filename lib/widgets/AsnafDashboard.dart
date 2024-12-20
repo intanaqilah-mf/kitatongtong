@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:projects/pages/applyAid.dart'; // Import the ApplyAid page
 
 class AsnafDashboard extends StatelessWidget {
   Widget build(BuildContext context) {
@@ -21,7 +22,12 @@ class AsnafDashboard extends StatelessWidget {
                 ),
                 child: InkWell(
                   onTap: () {
-                    //Navigator.pushNamed(context, itemPage);
+                    if (i == 2) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => ApplyAid()),
+                      );
+                    }
                   },
                   child: Image.asset(
                     "assets/iconhome$i.png",

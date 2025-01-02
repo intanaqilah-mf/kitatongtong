@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:projects/widgets/bottomNavBar.dart';
 
 class ApplyAid extends StatefulWidget {
   @override
@@ -8,6 +9,13 @@ class ApplyAid extends StatefulWidget {
 class _ApplyAidState extends State<ApplyAid> {
   int currentStep = 1; // Tracks the current step (e.g., 1/5)
   final int totalSteps = 5; // Total number of steps
+  int _selectedIndex = 0; // For BottomNavBar selected index
+
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,7 +60,7 @@ class _ApplyAidState extends State<ApplyAid> {
                             AnimatedContainer(
                               duration: Duration(milliseconds: 300),
                               curve: Curves.easeInOut,
-                              width: MediaQuery.of(context).size.width * 0.74 * (currentStep / totalSteps),
+                              width: MediaQuery.of(context).size.width * 0.74 * progressValue,
                               height: 23, // Same height as background
                               decoration: BoxDecoration(
                                 color: Colors.green,
@@ -82,13 +90,14 @@ class _ApplyAidState extends State<ApplyAid> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Centered Title and Subtitle
             SizedBox(height: 20), // Padding between progress tracker and title
             Center(
               child: Column(
                 children: [
                   Text(
-                    "Share your personal details",
+                    currentStep == 1
+                        ? "Share your personal details"
+                        : "Check your eligibility",
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -98,7 +107,9 @@ class _ApplyAidState extends State<ApplyAid> {
                   ),
                   SizedBox(height: 8),
                   Text(
-                    "Fill in your personal details to begin your application",
+                    currentStep == 1
+                        ? "Fill in your personal details to begin your application"
+                        : "Answer a few simple questions to see if you meet our eligibility criteria",
                     style: TextStyle(
                       fontSize: 14,
                       color: Colors.yellow[200],
@@ -109,50 +120,118 @@ class _ApplyAidState extends State<ApplyAid> {
               ),
             ),
             SizedBox(height: 16),
-            // NRIC Field
-            buildTextField("NRIC"),
-            SizedBox(height: 10),
-            // Full Name Field
-            buildTextField("Full Name"),
-            SizedBox(height: 10),
-            // Email Field
-            buildTextField("Email"),
-            SizedBox(height: 10),
-            // Mobile Number Field
-            buildMobileNumberField(),
-            SizedBox(height: 10),
-            buildTextField("Address Line 1"),
-            SizedBox(height: 10),
-            buildTextField("Address Line 2"),
-            SizedBox(height: 10),
-            buildTextField("City"),
-            SizedBox(height: 10),
-            buildTextField("Postcode"),
-            Spacer(), // Push the button to the bottom
-            Divider(color: Colors.white, thickness: 1), // White horizontal line
-            Center(
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFFFFCF40), // Background color (was primary)
-                  foregroundColor: Colors.black, // Text color (was onPrimary)
-                ),
-                onPressed: () {
-                  if (currentStep < totalSteps) {
-                    setState(() {
-                      currentStep++;
-                    });
-                  }
-                },
-                child: Text("Next"),
+            // Display form fields based on the current step
+            Expanded(
+              child: ListView(
+                children: currentStep == 1
+                    ? buildPersonalDetailsForm()
+                    : buildEligibilityForm(),
               ),
             ),
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.end, // Push the content upwards from the bottom
+                children: [
+                  Divider(
+                    color: Colors.white,
+                    thickness: 1,
+                  ),
+                  SizedBox(height: 2), // Space between divider and button
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 20.0), // Add space from the bottom
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Color(0xFFFFCF40), // Button background color
+                        foregroundColor: Colors.black, // Text color
+                      ),
+                      onPressed: () {
+                        if (currentStep < totalSteps) {
+                          setState(() {
+                            currentStep++;
+                          });
+                        }
+                      },
+                      child: Text(currentStep == totalSteps ? "Submit" : "Next"),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
           ],
         ),
+      ),
+      bottomNavigationBar: BottomNavBar(
+        selectedIndex: _selectedIndex, // Pass the selected index
+        onItemTapped: _onItemTapped, // Pass the tap handler
       ),
     );
   }
 
-  // Helper method to create text fields
+  List<Widget> buildPersonalDetailsForm() {
+    return [
+      buildTextField("NRIC"),
+      SizedBox(height: 10),
+      buildTextField("Full Name"),
+      SizedBox(height: 10),
+      buildTextField("Email"),
+      SizedBox(height: 10),
+      buildMobileNumberField(),
+      SizedBox(height: 10),
+      buildTextField("Address Line 1"),
+      SizedBox(height: 10),
+      buildTextField("Address Line 2"),
+      SizedBox(height: 10),
+      buildTextField("City"),
+      SizedBox(height: 10),
+      buildTextField("Postcode"),
+    ];
+  }
+
+  List<Widget> buildEligibilityForm() {
+    return [
+      buildTextField("Residency Status"),
+      SizedBox(height: 10),
+      buildTextField("Employment Status"),
+      SizedBox(height: 10),
+      buildTextField("Monthly Income"),
+      SizedBox(height: 10),
+      buildLongTextField("Justification of Application"),
+    ];
+  }
+  Widget buildLongTextField(String label) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+        SizedBox(height: 8),
+        Container(
+          height: 120, // Make the container taller
+          decoration: BoxDecoration(
+            color: Color(0xFFFFCF40),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: TextField(
+            maxLines: null, // Allows multi-line input
+            expands: true,  // Makes the field expand to fill the container
+            textAlignVertical: TextAlignVertical.top, // Align text to the top
+            decoration: InputDecoration(
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget buildTextField(String label) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -183,7 +262,6 @@ class _ApplyAidState extends State<ApplyAid> {
     );
   }
 
-  // Helper method to create the mobile number field
   Widget buildMobileNumberField() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

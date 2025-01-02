@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:projects/pages/HomePage.dart';
+import 'package:projects/widgets/bottomNavBar.dart';
 
 void main() {
   runApp(MyApp());
@@ -45,56 +46,6 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: _widgetOptions.elementAt(_selectedIndex),
-      bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: Color(0xFF3F3F3F),
-        selectedItemColor: Colors.yellow,
-        unselectedItemColor: Colors.grey,
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-        type: BottomNavigationBarType.fixed,
-        items: <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Image.asset(
-              'assets/bottomNaviAsnaf1.png',
-              height: 30,
-              width: 30,
-            ),
-            label: 'Home',
-          ),
-          BottomNavigationBarItem(
-            icon: Image.asset(
-              'assets/bottomNaviAsnaf2.png',
-              height: 30,
-              width: 30,
-            ),
-            label: 'Search',
-          ),
-          BottomNavigationBarItem(
-            icon: Image.asset(
-              'assets/bottomNaviAsnaf3.png',
-              height: 30,
-              width: 30,
-            ),
-            label: 'Shopping',
-          ),
-          BottomNavigationBarItem(
-            icon: Image.asset(
-              'assets/bottomNaviAsnaf4.png',
-              height: 30,
-              width: 30,
-            ),
-            label: 'Inbox',
-          ),
-          BottomNavigationBarItem(
-            icon: Image.asset(
-              'assets/bottomNaviAsnaf5.png',
-              height: 30,
-              width: 30,
-            ),
-            label: 'Profile',
-          ),
-        ],
-      ),
     );
   }
 }

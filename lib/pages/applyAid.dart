@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
+import 'package:file_picker/file_picker.dart';
 
 class ApplyAid extends StatefulWidget {
   @override
@@ -228,8 +229,9 @@ class _ApplyAidState extends State<ApplyAid> {
     ];
   }
 
-
   Widget buildFileUploadField(String title, String label, String subtitle) {
+    String? uploadedFileName; // Variable to store the file name
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -242,30 +244,50 @@ class _ApplyAidState extends State<ApplyAid> {
           ),
         ),
         SizedBox(height: 8),
-        GestureDetector(
-          onTap: () {
-            // Implement file picker here
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Color(0xFFFFCF40), // Match your box design
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10), // Rounded corners
+            ),
+          ),
+          onPressed: () async {
+            try {
+              // Open file picker to select a file
+              FilePickerResult? result = await FilePicker.platform.pickFiles(
+                type: FileType.custom,
+                allowedExtensions: ['jpeg', 'jpg', 'pdf'], // Accepted file types
+              );
+
+              if (result != null) {
+                setState(() {
+                  uploadedFileName = result.files.single.name; // Store the selected file name
+                });
+              }
+            } catch (e) {
+              debugPrint("Error while picking file: $e");
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text("Failed to pick file. Please try again.")),
+              );
+            }
           },
           child: Container(
             height: 90, // Maintain the original box height
-            width: double.infinity, // Maintain the original box width
-            decoration: BoxDecoration(
-              color: Color(0xFFFFCF40),
-              borderRadius: BorderRadius.circular(10),
-            ),
+            width: double.infinity, // Match the original box width
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12), // Preserve original padding
-              child: Column(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: uploadedFileName == null // If no file uploaded
+                  ? Column(
                 mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.center, // Center items horizontally
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Image.asset(
                     'assets/uploadAsnaf.png',
-                    height: 24, // Maintain icon size
+                    height: 24, // Icon size
                   ),
                   SizedBox(height: 6), // Space between icon and label
                   Text(
-                    label, // Text inside the box (e.g., "Proof of identity")
+                    label,
                     style: TextStyle(
                       color: Colors.black,
                       fontWeight: FontWeight.bold,
@@ -275,14 +297,25 @@ class _ApplyAidState extends State<ApplyAid> {
                   ),
                   SizedBox(height: 4), // Space between label and subtitle
                   Text(
-                    subtitle, // Subtitle text inside the box
+                    subtitle,
                     style: TextStyle(
                       color: Colors.black,
-                      fontSize: 12, // Smaller font for the subtitle
+                      fontSize: 12,
                     ),
                     textAlign: TextAlign.center,
                   ),
                 ],
+              )
+                  : Center(
+                child: Text(
+                  uploadedFileName!, // Display the file name
+                  style: TextStyle(
+                    color: Colors.black,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
               ),
             ),
           ),

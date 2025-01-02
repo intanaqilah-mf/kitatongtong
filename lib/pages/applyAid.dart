@@ -12,6 +12,10 @@ class _ApplyAidState extends State<ApplyAid> {
   final int totalSteps = 5; // Total number of steps
   int _selectedIndex = 0; // For BottomNavBar selected index
 
+  String? fileName1;
+  String? fileName2;
+  String? fileName3;
+
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
@@ -100,7 +104,9 @@ class _ApplyAidState extends State<ApplyAid> {
                         ? "Share your personal details"
                         : currentStep == 2
                         ? "Check your eligibility"
-                        : "Upload required documents",
+                        : currentStep == 3
+                        ? "Upload required documents"
+                        : "Upload required Documents",
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -114,6 +120,8 @@ class _ApplyAidState extends State<ApplyAid> {
                         ? "Fill in your personal details to begin your application"
                         : currentStep == 2
                         ? "Answer a few simple questions to see if you meet our eligibility criteria"
+                        : currentStep == 3
+                        ? "We need to verify your identity and financial status. Please upload the required documents"
                         : "We need to verify your identity and financial status. Please upload the required documents",
                     style: TextStyle(
                       fontSize: 14,
@@ -132,7 +140,9 @@ class _ApplyAidState extends State<ApplyAid> {
                     ? buildPersonalDetailsForm()
                     : currentStep == 2
                     ? buildEligibilityForm()
-                    : buildUploadDocumentsForm(),
+                    : currentStep == 3
+                    ? buildUploadDocumentsForm()
+                    : buildFourthPage(),
               ),
             ),
             Center(
@@ -212,24 +222,77 @@ class _ApplyAidState extends State<ApplyAid> {
       buildFileUploadField(
         "Snapshot of NRIC/License/Passport", // Title outside the box
         "Proof of identity",                 // Label inside the box
-        "Format: jpeg/jpg/pdf",              // Subtitle text inside the box
+        "Format: jpeg/jpg/pdf",
+        1,
       ),
       SizedBox(height: 10),
       buildFileUploadField(
         "Proof of Address (e.g. Utility Bill)",
         "Proof of address",
         "Format: jpeg/jpg/pdf",
+        2,
       ),
       SizedBox(height: 10),
       buildFileUploadField(
         "Proof of Income",
         "Proof of income",
         "Format: jpeg/jpg/pdf",
+        3,
       ),
     ];
   }
 
-  Widget buildFileUploadField(String title, String label, String subtitle) {
+  List<Widget> buildFourthPage() {
+    return [
+      buildFileDisplayField("Snapshot of NRIC/License/Passport", fileName1),
+      SizedBox(height: 10),
+      buildFileDisplayField("Proof of Address (e.g. Utility Bill)", fileName2),
+      SizedBox(height: 10),
+      buildFileDisplayField("Proof of Income", fileName3),
+    ];
+  }
+
+  Widget buildFileDisplayField(String title, String? fileName) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Color(0xFFFFCF40),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Image.asset('assets/docAsnaf.png', height: 24),
+              SizedBox(width: 10),
+              Text(
+                fileName ?? "No file uploaded",
+                style: TextStyle(
+                  color: Colors.black,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+          IconButton(
+            icon: Icon(Icons.delete, color: Colors.red),
+            onPressed: () {
+              setState(() {
+                if (title.contains("NRIC")) fileName1 = null;
+                if (title.contains("Address")) fileName2 = null;
+                if (title.contains("Income")) fileName3 = null;
+              });
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+
+  Widget buildFileUploadField(String title, String label, String subtitle, int index) {
     String? uploadedFileName; // Variable to store the file name
 
     return StatefulBuilder(
@@ -264,6 +327,9 @@ class _ApplyAidState extends State<ApplyAid> {
                   if (result != null) {
                     setState(() {
                       uploadedFileName = result.files.single.name; // Store the selected file name
+                      if (index == 1) fileName1 = uploadedFileName;
+                      if (index == 2) fileName2 = uploadedFileName;
+                      if (index == 3) fileName3 = uploadedFileName;
                     });
                   }
                 } catch (e) {

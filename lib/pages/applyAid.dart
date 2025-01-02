@@ -20,130 +20,134 @@ class _ApplyAidState extends State<ApplyAid> {
           automaticallyImplyLeading: false,
           backgroundColor: Color(0xFF303030), // Dark background for app bar
           flexibleSpace: Padding(
-            padding: const EdgeInsets.only(top: 80.0, left: 16.0, right: 16.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.center,
+            padding: const EdgeInsets.only(top: 20.0, left: 16.0, right: 16.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                // Back Arrow
-                GestureDetector(
-                  onTap: () {
-                    Navigator.pop(context);
-                  },
-                  child: Icon(
-                    Icons.arrow_back,
-                    color: Colors.white,
-                  ),
-                ),
-                // Progress Bar
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    child: Stack(
-                      children: [
-                        Container(
-                          height: 23,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        // Progress Bar (Animated)
-                        AnimatedContainer(
-                          duration: Duration(milliseconds: 300),
-                          curve: Curves.easeInOut,
-                          width: MediaQuery.of(context).size.width * 0.74 * (currentStep / totalSteps),
-                          height: 23, // Same height as background
-                          decoration: BoxDecoration(
-                            color: Colors.green,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                      ],
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.pop(context);
+                      },
+                      child: Icon(
+                        Icons.arrow_back,
+                        color: Colors.white,
+                      ),
                     ),
-                  ),
-                ),
-                // Progress Text
-                Text(
-                  "$currentStep/$totalSteps",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        child: Stack(
+                          children: [
+                            Container(
+                              height: 23,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                            AnimatedContainer(
+                              duration: Duration(milliseconds: 300),
+                              curve: Curves.easeInOut,
+                              width: MediaQuery.of(context).size.width * 0.74 * (currentStep / totalSteps),
+                              height: 23, // Same height as background
+                              decoration: BoxDecoration(
+                                color: Colors.green,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Text(
+                      "$currentStep/$totalSteps",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
         ),
       ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Centered Title and Subtitle
-          Center(
-            child: Column(
-              children: [
-                Text(
-                  "Share your personal details",
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFFFDB515),
+      body: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0), // Add horizontal padding to the entire form
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Centered Title and Subtitle
+            SizedBox(height: 20), // Padding between progress tracker and title
+            Center(
+              child: Column(
+                children: [
+                  Text(
+                    "Share your personal details",
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFFDB515),
+                    ),
+                    textAlign: TextAlign.center,
                   ),
-                  textAlign: TextAlign.center,
-                ),
-                SizedBox(height: 8),
-                Text(
-                  "Fill in your personal details to begin your application",
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.yellow[200],
+                  SizedBox(height: 8),
+                  Text(
+                    "Fill in your personal details to begin your application",
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.yellow[200],
+                    ),
+                    textAlign: TextAlign.center,
                   ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
-          SizedBox(height: 16),
-          // NRIC Field
-          buildTextField("NRIC"),
-          SizedBox(height: 10),
-          // Full Name Field
-          buildTextField("Full Name"),
-          SizedBox(height: 10),
-          // Email Field
-          buildTextField("Email"),
-          SizedBox(height: 10),
-          // Mobile Number Field
-          buildMobileNumberField(),
-          SizedBox(height: 10),
-          buildTextField("Address Line 1"),
-          SizedBox(height: 10),
-          buildTextField("Address Line 2"),
-          SizedBox(height: 10),
-          buildTextField("City"),
-          SizedBox(height: 10),
-          buildTextField("Postcode"),
-          SizedBox(height: 10),
-          Spacer(), // Push the button to the bottom
-          Divider(color: Colors.white, thickness: 1), // White horizontal line
-          Center(
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Color(0xFFFFCF40), // Background color (was primary)
-                foregroundColor: Colors.black, // Text color (was onPrimary)
+                ],
               ),
-              onPressed: () {
-                if (currentStep < totalSteps) {
-                  setState(() {
-                    currentStep++;
-                  });
-                }
-              },
-              child: Text("Next"),
             ),
-          ),
-        ],
+            SizedBox(height: 16),
+            // NRIC Field
+            buildTextField("NRIC"),
+            SizedBox(height: 10),
+            // Full Name Field
+            buildTextField("Full Name"),
+            SizedBox(height: 10),
+            // Email Field
+            buildTextField("Email"),
+            SizedBox(height: 10),
+            // Mobile Number Field
+            buildMobileNumberField(),
+            SizedBox(height: 10),
+            buildTextField("Address Line 1"),
+            SizedBox(height: 10),
+            buildTextField("Address Line 2"),
+            SizedBox(height: 10),
+            buildTextField("City"),
+            SizedBox(height: 10),
+            buildTextField("Postcode"),
+            Spacer(), // Push the button to the bottom
+            Divider(color: Colors.white, thickness: 1), // White horizontal line
+            Center(
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Color(0xFFFFCF40), // Background color (was primary)
+                  foregroundColor: Colors.black, // Text color (was onPrimary)
+                ),
+                onPressed: () {
+                  if (currentStep < totalSteps) {
+                    setState(() {
+                      currentStep++;
+                    });
+                  }
+                },
+                child: Text("Next"),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

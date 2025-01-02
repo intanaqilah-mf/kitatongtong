@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
 import 'package:file_picker/file_picker.dart';
+import '../pages/PDFViewerScreen.dart';
 
 class ApplyAid extends StatefulWidget {
   @override
@@ -258,7 +259,6 @@ class _ApplyAidState extends State<ApplyAid> {
       buildFileDisplayField("Proof of Income", fileName3),
     ];
   }
-
 
   Widget buildFileDisplayField(String title, String? fileName) {
     return Column(

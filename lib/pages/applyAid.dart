@@ -274,42 +274,78 @@ class _ApplyAidState extends State<ApplyAid> {
           ),
         ),
         SizedBox(height: 8), // Spacing between title and box
+
         // File display box
-        Container(
-          decoration: BoxDecoration(
-            color: Color(0xFFFFCF40),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Image.asset('assets/docAsnaf.png', height: 24), // Document icon
-                  SizedBox(width: 10),
-                  Text(
-                    fileName ?? "No file uploaded", // Display file name
-                    style: TextStyle(
-                      color: Colors.black,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
+        GestureDetector(
+          onTap: () async {
+            if (fileName == null) {
+              // Allow new file upload if no file exists
+              FilePickerResult? result = await FilePicker.platform.pickFiles(
+                type: FileType.custom,
+                allowedExtensions: ['jpeg', 'jpg', 'pdf'],
+              );
+
+              if (result != null) {
+                setState(() {
+                  // Assign the uploaded file name based on the title
+                  if (title.contains("NRIC")) fileName1 = result.files.single.name;
+                  if (title.contains("Address")) fileName2 = result.files.single.name;
+                  if (title.contains("Income")) fileName3 = result.files.single.name;
+                });
+              }
+            } else {
+              // If file exists, view the file (for simplicity, open a dialog)
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: Text("View File"),
+                  content: Text("File Name: $fileName"),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: Text("Close"),
                     ),
-                  ),
-                ],
-              ),
-              IconButton(
-                icon: Image.asset('assets/trash.png', height: 24), // Trash icon asset
-                onPressed: () {
-                  setState(() {
-                    // Clear the file name based on the title
-                    if (title.contains("NRIC")) fileName1 = null;
-                    if (title.contains("Address")) fileName2 = null;
-                    if (title.contains("Income")) fileName3 = null;
-                  });
-                },
-              ),
-            ],
+                  ],
+                ),
+              );
+            }
+          },
+          child: Container(
+            decoration: BoxDecoration(
+              color: Color(0xFFFFCF40),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Image.asset('assets/docAsnaf.png', height: 24), // Document icon
+                    SizedBox(width: 10),
+                    Text(
+                      fileName ?? "No file uploaded", // Display file name
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+                IconButton(
+                  icon: Image.asset('assets/trash.png', height: 24), // Trash icon asset
+                  onPressed: () {
+                    setState(() {
+                      // Clear the file name based on the title
+                      if (title.contains("NRIC")) fileName1 = null;
+                      if (title.contains("Address")) fileName2 = null;
+                      if (title.contains("Income")) fileName3 = null;
+                    });
+                  },
+                ),
+              ],
+            ),
           ),
         ),
       ],

@@ -252,45 +252,62 @@ class _ApplyAidState extends State<ApplyAid> {
     ];
   }
 
+
   Widget buildFileDisplayField(String title, String? fileName) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Color(0xFFFFCF40),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Title outside the box
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: Colors.white, // Title color
+          ),
+        ),
+        SizedBox(height: 8), // Spacing between title and box
+        // File display box
+        Container(
+          decoration: BoxDecoration(
+            color: Color(0xFFFFCF40),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Image.asset('assets/docAsnaf.png', height: 24),
-              SizedBox(width: 10),
-              Text(
-                fileName ?? "No file uploaded",
-                style: TextStyle(
-                  color: Colors.black,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
+              Row(
+                children: [
+                  Image.asset('assets/docAsnaf.png', height: 24), // Document icon
+                  SizedBox(width: 10),
+                  Text(
+                    fileName ?? "No file uploaded", // Display file name
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+              IconButton(
+                icon: Image.asset('assets/trash.png', height: 24), // Trash icon asset
+                onPressed: () {
+                  setState(() {
+                    // Clear the file name based on the title
+                    if (title.contains("NRIC")) fileName1 = null;
+                    if (title.contains("Address")) fileName2 = null;
+                    if (title.contains("Income")) fileName3 = null;
+                  });
+                },
               ),
             ],
           ),
-          IconButton(
-            icon: Icon(Icons.delete, color: Colors.red),
-            onPressed: () {
-              setState(() {
-                if (title.contains("NRIC")) fileName1 = null;
-                if (title.contains("Address")) fileName2 = null;
-                if (title.contains("Income")) fileName3 = null;
-              });
-            },
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
-
 
   Widget buildFileUploadField(String title, String label, String subtitle, int index) {
     String? uploadedFileName; // Variable to store the file name

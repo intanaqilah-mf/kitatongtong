@@ -97,7 +97,9 @@ class _ApplyAidState extends State<ApplyAid> {
                   Text(
                     currentStep == 1
                         ? "Share your personal details"
-                        : "Check your eligibility",
+                        : currentStep == 2
+                        ? "Check your eligibility"
+                        : "Upload required documents",
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -109,7 +111,9 @@ class _ApplyAidState extends State<ApplyAid> {
                   Text(
                     currentStep == 1
                         ? "Fill in your personal details to begin your application"
-                        : "Answer a few simple questions to see if you meet our eligibility criteria",
+                        : currentStep == 2
+                        ? "Answer a few simple questions to see if you meet our eligibility criteria"
+                        : "We need to verify your identity and financial status. Please upload the required documents",
                     style: TextStyle(
                       fontSize: 14,
                       color: Colors.yellow[200],
@@ -125,7 +129,9 @@ class _ApplyAidState extends State<ApplyAid> {
               child: ListView(
                 children: currentStep == 1
                     ? buildPersonalDetailsForm()
-                    : buildEligibilityForm(),
+                    : currentStep == 2
+                    ? buildEligibilityForm()
+                    : buildUploadDocumentsForm(),
               ),
             ),
             Center(
@@ -157,7 +163,6 @@ class _ApplyAidState extends State<ApplyAid> {
                 ],
               ),
             ),
-
           ],
         ),
       ),
@@ -168,6 +173,7 @@ class _ApplyAidState extends State<ApplyAid> {
     );
   }
 
+  // Define the forms here
   List<Widget> buildPersonalDetailsForm() {
     return [
       buildTextField("NRIC"),
@@ -199,6 +205,93 @@ class _ApplyAidState extends State<ApplyAid> {
       buildLongTextField("Justification of Application"),
     ];
   }
+
+  List<Widget> buildUploadDocumentsForm() {
+    return [
+      buildFileUploadField(
+        "Snapshot of NRIC/License/Passport", // Title outside the box
+        "Proof of identity",                 // Label inside the box
+        "Format: jpeg/jpg/pdf",              // Subtitle text inside the box
+      ),
+      SizedBox(height: 10),
+      buildFileUploadField(
+        "Proof of Address (e.g. Utility Bill)",
+        "Proof of address",
+        "Format: jpeg/jpg/pdf",
+      ),
+      SizedBox(height: 10),
+      buildFileUploadField(
+        "Proof of Income",
+        "Proof of income",
+        "Format: jpeg/jpg/pdf",
+      ),
+    ];
+  }
+
+
+  Widget buildFileUploadField(String title, String label, String subtitle) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title, // Title outside the box
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+        SizedBox(height: 8),
+        GestureDetector(
+          onTap: () {
+            // Implement file picker here
+          },
+          child: Container(
+            height: 90, // Maintain the original box height
+            width: double.infinity, // Maintain the original box width
+            decoration: BoxDecoration(
+              color: Color(0xFFFFCF40),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12), // Preserve original padding
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center, // Center items horizontally
+                children: [
+                  Image.asset(
+                    'assets/uploadAsnaf.png',
+                    height: 24, // Maintain icon size
+                  ),
+                  SizedBox(height: 6), // Space between icon and label
+                  Text(
+                    label, // Text inside the box (e.g., "Proof of identity")
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  SizedBox(height: 4), // Space between label and subtitle
+                  Text(
+                    subtitle, // Subtitle text inside the box
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontSize: 12, // Smaller font for the subtitle
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+
   Widget buildLongTextField(String label) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -220,7 +313,7 @@ class _ApplyAidState extends State<ApplyAid> {
           ),
           child: TextField(
             maxLines: null, // Allows multi-line input
-            expands: true,  // Makes the field expand to fill the container
+            expands: true, // Makes the field expand to fill the container
             textAlignVertical: TextAlignVertical.top, // Align text to the top
             decoration: InputDecoration(
               border: InputBorder.none,

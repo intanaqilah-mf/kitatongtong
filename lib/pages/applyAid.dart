@@ -232,62 +232,83 @@ class _ApplyAidState extends State<ApplyAid> {
   Widget buildFileUploadField(String title, String label, String subtitle) {
     String? uploadedFileName; // Variable to store the file name
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title, // Title outside the box
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
-        SizedBox(height: 8),
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Color(0xFFFFCF40), // Match your box design
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10), // Rounded corners
+    return StatefulBuilder(
+      builder: (BuildContext context, StateSetter setState) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title, // Title outside the box
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
             ),
-          ),
-          onPressed: () async {
-            try {
-              // Open file picker to select a file
-              FilePickerResult? result = await FilePicker.platform.pickFiles(
-                type: FileType.custom,
-                allowedExtensions: ['jpeg', 'jpg', 'pdf'], // Accepted file types
-              );
+            SizedBox(height: 8),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Color(0xFFFFCF40), // Match your box design
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10), // Rounded corners
+                ),
+              ),
+              onPressed: () async {
+                try {
+                  // Open file picker to select a file
+                  FilePickerResult? result = await FilePicker.platform.pickFiles(
+                    type: FileType.custom,
+                    allowedExtensions: ['jpeg', 'jpg', 'pdf'], // Accepted file types
+                  );
 
-              if (result != null) {
-                setState(() {
-                  uploadedFileName = result.files.single.name; // Store the selected file name
-                });
-              }
-            } catch (e) {
-              debugPrint("Error while picking file: $e");
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text("Failed to pick file. Please try again.")),
-              );
-            }
-          },
-          child: Container(
-            height: 90, // Maintain the original box height
-            width: double.infinity, // Match the original box width
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: uploadedFileName == null // If no file uploaded
-                  ? Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Image.asset(
-                    'assets/uploadAsnaf.png',
-                    height: 24, // Icon size
-                  ),
-                  SizedBox(height: 6), // Space between icon and label
-                  Text(
-                    label,
+                  if (result != null) {
+                    setState(() {
+                      uploadedFileName = result.files.single.name; // Store the selected file name
+                    });
+                  }
+                } catch (e) {
+                  debugPrint("Error while picking file: $e");
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("Failed to pick file. Please try again.")),
+                  );
+                }
+              },
+              child: Container(
+                height: 90, // Maintain the original box height
+                width: double.infinity, // Match the original box width
+                child: Center(
+                  child: uploadedFileName == null // If no file is uploaded
+                      ? Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Image.asset(
+                        'assets/uploadAsnaf.png',
+                        height: 24, // Icon size
+                      ),
+                      SizedBox(height: 6), // Space between icon and label
+                      Text(
+                        label,
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      SizedBox(height: 4), // Space between label and subtitle
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontSize: 12,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  )
+                      : Text(
+                    uploadedFileName!, // Display the file name
                     style: TextStyle(
                       color: Colors.black,
                       fontWeight: FontWeight.bold,
@@ -295,34 +316,15 @@ class _ApplyAidState extends State<ApplyAid> {
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  SizedBox(height: 4), // Space between label and subtitle
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      color: Colors.black,
-                      fontSize: 12,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              )
-                  : Center(
-                child: Text(
-                  uploadedFileName!, // Display the file name
-                  style: TextStyle(
-                    color: Colors.black,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                  textAlign: TextAlign.center,
                 ),
               ),
             ),
-          ),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
+
 
 
   Widget buildLongTextField(String label) {

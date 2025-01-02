@@ -43,13 +43,20 @@ class _ApplyAidState extends State<ApplyAid> {
                   children: [
                     GestureDetector(
                       onTap: () {
-                        Navigator.pop(context);
+                        if (currentStep > 1) {
+                          setState(() {
+                            currentStep--;
+                          });
+                        } else {
+                          Navigator.pop(context); // Exit the page if on the first step
+                        }
                       },
                       child: Icon(
                         Icons.arrow_back,
                         color: Colors.white,
                       ),
                     ),
+
                     Expanded(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16.0),

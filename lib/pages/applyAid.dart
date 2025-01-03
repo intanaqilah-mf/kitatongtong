@@ -11,7 +11,7 @@ class ApplyAid extends StatefulWidget {
 
 class _ApplyAidState extends State<ApplyAid> {
   int currentStep = 1; // Tracks the current step (e.g., 1/5)
-  final int totalSteps = 6; // Total number of steps
+  final int totalSteps = 5; // Total number of steps
   int _selectedIndex = 0; // For BottomNavBar selected index
 
   String? fileName1;

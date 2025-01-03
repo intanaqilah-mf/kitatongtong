@@ -8,6 +8,7 @@ class AsnafDashboard extends StatelessWidget {
       physics: NeverScrollableScrollPhysics(),
       crossAxisCount: 4,
       shrinkWrap: true,
+
       children: [
         for (int i = 1; i < 5; i++)
           Column(
@@ -36,7 +37,6 @@ class AsnafDashboard extends StatelessWidget {
                   ),
                 ),
               ),
-              SizedBox(height: 8),
               Container(
                 width: 85, // Limit the width of the text
                 child: Text(

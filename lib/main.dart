@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:projects/pages/HomePage.dart';
-import 'package:projects/widgets/bottomNavBar.dart';
+import 'package:firebase_core/firebase_core.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(); // Initialize Firebase
   runApp(MyApp());
 }
-
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {

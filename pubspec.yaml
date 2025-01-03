@@ -38,6 +38,8 @@ dependencies:
   flutter_pdfview: ^1.4.0
   syncfusion_flutter_pdfviewer: ^28.1.37
   path: ^1.9.0
+  firebase_core: ^3.9.0
+  cloud_firestore: ^5.6.0
 
 dev_dependencies:
   flutter_test:

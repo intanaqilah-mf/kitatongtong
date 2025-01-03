@@ -23,7 +23,6 @@ class _HomePageState extends State<HomePage> {
   static List<Widget> _widgetOptions = <Widget>[
     ListView(
       children: [
-        // Add HomePage-specific widgets here
         Container(
           padding: EdgeInsets.only(top: 15),
           child: Column(
@@ -38,18 +37,20 @@ class _HomePageState extends State<HomePage> {
                 ),
                 child: Row(
                   children: [
-                    Container(
-                      margin: EdgeInsets.only(left: 5),
-                      height: 50,
-                      width: 300,
-                      child: TextFormField(
-                        decoration: InputDecoration(
-                          border: InputBorder.none,
-                          hintText: "Search here...",
+                    // Wrapping TextFormField in Expanded
+                    Expanded(
+                      child: Container(
+                        //margin: EdgeInsets.only(left: 5),
+                        height: 50,
+                        child: TextFormField(
+                          decoration: InputDecoration(
+                            border: InputBorder.none,
+                            hintText: "Search here...",
+                          ),
                         ),
                       ),
                     ),
-                    Spacer(),
+                    // Search Icon
                     ShaderMask(
                       shaderCallback: (Rect bounds) {
                         return LinearGradient(

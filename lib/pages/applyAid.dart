@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
 import 'package:file_picker/file_picker.dart';
 import '../pages/PDFViewerScreen.dart';
+import 'package:path/path.dart' as path;
 
 class ApplyAid extends StatefulWidget {
   @override
@@ -277,36 +278,36 @@ class _ApplyAidState extends State<ApplyAid> {
 
         // File display box
         GestureDetector(
-        onTap: () async {
-        if (fileName == null) {
-        // Allow new file upload if no file exists
-        FilePickerResult? result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['jpeg', 'jpg', 'pdf'],
-        );
+          onTap: () async {
+            if (fileName == null) {
+              // Allow new file upload if no file exists
+              FilePickerResult? result = await FilePicker.platform.pickFiles(
+                type: FileType.custom,
+                allowedExtensions: ['jpeg', 'jpg', 'pdf'],
+              );
 
-        if (result != null) {
-        setState(() {
-        // Assign the uploaded file path
-        if (title.contains("NRIC")) fileName1 = result.files.single.path!;
-        if (title.contains("Address")) fileName2 = result.files.single.path!;
-        if (title.contains("Income")) fileName3 = result.files.single.path!;
-        });
-        }
-        } else {
-        // If file exists
-        if (fileName.endsWith('.pdf')) {
-        print("Opening file: $fileName"); // Print full file path
-        Navigator.push(
-        context,
-        MaterialPageRoute(
-        builder: (context) => PDFViewerScreen(filePath: fileName),
-        ),
-        );
-        }
-        }
-        },
-        child: Container(
+              if (result != null) {
+                setState(() {
+                  // Assign the uploaded file path
+                  if (title.contains("NRIC")) fileName1 = result.files.single.path!;
+                  if (title.contains("Address")) fileName2 = result.files.single.path!;
+                  if (title.contains("Income")) fileName3 = result.files.single.path!;
+                });
+              }
+            } else {
+              // If file exists, view the file
+              if (fileName.endsWith('.pdf')) {
+                print("Opening file: $fileName"); // Print full file path
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => PDFViewerScreen(filePath: fileName),
+                  ),
+                );
+              }
+            }
+          },
+          child: Container(
             decoration: BoxDecoration(
               color: Color(0xFFFFCF40),
               borderRadius: BorderRadius.circular(10),
@@ -320,7 +321,9 @@ class _ApplyAidState extends State<ApplyAid> {
                     Image.asset('assets/docAsnaf.png', height: 24), // Document icon
                     SizedBox(width: 10),
                     Text(
-                      fileName ?? "No file uploaded", // Display file name
+                      fileName != null
+                          ? path.basename(fileName) // Extract and display only the file name
+                          : "No file uploaded",
                       style: TextStyle(
                         color: Colors.black,
                         fontWeight: FontWeight.bold,

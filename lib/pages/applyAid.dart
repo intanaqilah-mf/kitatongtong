@@ -316,21 +316,29 @@ class _ApplyAidState extends State<ApplyAid> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    Image.asset('assets/docAsnaf.png', height: 24), // Document icon
-                    SizedBox(width: 10),
-                    Text(
-                      fileName != null
-                          ? path.basename(fileName) // Extract and display only the file name
-                          : "No file uploaded",
-                      style: TextStyle(
-                        color: Colors.black,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
+                Expanded(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Image.asset('assets/docAsnaf.png', height: 24), // Document icon
+                      SizedBox(width: 10), // Space between icon and text
+                      Expanded(
+                        child: Text(
+                          fileName != null
+                              ? path.basename(fileName) // Extract and display only the file name
+                              : "No file uploaded",
+                          style: TextStyle(
+                            color: Colors.black,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                          maxLines: 2, // Allow wrapping to 2 lines
+                          overflow: TextOverflow.ellipsis, // Truncate text if it exceeds 2 lines
+                          softWrap: true,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
                 IconButton(
                   icon: Image.asset('assets/trash.png', height: 24), // Trash icon asset
@@ -347,6 +355,8 @@ class _ApplyAidState extends State<ApplyAid> {
             ),
           ),
         ),
+
+
       ],
     );
   }

@@ -3,6 +3,8 @@ import 'package:projects/widgets/bottomNavBar.dart';
 import 'package:file_picker/file_picker.dart';
 import '../pages/PDFViewerScreen.dart';
 import 'package:path/path.dart' as path;
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 class ApplyAid extends StatefulWidget {
   @override
@@ -12,7 +14,28 @@ class ApplyAid extends StatefulWidget {
 class _ApplyAidState extends State<ApplyAid> {
   int currentStep = 1; // Tracks the current step (e.g., 1/5)
   final int totalSteps = 5; // Total number of steps
-  int _selectedIndex = 0; // For BottomNavBar selected index
+  int _selectedIndex = 0;
+  TextEditingController nricController = TextEditingController();
+  TextEditingController fullnameController = TextEditingController();
+  TextEditingController emailController = TextEditingController();
+  TextEditingController mobileNumberController = TextEditingController();
+  TextEditingController add1Controller = TextEditingController();
+  TextEditingController add2Controller = TextEditingController();
+  TextEditingController cityController = TextEditingController();
+  TextEditingController postcodeController = TextEditingController();
+  TextEditingController residencyController = TextEditingController();
+  TextEditingController employmentController = TextEditingController();
+  TextEditingController incomeController = TextEditingController();
+  TextEditingController justificationController = TextEditingController();
+
+
+  final Map<String, dynamic> formData = {};
+
+  void updateFormData(String key, dynamic value) {
+    setState(() {
+      formData[key] = value;
+    });
+  }
 
   String? fileName1;
   String? fileName2;
@@ -24,9 +47,36 @@ class _ApplyAidState extends State<ApplyAid> {
     });
   }
 
+  void uploadToFirebase(Map<String, dynamic> data) async {
+    try {
+      // Add your Firebase collection name, e.g., "applications"
+      await FirebaseFirestore.instance.collection("applications").add(data);
+
+      // Notify user of successful upload
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Application submitted successfully!")),
+      );
+
+      // Optionally reset the form
+      setState(() {
+        formData.clear();
+        fileName1 = null;
+        fileName2 = null;
+        fileName3 = null;
+      });
+    } catch (e) {
+      // Handle errors
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text("Failed to submit application. Please try again.")),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    double progressValue = currentStep / totalSteps; // Calculate progress percentage
+    double progressValue = currentStep /
+        totalSteps; // Calculate progress percentage
 
     return Scaffold(
       appBar: PreferredSize(
@@ -50,7 +100,8 @@ class _ApplyAidState extends State<ApplyAid> {
                             currentStep--;
                           });
                         } else {
-                          Navigator.pop(context); // Exit the page if on the first step
+                          Navigator.pop(
+                              context); // Exit the page if on the first step
                         }
                       },
                       child: Icon(
@@ -74,8 +125,12 @@ class _ApplyAidState extends State<ApplyAid> {
                             AnimatedContainer(
                               duration: Duration(milliseconds: 300),
                               curve: Curves.easeInOut,
-                              width: MediaQuery.of(context).size.width * 0.74 * progressValue,
-                              height: 23, // Same height as background
+                              width: MediaQuery
+                                  .of(context)
+                                  .size
+                                  .width * 0.74 * progressValue,
+                              height: 23,
+                              // Same height as background
                               decoration: BoxDecoration(
                                 color: Colors.green,
                                 borderRadius: BorderRadius.circular(10),
@@ -100,7 +155,8 @@ class _ApplyAidState extends State<ApplyAid> {
         ),
       ),
       body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0), // Add horizontal padding to the entire form
+        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        // Add horizontal padding to the entire form
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -163,7 +219,8 @@ class _ApplyAidState extends State<ApplyAid> {
             ),
             Center(
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.end, // Push the content upwards from the bottom
+                mainAxisAlignment: MainAxisAlignment.end,
+                // Push the content upwards from the bottom
                 children: [
                   Divider(
                     color: Colors.white,
@@ -171,10 +228,12 @@ class _ApplyAidState extends State<ApplyAid> {
                   ),
                   SizedBox(height: 2), // Space between divider and button
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 20.0), // Add space from the bottom
+                    padding: const EdgeInsets.only(bottom: 20.0),
+                    // Add space from the bottom
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Color(0xFFFFCF40), // Button background color
+                        backgroundColor: Color(0xFFFFCF40),
+                        // Button background color
                         foregroundColor: Colors.black, // Text color
                       ),
                       onPressed: () {
@@ -184,7 +243,8 @@ class _ApplyAidState extends State<ApplyAid> {
                           });
                         }
                       },
-                      child: Text(currentStep == totalSteps ? "Submit" : "Next"),
+                      child: Text(
+                          currentStep == totalSteps ? "Submit" : "Next"),
                     ),
                   ),
                 ],
@@ -203,33 +263,37 @@ class _ApplyAidState extends State<ApplyAid> {
   // Define the forms here
   List<Widget> buildPersonalDetailsForm() {
     return [
-      buildTextField("NRIC"),
+      buildTextField("NRIC", "nric", nricController),
       SizedBox(height: 10),
-      buildTextField("Full Name"),
+      buildTextField("Full Name", "fullname", fullnameController),
       SizedBox(height: 10),
-      buildTextField("Email"),
+      buildTextField("Email", "email", emailController),
       SizedBox(height: 10),
-      buildMobileNumberField(),
+      buildMobileNumberField("mobileNumber", mobileNumberController),
       SizedBox(height: 10),
-      buildTextField("Address Line 1"),
+      buildTextField("Address Line 1", "addressLine1", add1Controller),
       SizedBox(height: 10),
-      buildTextField("Address Line 2"),
+      buildTextField("Address Line 2", "addressLine2", add2Controller),
       SizedBox(height: 10),
-      buildTextField("City"),
+      buildTextField("City", "city", cityController),
       SizedBox(height: 10),
-      buildTextField("Postcode"),
+      buildTextField("Postcode", "postcode", postcodeController),
     ];
   }
 
   List<Widget> buildEligibilityForm() {
     return [
-      buildTextField("Residency Status"),
+      buildTextField(
+          "Residency Status", "residencyStatus", residencyController),
       SizedBox(height: 10),
-      buildTextField("Employment Status"),
+      buildTextField(
+          "Employment Status", "employmentStatus", employmentController),
       SizedBox(height: 10),
-      buildTextField("Monthly Income"),
+      buildTextField("Monthly Income", "monthlyIncome", incomeController),
       SizedBox(height: 10),
-      buildLongTextField("Justification of Application"),
+      buildLongTextField(
+          "Justification of Application", "justificationApplication",
+          justificationController),
     ];
   }
 
@@ -237,8 +301,9 @@ class _ApplyAidState extends State<ApplyAid> {
     return [
       buildFileUploadField(
         "Snapshot of NRIC/License/Passport", // Title outside the box
-        "Proof of identity",                 // Label inside the box
+        "Proof of identity", // Label inside the box
         "Format: jpeg/jpg/pdf",
+        "nricSnapshot",
         1,
       ),
       SizedBox(height: 10),
@@ -246,6 +311,7 @@ class _ApplyAidState extends State<ApplyAid> {
         "Proof of Address (e.g. Utility Bill)",
         "Proof of address",
         "Format: jpeg/jpg/pdf",
+        "proofOfAddress",
         2,
       ),
       SizedBox(height: 10),
@@ -253,6 +319,7 @@ class _ApplyAidState extends State<ApplyAid> {
         "Proof of Income",
         "Proof of income",
         "Format: jpeg/jpg/pdf",
+        "proofOfIncome",
         3,
       ),
     ];
@@ -268,6 +335,15 @@ class _ApplyAidState extends State<ApplyAid> {
     ];
   }
 
+  void consolidateAndUploadData() {
+    formData["nricSnapshot"] = fileName1 ?? "No file uploaded";
+    formData["proofOfAddress"] = fileName2 ?? "No file uploaded";
+    formData["proofOfIncome"] = fileName3 ?? "No file uploaded";
+
+    // Call a method to upload this data to Firebase
+    uploadToFirebase(formData);
+  }
+
   List<Widget> buildAgreementPage() {
     final ScrollController scrollController = ScrollController();
 
@@ -275,9 +351,12 @@ class _ApplyAidState extends State<ApplyAid> {
       SizedBox(height: 16),
       Scrollbar(
         controller: scrollController,
-        thumbVisibility: true, // Show the scrollbar thumb
-        thickness: 6, // Thickness of the scrollbar
-        radius: Radius.circular(10), // Rounded corners for scrollbar
+        thumbVisibility: true,
+        // Show the scrollbar thumb
+        thickness: 6,
+        // Thickness of the scrollbar
+        radius: Radius.circular(10),
+        // Rounded corners for scrollbar
         interactive: true,
         scrollbarOrientation: ScrollbarOrientation.right,
         child: SingleChildScrollView(
@@ -410,9 +489,12 @@ Failure to provide requested information within the specified timeline may resul
               if (result != null) {
                 setState(() {
                   // Assign the uploaded file path
-                  if (title.contains("NRIC")) fileName1 = result.files.single.path!;
-                  if (title.contains("Address")) fileName2 = result.files.single.path!;
-                  if (title.contains("Income")) fileName3 = result.files.single.path!;
+                  if (title.contains("NRIC"))
+                    fileName1 = result.files.single.path!;
+                  if (title.contains("Address"))
+                    fileName2 = result.files.single.path!;
+                  if (title.contains("Income"))
+                    fileName3 = result.files.single.path!;
                 });
               }
             } else {
@@ -441,20 +523,25 @@ Failure to provide requested information within the specified timeline may resul
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Image.asset('assets/docAsnaf.png', height: 24), // Document icon
-                      SizedBox(width: 10), // Space between icon and text
+                      Image.asset('assets/docAsnaf.png', height: 24),
+                      // Document icon
+                      SizedBox(width: 10),
+                      // Space between icon and text
                       Expanded(
                         child: Text(
                           fileName != null
-                              ? path.basename(fileName) // Extract and display only the file name
+                              ? path.basename(
+                              fileName) // Extract and display only the file name
                               : "No file uploaded",
                           style: TextStyle(
                             color: Colors.black,
                             fontWeight: FontWeight.bold,
                             fontSize: 14,
                           ),
-                          maxLines: 2, // Allow wrapping to 2 lines
-                          overflow: TextOverflow.ellipsis, // Truncate text if it exceeds 2 lines
+                          maxLines: 2,
+                          // Allow wrapping to 2 lines
+                          overflow: TextOverflow.ellipsis,
+                          // Truncate text if it exceeds 2 lines
                           softWrap: true,
                         ),
                       ),
@@ -462,7 +549,8 @@ Failure to provide requested information within the specified timeline may resul
                   ),
                 ),
                 IconButton(
-                  icon: Image.asset('assets/trash.png', height: 24), // Trash icon asset
+                  icon: Image.asset('assets/trash.png', height: 24),
+                  // Trash icon asset
                   onPressed: () {
                     setState(() {
                       // Clear the file name based on the title
@@ -480,7 +568,8 @@ Failure to provide requested information within the specified timeline may resul
     );
   }
 
-  Widget buildFileUploadField(String title, String label, String subtitle, int index) {
+  Widget buildFileUploadField(String title, String label, String subtitle,
+      String key, int index) {
     String? uploadedFileName; // Variable to store the file name
 
     return StatefulBuilder(
@@ -507,23 +596,31 @@ Failure to provide requested information within the specified timeline may resul
               onPressed: () async {
                 try {
                   // Open file picker to select a file
-                  FilePickerResult? result = await FilePicker.platform.pickFiles(
+                  FilePickerResult? result = await FilePicker.platform
+                      .pickFiles(
                     type: FileType.custom,
-                    allowedExtensions: ['jpeg', 'jpg', 'pdf'], // Accepted file types
+                    allowedExtensions: [
+                      'jpeg',
+                      'jpg',
+                      'pdf'
+                    ], // Accepted file types
                   );
 
                   if (result != null) {
                     setState(() {
-                      uploadedFileName = result.files.single.name; // Store the selected file name
+                      uploadedFileName = result.files.single
+                          .name; // Store the selected file name
                       if (index == 1) fileName1 = uploadedFileName;
                       if (index == 2) fileName2 = uploadedFileName;
                       if (index == 3) fileName3 = uploadedFileName;
+                      formData[key] = uploadedFileName;
                     });
                   }
                 } catch (e) {
                   debugPrint("Error while picking file: $e");
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text("Failed to pick file. Please try again.")),
+                    SnackBar(content: Text(
+                        "Failed to pick file. Please try again.")),
                   );
                 }
               },
@@ -580,8 +677,8 @@ Failure to provide requested information within the specified timeline may resul
   }
 
 
-
-  Widget buildLongTextField(String label) {
+  Widget buildLongTextField(String label, String key,
+      TextEditingController controller) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -601,12 +698,22 @@ Failure to provide requested information within the specified timeline may resul
             borderRadius: BorderRadius.circular(10),
           ),
           child: TextField(
-            maxLines: null, // Allows multi-line input
-            expands: true, // Makes the field expand to fill the container
-            textAlignVertical: TextAlignVertical.top, // Align text to the top
+            controller: controller,
+            // Use the passed controller
+            onChanged: (value) {
+              setState(() {
+                formData[key] = value; // Save value in formData
+              });
+            },
+            maxLines: null,
+            // Allows multi-line input
+            expands: true,
+            // Makes the field expand to fill the container
+            textAlignVertical: TextAlignVertical.top,
+            // Align text to the top
             decoration: InputDecoration(
               border: InputBorder.none,
-              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              contentPadding: EdgeInsets.all(8),
             ),
           ),
         ),
@@ -614,7 +721,9 @@ Failure to provide requested information within the specified timeline may resul
     );
   }
 
-  Widget buildTextField(String label) {
+
+  Widget buildTextField(String label, String key,
+      TextEditingController controller) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -634,9 +743,15 @@ Failure to provide requested information within the specified timeline may resul
             borderRadius: BorderRadius.circular(10),
           ),
           child: TextField(
+            controller: controller,
+            onChanged: (value) {
+              setState(() {
+                formData[key] = value; // Save value in applicationData
+              });
+            },
             decoration: InputDecoration(
               border: InputBorder.none,
-              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              contentPadding: EdgeInsets.symmetric(vertical: 12, horizontal: 12),
             ),
           ),
         ),
@@ -644,7 +759,7 @@ Failure to provide requested information within the specified timeline may resul
     );
   }
 
-  Widget buildMobileNumberField() {
+  Widget buildMobileNumberField(String key, TextEditingController controller) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -679,9 +794,17 @@ Failure to provide requested information within the specified timeline may resul
               VerticalDivider(color: Colors.black, thickness: 1),
               Expanded(
                 child: TextField(
+                  controller: controller, // Use the passed controller
+                  onChanged: (value) {
+                    setState(() {
+                      formData[key] = value; // Save input to formData
+                    });
+                  },
+                  keyboardType: TextInputType.phone,
                   decoration: InputDecoration(
                     border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    contentPadding: EdgeInsets.all(8),
+                    hintText: "Enter your mobile number",
                   ),
                 ),
               ),
@@ -692,3 +815,4 @@ Failure to provide requested information within the specified timeline may resul
     );
   }
 }
+

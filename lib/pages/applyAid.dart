@@ -241,6 +241,8 @@ class _ApplyAidState extends State<ApplyAid> {
                           setState(() {
                             currentStep++;
                           });
+                        } else if (currentStep == totalSteps) {
+                          consolidateAndUploadData(); // Upload the data to Firebase
                         }
                       },
                       child: Text(

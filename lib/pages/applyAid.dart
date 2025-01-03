@@ -11,7 +11,7 @@ class ApplyAid extends StatefulWidget {
 
 class _ApplyAidState extends State<ApplyAid> {
   int currentStep = 1; // Tracks the current step (e.g., 1/5)
-  final int totalSteps = 5; // Total number of steps
+  final int totalSteps = 6; // Total number of steps
   int _selectedIndex = 0; // For BottomNavBar selected index
 
   String? fileName1;
@@ -115,7 +115,9 @@ class _ApplyAidState extends State<ApplyAid> {
                         ? "Check your eligibility"
                         : currentStep == 3
                         ? "Upload required documents"
-                        : "Upload required Documents",
+                        : currentStep == 4
+                        ? "Upload required Documents"
+                        : "Kita Tongtong Agreement",
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -131,7 +133,10 @@ class _ApplyAidState extends State<ApplyAid> {
                         ? "Answer a few simple questions to see if you meet our eligibility criteria"
                         : currentStep == 3
                         ? "We need to verify your identity and financial status. Please upload the required documents"
-                        : "We need to verify your identity and financial status. Please upload the required documents",
+                        : currentStep == 4
+                        ? "We need to verify your identity and financial status. Please upload the required documents"
+                        : "By submitting your application for financial aid through the Kita Tongtong platform, you acknowledge and agree to the following Terms and Conditions."
+                        " Please read these terms carefully before proceeding.",
                     style: TextStyle(
                       fontSize: 14,
                       color: Colors.yellow[200],
@@ -151,7 +156,9 @@ class _ApplyAidState extends State<ApplyAid> {
                     ? buildEligibilityForm()
                     : currentStep == 3
                     ? buildUploadDocumentsForm()
-                    : buildFourthPage(),
+                    : currentStep == 4
+                    ? buildFourthPage()
+                    : buildAgreementPage(),
               ),
             ),
             Center(
@@ -261,6 +268,120 @@ class _ApplyAidState extends State<ApplyAid> {
     ];
   }
 
+  List<Widget> buildAgreementPage() {
+    final ScrollController scrollController = ScrollController();
+
+    return [
+      SizedBox(height: 16),
+      Scrollbar(
+        controller: scrollController,
+        thumbVisibility: true, // Show the scrollbar thumb
+        thickness: 6, // Thickness of the scrollbar
+        radius: Radius.circular(10), // Rounded corners for scrollbar
+        interactive: true,
+        scrollbarOrientation: ScrollbarOrientation.right,
+        child: SingleChildScrollView(
+          controller: scrollController,
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Point 1
+                Text(
+                  "1. Eligibility and Accuracy of Information",
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFFFFCF40), // Color for the point
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  '''
+You confirm that all information provided in this application is true, complete, and accurate to the best of your knowledge.
+You understand that providing false or misleading information may result in the rejection of your application and may impact your eligibility for future assistance.''',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Color(0xFFD9D9D9), // Color for the explanation
+                    height: 1.5,
+                  ),
+                ),
+                SizedBox(height: 10),
+
+                // Point 2
+                Text(
+                  "2. Use of Financial Aid",
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFFFFCF40), // Color for the point
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  '''
+Financial aid provided through Kita Tongtong is intended solely for the purposes specified in the application, such as tuition fees, hostel fees, and other approved living expenses.
+You agree to use any funds or vouchers received only as directed and for approved expenses within the platform’s guidelines.''',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Color(0xFFD9D9D9), // Color for the explanation
+                    height: 1.5,
+                  ),
+                ),
+                SizedBox(height: 10),
+
+                // Point 3
+                Text(
+                  "3. Privacy and Data Usage",
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFFFFCF40), // Color for the point
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  '''
+By submitting this application, you consent to the collection, processing, and storage of your personal information as outlined in our Privacy Policy.
+Your information will be used only to assess your eligibility for aid, manage fund disbursement, and ensure compliance with platform policies.''',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Color(0xFFD9D9D9), // Color for the explanation
+                    height: 1.5,
+                  ),
+                ),
+                SizedBox(height: 10),
+
+                // Point 4
+                Text(
+                  "4. Review and Verification Process",
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFFFFCF40), // Color for the point
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  '''
+You acknowledge that Kita Tongtong may verify the information provided, which may include contacting relevant parties (such as universities, administrators) to validate your application.
+Failure to provide requested information within the specified timeline may result in application delays or denial.''',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Color(0xFFD9D9D9), // Color for the explanation
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ];
+  }
+
+
   Widget buildFileDisplayField(String title, String? fileName) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -355,8 +476,6 @@ class _ApplyAidState extends State<ApplyAid> {
             ),
           ),
         ),
-
-
       ],
     );
   }

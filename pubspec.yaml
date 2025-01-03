@@ -36,6 +36,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   file_picker: ^8.1.7
   flutter_pdfview: ^1.4.0
+  syncfusion_flutter_pdfviewer: ^28.1.37
 
 dev_dependencies:
   flutter_test:

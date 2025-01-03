@@ -287,41 +287,25 @@ class _ApplyAidState extends State<ApplyAid> {
 
         if (result != null) {
         setState(() {
-        // Assign the uploaded file name based on the title
-        if (title.contains("NRIC")) fileName1 = result.files.single.name;
-        if (title.contains("Address")) fileName2 = result.files.single.name;
-        if (title.contains("Income")) fileName3 = result.files.single.name;
+        // Assign the uploaded file path
+        if (title.contains("NRIC")) fileName1 = result.files.single.path!;
+        if (title.contains("Address")) fileName2 = result.files.single.path!;
+        if (title.contains("Income")) fileName3 = result.files.single.path!;
         });
         }
         } else {
         // If file exists
         if (fileName.endsWith('.pdf')) {
-        // Navigate to the PDF viewer screen if it's a PDF file
+        print("Opening file: $fileName"); // Print full file path
         Navigator.push(
         context,
         MaterialPageRoute(
         builder: (context) => PDFViewerScreen(filePath: fileName),
         ),
         );
-        } else {
-        // Show dialog for non-PDF files
-        showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-        title: Text("View File"),
-        content: Text("File Name: $fileName"),
-        actions: [
-        TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: Text("Close"),
-        ),
-        ],
-        ),
-        );
         }
         }
         },
-
         child: Container(
             decoration: BoxDecoration(
               color: Color(0xFFFFCF40),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../widgets/bottomNavBar.dart';
+import '../pages/loginPage.dart';
 
 class ProfilePage extends StatelessWidget {
   @override
@@ -73,7 +74,10 @@ class ProfilePage extends StatelessWidget {
                 padding: EdgeInsets.symmetric(horizontal: 80, vertical: 12),
               ),
               onPressed: () {
-                // Add logic for login if necessary
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => LoginPage()), // Navigate to the LoginPage
+                );
               },
               child: Text(
                 "Login",

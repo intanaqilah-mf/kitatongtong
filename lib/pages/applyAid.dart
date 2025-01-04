@@ -5,6 +5,8 @@ import '../pages/PDFViewerScreen.dart';
 import 'package:path/path.dart' as path;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
+import '../pages/applicationReviewScreen.dart';
+
 
 class ApplyAid extends StatefulWidget {
   @override
@@ -51,6 +53,10 @@ class _ApplyAidState extends State<ApplyAid> {
     try {
       // Add your Firebase collection name, e.g., "applications"
       await FirebaseFirestore.instance.collection("applications").add(data);
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => ApplicationReviewScreen()),
+      );
 
       // Notify user of successful upload
       ScaffoldMessenger.of(context).showSnackBar(

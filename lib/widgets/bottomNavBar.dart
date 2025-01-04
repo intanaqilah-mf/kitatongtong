@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:projects/pages/HomePage.dart';
+import 'package:projects/pages/ProfilePage.dart'; // Import your Profile page
 
 class BottomNavBar extends StatelessWidget {
   final int selectedIndex; // Selected index passed from the parent
@@ -17,7 +18,23 @@ class BottomNavBar extends StatelessWidget {
       selectedItemColor: Colors.yellow,
       unselectedItemColor: Colors.grey,
       currentIndex: selectedIndex,
-      onTap: onItemTapped,
+      onTap: (int index) {
+        if (index == 0) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => HomePage(), // Navigate to HomePage
+            ),
+          );
+        } else if (index == 4) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ProfilePage(), // Navigate to ProfilePage
+            ),
+          );
+        }
+      },
       type: BottomNavigationBarType.fixed,
       items: <BottomNavigationBarItem>[
         BottomNavigationBarItem(

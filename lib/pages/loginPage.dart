@@ -105,28 +105,28 @@ class LoginPage extends StatelessWidget {
                               fontWeight: FontWeight.w300, // Optional: Make the text bold
                             ),
                           ),
-                            onPressed: () async {
-                              try {
-                                final userCredential = await signInWithGoogle();
-                                if (userCredential != null) {
-                                  Navigator.pushReplacement(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => ProfilePage(user: userCredential.user), // Pass the user object
-                                    ),
-                                  );
-                                } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text("Google sign-in canceled.")),
-                                  );
-                                }
-                              } catch (e) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text("Google sign-in failed: $e")),
+                          onPressed: () async {
+                            try {
+                              final userCredential = await signInWithGoogle();
+                              if (userCredential != null) {
+                                Navigator.pushReplacement(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => ProfilePage(user: userCredential.user), // Pass the user object
+                                  ),
                                 );
-                                print("Sign-in error: $e"); // Debugging
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text("Google sign-in canceled.")),
+                                );
                               }
-                            },
+                            } catch (e) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text("Google sign-in failed: $e")),
+                              );
+                              print("Sign-in error: $e");
+                            }
+                          },
 
                         ),
                         SizedBox(height: 16),

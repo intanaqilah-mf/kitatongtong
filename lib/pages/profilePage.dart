@@ -1,12 +1,38 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // Add this import
+import 'package:firebase_auth/firebase_auth.dart';
 import '../widgets/bottomNavBar.dart';
 import '../pages/loginPage.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
-class ProfilePage extends StatelessWidget {
-  final User? user; // Accept the user object
+class ProfilePage extends StatefulWidget {
+  final User? user;
 
   ProfilePage({this.user});
+
+  @override
+  _ProfilePageState createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<ProfilePage> {
+  User? currentUser;
+
+  @override
+  void initState() {
+    super.initState();
+    // Retrieve the current user
+    currentUser = widget.user ?? FirebaseAuth.instance.currentUser;
+  }
+  Future<void> clearAuthCache() async {
+    // Sign out from FirebaseAuth
+    await FirebaseAuth.instance.signOut();
+
+    // Clear Google Sign-In cache
+    GoogleSignIn googleSignIn = GoogleSignIn();
+    if (await googleSignIn.isSignedIn()) {
+      await googleSignIn.disconnect(); // Disconnect account from the app
+    }
+    await googleSignIn.signOut();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -20,8 +46,8 @@ class ProfilePage extends StatelessWidget {
                 // Profile Picture
                 CircleAvatar(
                   radius: 50,
-                  backgroundImage: user?.photoURL != null
-                      ? NetworkImage(user!.photoURL!)
+                  backgroundImage: currentUser?.photoURL != null
+                      ? NetworkImage(currentUser!.photoURL!)
                       : AssetImage('assets/profileNotLogin.png') as ImageProvider,
                 ),
                 SizedBox(height: 20),
@@ -30,7 +56,7 @@ class ProfilePage extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      user?.displayName ?? "Set your name",
+                      currentUser?.displayName ?? "Set your name",
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -56,8 +82,8 @@ class ProfilePage extends StatelessWidget {
                   child: Column(
                     children: [
                       buildProfileRow('assets/profileicon1.png', 'Change profile photo'),
-                      buildProfileRow('assets/profileicon2.png', user?.displayName ?? 'Set username'),
-                      buildProfileRow('assets/profileicon3.png', user?.phoneNumber ?? 'Set mobile number'),
+                      buildProfileRow('assets/profileicon2.png', currentUser?.displayName ?? 'Set username'),
+                      buildProfileRow('assets/profileicon3.png', currentUser?.phoneNumber ?? 'Set mobile number'),
                       buildProfileRow('assets/profileicon4.png', 'Set NRIC'),
                       buildProfileRow('assets/profileicon5.png', 'Set home address'),
                       buildProfileRow('assets/profileicon6.png', 'Set city'),
@@ -69,38 +95,49 @@ class ProfilePage extends StatelessWidget {
             ),
           ),
           Spacer(),
-          if (user == null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 20.0),
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFFFFCF40),
-                  foregroundColor: Colors.black,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  padding: EdgeInsets.symmetric(horizontal: 80, vertical: 12),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 20.0),
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: currentUser != null ? Colors.red : Color(0xFFFFCF40),
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                onPressed: () {
-                  Navigator.push(
+                padding: EdgeInsets.symmetric(horizontal: 80, vertical: 12),
+              ),
+              onPressed: () async {
+                if (currentUser != null) {
+                  // Logout from FirebaseAuth and GoogleSignIn
+                  await GoogleSignIn().signOut(); // Sign out from Google account
+                  await FirebaseAuth.instance.signOut(); // Sign out from Firebase
+
+                  // Redirect to LoginPage
+                  Navigator.pushReplacement(
                     context,
-                    MaterialPageRoute(builder: (context) => LoginPage()), // Navigate to the LoginPage
+                    MaterialPageRoute(builder: (context) => LoginPage()),
                   );
-                },
-                child: Text(
-                  "Login",
-                  style: TextStyle(fontSize: 16),
-                ),
+                } else {
+                  // Navigate to LoginPage if not logged in
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (context) => LoginPage()),
+                  );
+                }
+              },
+              child: Text(
+                currentUser != null ? "Logout" : "Login",
+                style: TextStyle(fontSize: 16),
               ),
             ),
+          ),
         ],
       ),
       bottomNavigationBar: BottomNavBar(
         selectedIndex: 4,
         onItemTapped: (int index) {
           if (index != 4) {
-            // Navigate to other pages
-            Navigator.pushNamed(context, '/home');
+            Navigator.pushNamed(context, '/home'); // Navigate to other pages
           }
         },
       ),

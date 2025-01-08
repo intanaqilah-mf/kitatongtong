@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:projects/pages/HomePage.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../pages/loginPage.dart';
+import '../pages/profilePage.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(); // Initialize Firebase
   runApp(MyApp());
 }
+
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -15,38 +18,21 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         scaffoldBackgroundColor: Color(0xFF303030), // Background color for the app
       ),
-      home: MainScreen(),
+      home: AuthWrapper(), // Use an authentication wrapper
     );
   }
 }
 
-class MainScreen extends StatefulWidget {
-  @override
-  _MainScreenState createState() => _MainScreenState();
-}
-
-class _MainScreenState extends State<MainScreen> {
-  int _selectedIndex = 0;
-
-  // List of widgets for each tab
-  static List<Widget> _widgetOptions = <Widget>[
-    HomePage(),
-    Center(child: Text('Search Page')),
-    Center(child: Text('Notifications Page')),
-    Center(child: Text('Profile Page')),
-    Center(child: Text('Settings Page')),
-  ];
-
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-  }
-
+class AuthWrapper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: _widgetOptions.elementAt(_selectedIndex),
-    );
+    final User? user = FirebaseAuth.instance.currentUser;
+
+    // Check if user is logged in
+    if (user != null) {
+      return ProfilePage(user: user); // Redirect to ProfilePage with the user object
+    } else {
+      return LoginPage(); // Redirect to LoginPage if not logged in
+    }
   }
 }

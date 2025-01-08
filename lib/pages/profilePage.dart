@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // Add this import
 import '../widgets/bottomNavBar.dart';
 import '../pages/loginPage.dart';
 
 class ProfilePage extends StatelessWidget {
+  final User? user; // Accept the user object
+
+  ProfilePage({this.user});
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -15,7 +20,9 @@ class ProfilePage extends StatelessWidget {
                 // Profile Picture
                 CircleAvatar(
                   radius: 50,
-                  backgroundImage: AssetImage('assets/profileNotLogin.png'),
+                  backgroundImage: user?.photoURL != null
+                      ? NetworkImage(user!.photoURL!)
+                      : AssetImage('assets/profileNotLogin.png') as ImageProvider,
                 ),
                 SizedBox(height: 20),
                 // Name Section
@@ -23,7 +30,7 @@ class ProfilePage extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      "Set your name",
+                      user?.displayName ?? "Set your name",
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -49,8 +56,8 @@ class ProfilePage extends StatelessWidget {
                   child: Column(
                     children: [
                       buildProfileRow('assets/profileicon1.png', 'Change profile photo'),
-                      buildProfileRow('assets/profileicon2.png', 'Set username'),
-                      buildProfileRow('assets/profileicon3.png', 'Set mobile number'),
+                      buildProfileRow('assets/profileicon2.png', user?.displayName ?? 'Set username'),
+                      buildProfileRow('assets/profileicon3.png', user?.phoneNumber ?? 'Set mobile number'),
                       buildProfileRow('assets/profileicon4.png', 'Set NRIC'),
                       buildProfileRow('assets/profileicon5.png', 'Set home address'),
                       buildProfileRow('assets/profileicon6.png', 'Set city'),
@@ -62,29 +69,30 @@ class ProfilePage extends StatelessWidget {
             ),
           ),
           Spacer(),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 20.0),
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Color(0xFFFFCF40),
-                foregroundColor: Colors.black,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+          if (user == null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 20.0),
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Color(0xFFFFCF40),
+                  foregroundColor: Colors.black,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  padding: EdgeInsets.symmetric(horizontal: 80, vertical: 12),
                 ),
-                padding: EdgeInsets.symmetric(horizontal: 80, vertical: 12),
-              ),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => LoginPage()), // Navigate to the LoginPage
-                );
-              },
-              child: Text(
-                "Login",
-                style: TextStyle(fontSize: 16),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => LoginPage()), // Navigate to the LoginPage
+                  );
+                },
+                child: Text(
+                  "Login",
+                  style: TextStyle(fontSize: 16),
+                ),
               ),
             ),
-          ),
         ],
       ),
       bottomNavigationBar: BottomNavBar(

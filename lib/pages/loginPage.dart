@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import '../pages/profilePage.dart';
 
 class LoginPage extends StatelessWidget {
   Future<UserCredential?> signInWithGoogle() async {
@@ -104,14 +105,29 @@ class LoginPage extends StatelessWidget {
                               fontWeight: FontWeight.w300, // Optional: Make the text bold
                             ),
                           ),
-                          onPressed: () async {
-                            final user = await signInWithGoogle();
-                            if (user != null) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text("Logged in as ${user.user?.displayName}")),
-                              );
-                            }
-                          },
+                            onPressed: () async {
+                              try {
+                                final userCredential = await signInWithGoogle();
+                                if (userCredential != null) {
+                                  Navigator.pushReplacement(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => ProfilePage(user: userCredential.user), // Pass the user object
+                                    ),
+                                  );
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text("Google sign-in canceled.")),
+                                  );
+                                }
+                              } catch (e) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text("Google sign-in failed: $e")),
+                                );
+                                print("Sign-in error: $e"); // Debugging
+                              }
+                            },
+
                         ),
                         SizedBox(height: 16),
                         ElevatedButton.icon(
@@ -154,6 +170,26 @@ class LoginPage extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+Future<UserCredential?> signInWithGoogle() async {
+  try {
+    final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+    if (googleUser == null) {
+      return null; // The user canceled the sign-in
+    }
+
+    final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+
+    final credential = GoogleAuthProvider.credential(
+      accessToken: googleAuth.accessToken,
+      idToken: googleAuth.idToken,
+    );
+
+    return await FirebaseAuth.instance.signInWithCredential(credential);
+  } catch (e) {
+    print("Error during Google Sign-In: $e");
+    return null;
   }
 }
 

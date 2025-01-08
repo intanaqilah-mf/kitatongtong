@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../widgets/bottomNavBar.dart';
 import '../pages/loginPage.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
 
 class ProfilePage extends StatefulWidget {
   final User? user;
@@ -15,6 +17,20 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   User? currentUser;
+  File? _selectedImage;
+
+  Future<void> _pickImage() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? pickedImage = await picker.pickImage(source: ImageSource.gallery);
+
+    if (pickedImage != null) {
+      setState(() {
+        _selectedImage = File(pickedImage.path);
+      });
+
+      // You can add Firebase Storage upload logic here if needed
+    }
+  }
 
   // Text controllers for editable fields
   TextEditingController nameController = TextEditingController();
@@ -57,14 +73,23 @@ class _ProfilePageState extends State<ProfilePage> {
             child: Column(
               children: [
                 // Profile Picture
-                CircleAvatar(
-                  radius: 50,
-                  backgroundImage: currentUser?.photoURL != null
-                      ? NetworkImage(currentUser!.photoURL!)
-                      : AssetImage('assets/profileNotLogin.png') as ImageProvider,
+                GestureDetector(
+                  onTap: () {
+                    if (currentUser != null) {
+                      _pickImage(); // Allow changing photo only if logged in
+                    }
+                  },
+                  child: CircleAvatar(
+                    radius: 50,
+                    backgroundImage: _selectedImage != null
+                        ? FileImage(_selectedImage!) // Use selected image
+                        : (currentUser?.photoURL != null
+                        ? NetworkImage(currentUser!.photoURL!) // Use current user's photo
+                        : AssetImage('assets/profileNotLogin.png')) as ImageProvider, // Default for non-logged-in users
+                  ),
                 ),
                 SizedBox(height: 20),
-                // Name Row (Editable)
+                // Name Row
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -84,9 +109,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                   ],
                 ),
-
                 SizedBox(height: 30),
-                // Profile Information
                 Container(
                   margin: EdgeInsets.symmetric(horizontal: 20),
                   decoration: BoxDecoration(
@@ -95,8 +118,22 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                   child: Column(
                     children: [
-                      // Change Profile Photo (Non-Editable)
-                      buildNonEditableRow('assets/profileicon1.png', 'Change profile photo'),
+                      ListTile(
+                        leading: Image.asset(
+                          'assets/profileicon1.png',
+                          height: 24,
+                          width: 24,
+                        ),
+                        title: GestureDetector(
+                          onTap: () {
+                            _pickImage(); // Call image picker
+                          },
+                          child: Text(
+                            'Change profile photo',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ),
+                      ),
                       // Username (Non-Editable)
                       buildNonEditableRow('assets/profileicon2.png', currentUser?.displayName ?? 'Set username'),
                       // Editable Rows

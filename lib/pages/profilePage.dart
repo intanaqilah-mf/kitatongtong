@@ -16,20 +16,33 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   User? currentUser;
 
+  // Text controllers for editable fields
+  TextEditingController nameController = TextEditingController();
+  TextEditingController phoneController = TextEditingController();
+  TextEditingController nricController = TextEditingController();
+  TextEditingController addressController = TextEditingController();
+  TextEditingController cityController = TextEditingController();
+  TextEditingController postcodeController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
-    // Retrieve the current user
     currentUser = widget.user ?? FirebaseAuth.instance.currentUser;
-  }
-  Future<void> clearAuthCache() async {
-    // Sign out from FirebaseAuth
-    await FirebaseAuth.instance.signOut();
 
-    // Clear Google Sign-In cache
+    // Pre-fill the controllers with current values
+    nameController.text = currentUser?.displayName ?? '';
+    phoneController.text = currentUser?.phoneNumber ?? '';
+    nricController.text = '';
+    addressController.text = '';
+    cityController.text = '';
+    postcodeController.text = '';
+  }
+
+  Future<void> clearAuthCache() async {
+    await FirebaseAuth.instance.signOut();
     GoogleSignIn googleSignIn = GoogleSignIn();
     if (await googleSignIn.isSignedIn()) {
-      await googleSignIn.disconnect(); // Disconnect account from the app
+      await googleSignIn.disconnect();
     }
     await googleSignIn.signOut();
   }
@@ -51,7 +64,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       : AssetImage('assets/profileNotLogin.png') as ImageProvider,
                 ),
                 SizedBox(height: 20),
-                // Name Section
+                // Name Row (Editable)
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -71,6 +84,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                   ],
                 ),
+
                 SizedBox(height: 30),
                 // Profile Information
                 Container(
@@ -81,13 +95,16 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                   child: Column(
                     children: [
-                      buildProfileRow('assets/profileicon1.png', 'Change profile photo'),
-                      buildProfileRow('assets/profileicon2.png', currentUser?.displayName ?? 'Set username'),
-                      buildProfileRow('assets/profileicon3.png', currentUser?.phoneNumber ?? 'Set mobile number'),
-                      buildProfileRow('assets/profileicon4.png', 'Set NRIC'),
-                      buildProfileRow('assets/profileicon5.png', 'Set home address'),
-                      buildProfileRow('assets/profileicon6.png', 'Set city'),
-                      buildProfileRow('assets/profileicon7.png', 'Set postcode'),
+                      // Change Profile Photo (Non-Editable)
+                      buildNonEditableRow('assets/profileicon1.png', 'Change profile photo'),
+                      // Username (Non-Editable)
+                      buildNonEditableRow('assets/profileicon2.png', currentUser?.displayName ?? 'Set username'),
+                      // Editable Rows
+                      buildEditableRow('assets/profileicon3.png', 'Mobile Number', phoneController),
+                      buildEditableRow('assets/profileicon4.png', 'NRIC', nricController),
+                      buildEditableRow('assets/profileicon5.png', 'Home Address', addressController),
+                      buildEditableRow('assets/profileicon6.png', 'City', cityController),
+                      buildEditableRow('assets/profileicon7.png', 'Postcode', postcodeController),
                     ],
                   ),
                 ),
@@ -107,23 +124,11 @@ class _ProfilePageState extends State<ProfilePage> {
                 padding: EdgeInsets.symmetric(horizontal: 80, vertical: 12),
               ),
               onPressed: () async {
-                if (currentUser != null) {
-                  // Logout from FirebaseAuth and GoogleSignIn
-                  await GoogleSignIn().signOut(); // Sign out from Google account
-                  await FirebaseAuth.instance.signOut(); // Sign out from Firebase
-
-                  // Redirect to LoginPage
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(builder: (context) => LoginPage()),
-                  );
-                } else {
-                  // Navigate to LoginPage if not logged in
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(builder: (context) => LoginPage()),
-                  );
-                }
+                await clearAuthCache();
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => LoginPage()),
+                );
               },
               child: Text(
                 currentUser != null ? "Logout" : "Login",
@@ -137,14 +142,14 @@ class _ProfilePageState extends State<ProfilePage> {
         selectedIndex: 4,
         onItemTapped: (int index) {
           if (index != 4) {
-            Navigator.pushNamed(context, '/home'); // Navigate to other pages
+            Navigator.pushNamed(context, '/home');
           }
         },
       ),
     );
   }
 
-  Widget buildProfileRow(String iconPath, String text) {
+  Widget buildNonEditableRow(String iconPath, String text) {
     return ListTile(
       leading: Image.asset(
         iconPath,
@@ -155,6 +160,25 @@ class _ProfilePageState extends State<ProfilePage> {
         text,
         style: TextStyle(
           color: Colors.white,
+        ),
+      ),
+    );
+  }
+
+  Widget buildEditableRow(String iconPath, String label, TextEditingController controller) {
+    return ListTile(
+      leading: Image.asset(
+        iconPath,
+        height: 24,
+        width: 24,
+      ),
+      title: TextField(
+        controller: controller,
+        style: TextStyle(color: Colors.white),
+        decoration: InputDecoration(
+          border: InputBorder.none,
+          hintText: label,
+          hintStyle: TextStyle(color: Colors.grey),
         ),
       ),
     );

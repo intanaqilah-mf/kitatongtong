@@ -28,7 +28,6 @@ class AuthWrapper extends StatelessWidget {
   Widget build(BuildContext context) {
     final User? user = FirebaseAuth.instance.currentUser;
 
-    // Check if user is logged in
     if (user != null) {
       return ProfilePage(user: user); // Redirect to ProfilePage with the user object
     } else {

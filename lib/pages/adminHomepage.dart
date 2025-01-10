@@ -4,12 +4,12 @@ import '../widgets/AsnafDashboard.dart';
 import '../widgets/UserPoints.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
 
-class HomePage extends StatefulWidget {
+class adminHomePage extends StatefulWidget {
   @override
   _HomePageState createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<adminHomePage> {
   int _selectedIndex = 0; // Keep track of the selected tab
 
   // Handle tab selection
@@ -45,7 +45,7 @@ class _HomePageState extends State<HomePage> {
                         child: TextFormField(
                           decoration: InputDecoration(
                             border: InputBorder.none,
-                            hintText: "Asnaf here...",
+                            hintText: "Admin here...",
                           ),
                         ),
                       ),

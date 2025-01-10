@@ -2,23 +2,100 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../pages/profilePage.dart';
+import '../pages/HomePage.dart';
+import '../pages/adminHomepage.dart';
+import '../pages/staffHomepage.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class LoginPage extends StatelessWidget {
   Future<UserCredential?> signInWithGoogle() async {
-    final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+    try {
+      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
 
-    if (googleUser == null) {
-      return null; // The user canceled the sign-in
+      if (googleUser == null) {
+        print("Google Sign-In canceled by user.");
+        return null;
+      }
+
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      // Sign in with the credential
+      final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
+
+      if (userCredential.user != null) {
+        print("User signed in: ${userCredential.user!.uid}");
+        return userCredential;
+      } else {
+        print("No user returned after Google Sign-In.");
+        return null;
+      }
+    } catch (e) {
+      print("Error during Google Sign-In: $e");
+      return null;
     }
+  }
 
-    final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+  Future<void> checkUserRoleAndNavigate(BuildContext context, User user) async {
+    final docSnapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get();
 
-    final credential = GoogleAuthProvider.credential(
-      accessToken: googleAuth.accessToken,
-      idToken: googleAuth.idToken,
-    );
+    if (docSnapshot.exists) {
+      final role = docSnapshot.data()?['role'] ?? 'asnaf';
+      if (role == 'admin') {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => adminHomePage()),
+        );
+      } else if (role == 'staff') {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => StaffHomePage()),
+        );
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => HomePage()),
+        );
+      }
+    }
+  }
 
-    return await FirebaseAuth.instance.signInWithCredential(credential);
+  Future<void> createUserInFirestore(User user) async {
+    try {
+      final userRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
+
+      final docSnapshot = await userRef.get();
+      if (!docSnapshot.exists) {
+        await userRef.set({
+          'email': user.email,
+          'name': user.displayName ?? "No Name",
+          'role': 'asnaf',
+          'created_at': FieldValue.serverTimestamp(),
+          'last_login': FieldValue.serverTimestamp(),
+        });
+        print("User document created for UID: ${user.uid}");
+      } else {
+        print("User document already exists for UID: ${user.uid}");
+      }
+    } catch (e) {
+      print("Error creating user in Firestore: $e");
+    }
+  }
+
+
+  Future<void> updateLastLogin(User user) async {
+    final userRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
+
+    await userRef.update({
+      'last_login': FieldValue.serverTimestamp(),
+    });
   }
 
   @override
@@ -109,10 +186,14 @@ class LoginPage extends StatelessWidget {
                             try {
                               final userCredential = await signInWithGoogle();
                               if (userCredential != null) {
+                                final user = userCredential.user!;
+                                await createUserInFirestore(user);
+                                await updateLastLogin(user);
+                                await checkUserRoleAndNavigate(context, user);
                                 Navigator.pushReplacement(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => ProfilePage(user: userCredential.user), // Pass the user object
+                                    builder: (context) => ProfilePage(user: userCredential.user),
                                   ),
                                 );
                               } else {
@@ -175,8 +256,14 @@ class LoginPage extends StatelessWidget {
 Future<UserCredential?> signInWithGoogle() async {
   try {
     final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+    final user = FirebaseAuth.instance.currentUser;
     if (googleUser == null) {
-      return null; // The user canceled the sign-in
+      return null;
+    }
+    if (user == null) {
+      print("No user is authenticated");
+    } else {
+      print("User authenticated: ${user.uid}");
     }
 
     final GoogleSignInAuthentication googleAuth = await googleUser.authentication;

@@ -129,131 +129,142 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Column(
-        children: [
-          SizedBox(height: 50),
-          Center(
+      body: SafeArea(
+        child: GestureDetector(
+          onTap: () => FocusScope.of(context).unfocus(), // Dismiss keyboard when tapping outside
+          child: SingleChildScrollView(
             child: Column(
               children: [
-                GestureDetector(
-                  onTap: () {
-                    if (currentUser != null) {
-                      _pickImage();
-                    }
-                  },
-                  child: CircleAvatar(
-                    radius: 50,
-                    backgroundImage: _selectedImage != null
-                        ? FileImage(_selectedImage!)
-                        : (currentUser?.photoURL != null
-                        ? NetworkImage(currentUser!.photoURL!)
-                        : AssetImage('assets/profileNotLogin.png')) as ImageProvider,
-                  ),
-                ),
-                SizedBox(height: 10),
-                Stack(
-                  children: [
-                    ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxWidth: MediaQuery.of(context).size.width * 0.6, // Limit text width to 60% of screen width
-                      ),
-                      child: TextField(
-                        controller: nameController,
-                        onChanged: (text) {
-                          setState(() {}); // Recalculate layout on text change
-                        },
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.yellow,
-                        ),
-                        decoration: InputDecoration(
-                          border: InputBorder.none,
-                          hintText: "Set your name",
-                          hintStyle: TextStyle(color: Colors.grey),
-                        ),
-                        maxLines: 2, // Allow wrapping to the second line
-                        textAlign: TextAlign.center, // Center the text
-                      ),
-                    ),
-                    Positioned(
-                      right: MediaQuery.of(context).size.width * 0.001,
-                      top: MediaQuery.of(context).size.width * 0.05,
-                      child: GestureDetector(
-                        child: Image.asset(
-                          'assets/pencil.png',
-                          height: 20,
-                          width: 20,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-
-
-                SizedBox(height: 10),
-                Container(
-                  margin: EdgeInsets.symmetric(horizontal: 20),
-                  decoration: BoxDecoration(
-                    color: Color(0xFF404040),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
+                // Your existing UI elements remain unchanged here
+                SizedBox(height: 50),
+                Center(
                   child: Column(
                     children: [
-                      ListTile(
-                        leading: Image.asset(
-                          'assets/profileicon1.png',
-                          height: 24,
-                          width: 24,
-                        ),
-                        title: GestureDetector(
-                          onTap: () {
+                      GestureDetector(
+                        onTap: () {
+                          if (currentUser != null) {
                             _pickImage();
-                          },
-                          child: Text(
-                            'Change profile photo',
-                            style: TextStyle(color: Colors.white),
-                          ),
+                          }
+                        },
+                        child: CircleAvatar(
+                          radius: 50,
+                          backgroundImage: _selectedImage != null
+                              ? FileImage(_selectedImage!)
+                              : (currentUser?.photoURL != null
+                              ? NetworkImage(currentUser!.photoURL!)
+                              : AssetImage('assets/profileNotLogin.png')) as ImageProvider,
                         ),
                       ),
-                      buildNonEditableRow('assets/profileicon2.png', currentUser?.displayName ?? 'Set username'),
-                      buildEditableRow('assets/profileicon3.png', 'Mobile Number', phoneController),
-                      buildEditableRow('assets/profileicon4.png', 'NRIC', nricController),
-                      buildEditableRow('assets/profileicon5.png', 'Home Address', addressController),
-                      buildEditableRow('assets/profileicon6.png', 'City', cityController),
-                      buildEditableRow('assets/profileicon7.png', 'Postcode', postcodeController),
+                      SizedBox(height: 10),
+                      // Your Name and Pencil Icon Row
+                      Stack(
+                        children: [
+                          ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxWidth: MediaQuery.of(context).size.width * 0.6,
+                            ),
+                            child: TextField(
+                              controller: nameController,
+                              onChanged: (text) {
+                                setState(() {}); // Recalculate layout on text change
+                              },
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.yellow,
+                              ),
+                              decoration: InputDecoration(
+                                border: InputBorder.none,
+                                hintText: "Set your name",
+                                hintStyle: TextStyle(color: Colors.grey),
+                              ),
+                              maxLines: 2, // Allow wrapping to the second line
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                          Positioned(
+                            right: MediaQuery.of(context).size.width * 0.05,
+                            top: 10,
+                            child: GestureDetector(
+                              child: Image.asset(
+                                'assets/pencil.png',
+                                height: 20,
+                                width: 20,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Container(
+                        margin: EdgeInsets.symmetric(horizontal: 20),
+                        decoration: BoxDecoration(
+                          color: Color(0xFF404040),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Column(
+                          children: [
+                            // All rows remain the same
+                            ListTile(
+                              leading: Image.asset(
+                                'assets/profileicon1.png',
+                                height: 24,
+                                width: 24,
+                              ),
+                              title: GestureDetector(
+                                onTap: () {
+                                  _pickImage();
+                                },
+                                child: Text(
+                                  'Change profile photo',
+                                  style: TextStyle(color: Colors.white),
+                                ),
+                              ),
+                            ),
+                            buildNonEditableRow('assets/profileicon2.png', currentUser?.displayName ?? 'Set username'),
+                            buildEditableRow('assets/profileicon3.png', 'Mobile Number', phoneController),
+                            buildEditableRow('assets/profileicon4.png', 'NRIC', nricController),
+                            buildEditableRow('assets/profileicon5.png', 'Home Address', addressController),
+                            buildEditableRow('assets/profileicon6.png', 'City', cityController),
+                            buildEditableRow('assets/profileicon7.png', 'Postcode', postcodeController),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 20.0), // Existing padding
+                  child: Column(
+                    children: [
+                      SizedBox(height: 20), // Add space between table and logout button
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: currentUser != null ? Colors.red : Color(0xFFFFCF40),
+                          foregroundColor: Colors.black,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          padding: EdgeInsets.symmetric(horizontal: 80, vertical: 12),
+                        ),
+                        onPressed: () async {
+                          await clearAuthCache();
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(builder: (context) => LoginPage()),
+                          );
+                        },
+                        child: Text(
+                          currentUser != null ? "Logout" : "Login",
+                          style: TextStyle(fontSize: 16),
+                        ),
+                      ),
                     ],
                   ),
                 ),
               ],
             ),
           ),
-          Spacer(),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 20.0),
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: currentUser != null ? Colors.red : Color(0xFFFFCF40),
-                foregroundColor: Colors.black,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                padding: EdgeInsets.symmetric(horizontal: 80, vertical: 12),
-              ),
-              onPressed: () async {
-                await clearAuthCache();
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => LoginPage()),
-                );
-              },
-              child: Text(
-                currentUser != null ? "Logout" : "Login",
-                style: TextStyle(fontSize: 16),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
       bottomNavigationBar: BottomNavBar(
         selectedIndex: 4,
@@ -265,7 +276,6 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
     );
   }
-
   Widget buildNonEditableRow(String iconPath, String text) {
     return ListTile(
       leading: Image.asset(

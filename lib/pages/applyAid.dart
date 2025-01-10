@@ -6,6 +6,7 @@ import 'package:path/path.dart' as path;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import '../pages/applicationReviewScreen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 
 class ApplyAid extends StatefulWidget {
@@ -13,7 +14,12 @@ class ApplyAid extends StatefulWidget {
   _ApplyAidState createState() => _ApplyAidState();
 }
 
+
 class _ApplyAidState extends State<ApplyAid> {
+  void initState() {
+    super.initState();
+    _fetchUserData();
+  }
   int currentStep = 1; // Tracks the current step (e.g., 1/5)
   final int totalSteps = 5; // Total number of steps
   int _selectedIndex = 0;
@@ -78,6 +84,43 @@ class _ApplyAidState extends State<ApplyAid> {
       );
     }
   }
+
+  Future<void> _fetchUserData() async {
+    try {
+      final String userId = FirebaseAuth.instance.currentUser!.uid;
+
+      DocumentSnapshot userDoc = await FirebaseFirestore.instance
+          .collection('asnafInfo')
+          .doc(userId)
+          .get();
+
+      if (userDoc.exists) {
+        final userData = userDoc.data() as Map<String, dynamic>;
+
+        // Split address into two lines
+        final fullAddress = userData['address'] ?? '';
+        final addressParts = fullAddress.split(',');
+
+        // Populate the controllers
+        setState(() {
+          nricController.text = userData['nric'] ?? '';
+          fullnameController.text = userData['name'] ?? '';
+          emailController.text = FirebaseAuth.instance.currentUser!.email ?? '';
+          mobileNumberController.text = userData['phone'] ?? '';
+          add1Controller.text = addressParts.length > 0 ? addressParts[0].trim() : '';
+          add2Controller.text = addressParts.length > 1 ? addressParts[1].trim() : '';
+          cityController.text = userData['city'] ?? '';
+          postcodeController.text = userData['postcode'] ?? '';
+        });
+      }
+    } catch (e) {
+      debugPrint("Error fetching user data: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Failed to fetch user details. Please try again.")),
+      );
+    }
+  }
+
 
   @override
   Widget build(BuildContext context) {

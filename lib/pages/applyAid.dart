@@ -8,7 +8,6 @@ import 'package:firebase_core/firebase_core.dart';
 import '../pages/applicationReviewScreen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-
 class ApplyAid extends StatefulWidget {
   @override
   _ApplyAidState createState() => _ApplyAidState();

@@ -3,8 +3,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../pages/profilePage.dart';
 import '../pages/HomePage.dart';
-import '../pages/adminHomepage.dart';
-import '../pages/staffHomepage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class LoginPage extends StatelessWidget {
@@ -41,38 +39,33 @@ class LoginPage extends StatelessWidget {
   }
 
   Future<void> checkUserRoleAndNavigate(BuildContext context, User user) async {
-    final docSnapshot = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .get();
-
-    if (docSnapshot.exists) {
-      final role = docSnapshot.data()?['role'] ?? 'asnaf';
-      if (role == 'admin') {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => adminHomePage()),
-        );
-      } else if (role == 'staff') {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => StaffHomePage()),
-        );
+    try {
+      final userRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
+      final docSnapshot = await userRef.get();
+      if (!docSnapshot.exists) {
+        print("Creating Firestore document for user: ${user.uid}");
+        await userRef.set({
+          'email': user.email,
+          'name': user.displayName ?? "No Name",
+          'role': 'asnaf', // Default role
+          'created_at': FieldValue.serverTimestamp(),
+          'last_login': FieldValue.serverTimestamp(),
+        });
+        print("User document created for UID: ${user.uid}");
       } else {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => HomePage()),
-        );
+        print("User document already exists for UID: ${user.uid}");
       }
+    } catch (e) {
+      print("Error creating user in Firestore: $e");
     }
   }
 
   Future<void> createUserInFirestore(User user) async {
     try {
       final userRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
-
       final docSnapshot = await userRef.get();
       if (!docSnapshot.exists) {
+        print("Creating Firestore document for user: ${user.uid}");
         await userRef.set({
           'email': user.email,
           'name': user.displayName ?? "No Name",
@@ -88,6 +81,7 @@ class LoginPage extends StatelessWidget {
       print("Error creating user in Firestore: $e");
     }
   }
+
 
 
   Future<void> updateLastLogin(User user) async {
@@ -256,14 +250,9 @@ class LoginPage extends StatelessWidget {
 Future<UserCredential?> signInWithGoogle() async {
   try {
     final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
-    final user = FirebaseAuth.instance.currentUser;
     if (googleUser == null) {
+      print("Google Sign-In canceled by user.");
       return null;
-    }
-    if (user == null) {
-      print("No user is authenticated");
-    } else {
-      print("User authenticated: ${user.uid}");
     }
 
     final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
@@ -273,7 +262,15 @@ Future<UserCredential?> signInWithGoogle() async {
       idToken: googleAuth.idToken,
     );
 
-    return await FirebaseAuth.instance.signInWithCredential(credential);
+    final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
+
+    if (userCredential.user != null) {
+      print("User signed in successfully: ${userCredential.user!.uid}");
+    } else {
+      print("No user returned after sign-in.");
+    }
+
+    return userCredential;
   } catch (e) {
     print("Error during Google Sign-In: $e");
     return null;

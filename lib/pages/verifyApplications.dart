@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:projects/widgets/bottomNavBar.dart';
 
 class VerifyApplicationsScreen extends StatefulWidget {
   @override
@@ -7,33 +8,81 @@ class VerifyApplicationsScreen extends StatefulWidget {
 }
 
 class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
-  String searchQuery = "";
-  String filterOption = "All";
-  String sortOption = "Date";
+  int _selectedIndex = 0;
+  late Stream<QuerySnapshot> _applicationsStream;
+  Map<int, bool> _expandedStates = {}; // Track expanded states for each item
+
+  String selectedFilter = "All"; // Default filter
+  String selectedSort = "Date"; // Default sorting
+
+  @override
+  void initState() {
+    super.initState();
+    _applicationsStream = FirebaseFirestore.instance.collection('applications').snapshots();
+  }
+
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Color(0xFF303030), // Background color
       appBar: AppBar(
-        backgroundColor: Colors.black,
-        title: Text("Verify Applications", style: TextStyle(color: Colors.amber)),
-        iconTheme: IconThemeData(color: Colors.amber),
+        backgroundColor: Color(0xFF303030),
+        elevation: 0,
       ),
       body: Column(
         children: [
-          // Search and filter row
+          // Header Section (Full Width)
+          Container(
+            width: double.infinity, // Full width
+            padding: EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+            decoration: BoxDecoration(
+              color: Color(0xFF303030), // Background color
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black26,
+                  blurRadius: 8,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                Text(
+                  "Verify Application",
+                  style: TextStyle(
+                    color: Color(0xFFFDB515),
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center, // Center text
+                ),
+                SizedBox(height: 12.0), // Add more space
+                Text(
+                  "Track applications you’ve submitted or managed.",
+                  style: TextStyle(
+                    color: Color(0xFFAA820C),
+                    fontSize: 14,
+                  ),
+                  textAlign: TextAlign.center, // Center text
+                ),
+              ],
+            ),
+          ),
+
+          // Search & Filter Row
           Padding(
-            padding: const EdgeInsets.all(12.0),
+            padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
             child: Row(
               children: [
                 // Search Field
                 Expanded(
                   child: TextField(
-                    onChanged: (value) {
-                      setState(() {
-                        searchQuery = value.toLowerCase();
-                      });
-                    },
                     decoration: InputDecoration(
                       prefixIcon: Icon(Icons.search, color: Colors.grey),
                       hintText: "Search Asnaf",
@@ -41,39 +90,50 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
                       fillColor: Colors.white,
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                     ),
+                    onChanged: (value) {
+                      setState(() {}); // Triggers UI refresh on text change
+                    },
                   ),
                 ),
                 SizedBox(width: 8),
-                // Filter Button
+
+                // Filter Dropdown
                 DropdownButton<String>(
-                  value: filterOption,
-                  onChanged: (newValue) {
+                  value: selectedFilter,
+                  dropdownColor: Colors.black,
+                  icon: Icon(Icons.filter_list, color: Colors.white),
+                  style: TextStyle(color: Colors.white),
+                  onChanged: (String? newValue) {
                     setState(() {
-                      filterOption = newValue!;
+                      selectedFilter = newValue!;
                     });
                   },
                   items: ["All", "Pending", "Approved", "Rejected"]
                       .map<DropdownMenuItem<String>>((String value) {
                     return DropdownMenuItem<String>(
                       value: value,
-                      child: Text(value),
+                      child: Text(value, style: TextStyle(color: Colors.white)),
                     );
                   }).toList(),
                 ),
                 SizedBox(width: 8),
-                // Sort Button
+
+                // Sort Dropdown
                 DropdownButton<String>(
-                  value: sortOption,
-                  onChanged: (newValue) {
+                  value: selectedSort,
+                  dropdownColor: Colors.black,
+                  icon: Icon(Icons.sort, color: Colors.white),
+                  style: TextStyle(color: Colors.white),
+                  onChanged: (String? newValue) {
                     setState(() {
-                      sortOption = newValue!;
+                      selectedSort = newValue!;
                     });
                   },
-                  items: ["Date", "Name"]
+                  items: ["Date", "Name", "Status"]
                       .map<DropdownMenuItem<String>>((String value) {
                     return DropdownMenuItem<String>(
                       value: value,
-                      child: Text(value),
+                      child: Text(value, style: TextStyle(color: Colors.white)),
                     );
                   }).toList(),
                 ),
@@ -81,63 +141,113 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
             ),
           ),
 
-          // Applications List
+          // Fetch & Display Applications
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance.collection('applications').snapshots(),
+              stream: _applicationsStream,
               builder: (context, snapshot) {
-                if (!snapshot.hasData) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
                   return Center(child: CircularProgressIndicator());
                 }
-
-                var applications = snapshot.data!.docs
-                    .map((doc) => doc.data() as Map<String, dynamic>)
-                    .where((app) => searchQuery.isEmpty || app['name'].toLowerCase().contains(searchQuery))
-                    .where((app) => filterOption == "All" || app['status'] == filterOption)
-                    .toList();
-
-                if (sortOption == "Date") {
-                  applications.sort((a, b) => b['date'].compareTo(a['date']));
-                } else if (sortOption == "Name") {
-                  applications.sort((a, b) => a['name'].compareTo(b['name']));
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return Center(
+                    child: Text("No applications found",
+                        style: TextStyle(color: Colors.white, fontSize: 16)),
+                  );
                 }
+
+                var applications = snapshot.data!.docs.map((doc) {
+                  var appData = doc.data() as Map<String, dynamic>;
+                  return {
+                    'fullname': appData['fullname'] ?? 'Unknown',
+                    'date': appData['date'] ?? 'No date provided',
+                    'submitted_by': appData['submitted_by'] ?? 'Unknown',
+                    'status': appData['status'] ?? 'Pending',
+                  };
+                }).toList();
+
+                // Sorting Logic
+                applications.sort((a, b) {
+                  if (selectedSort == "Date") {
+                    var dateA = a['date'] ?? '';
+                    var dateB = b['date'] ?? '';
+                    return dateB.compareTo(dateA);
+                  } else if (selectedSort == "Name") {
+                    return a['fullname'].compareTo(b['fullname']);
+                  } else {
+                    return a['status'].compareTo(b['status']);
+                  }
+                });
 
                 return ListView.builder(
                   itemCount: applications.length,
                   itemBuilder: (context, index) {
                     var app = applications[index];
+                    bool isExpanded = _expandedStates[index] ?? false;
+
                     return Card(
-                      color: Colors.black87,
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundImage: AssetImage("assets/avatar_placeholder.png"), // Replace with user image if available
-                        ),
-                        title: Text(app['name'], style: TextStyle(color: Colors.white)),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(app['date'], style: TextStyle(color: Colors.grey)),
-                            Text("Submitted by: ${app['submitted_by']}", style: TextStyle(color: Colors.amber)),
-                          ],
-                        ),
-                        trailing: Text(
-                          app['status'],
-                          style: TextStyle(
-                            color: app['status'] == "Pending"
-                                ? Colors.orange
-                                : app['status'] == "Approved"
-                                ? Colors.green
-                                : Colors.red,
-                          ),
-                        ),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => ApplicationDetailScreen(application: app),
+                      color: Colors.grey[850],
+                      elevation: 4,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        children: [
+                          ListTile(
+                            leading: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      _expandedStates[index] = !isExpanded;
+                                    });
+                                  },
+                                  child: Icon(
+                                    isExpanded
+                                        ? Icons.keyboard_arrow_up
+                                        : Icons.keyboard_arrow_down,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                SizedBox(width: 8),
+                                Container(
+                                  width: 30,
+                                  height: 30,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade800,
+                                    borderRadius: BorderRadius.circular(5),
+                                  ),
+                                ),
+                              ],
                             ),
-                          );
-                        },
+                            title: Text(
+                              app['fullname'],
+                              style: TextStyle(color: Colors.white),
+                            ),
+                            subtitle: Text(app['date'], style: TextStyle(color: Colors.grey)),
+                            trailing: Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  "Submitted by: ${app['submitted_by']}",
+                                  style: TextStyle(color: Colors.amber, fontSize: 12),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  app['status'],
+                                  style: TextStyle(
+                                    color: app['status'] == "Pending"
+                                        ? Colors.orange
+                                        : app['status'] == "Approved"
+                                        ? Colors.green
+                                        : Colors.red,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     );
                   },
@@ -147,68 +257,9 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
           ),
         ],
       ),
-    );
-  }
-}
-
-// Detail Page for Application Review
-class ApplicationDetailScreen extends StatelessWidget {
-  final Map<String, dynamic> application;
-
-  ApplicationDetailScreen({required this.application});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        title: Text("Application Details", style: TextStyle(color: Colors.amber)),
-        iconTheme: IconThemeData(color: Colors.amber),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text("Name: ${application['name']}", style: TextStyle(fontSize: 18, color: Colors.white)),
-            Text("Date: ${application['date']}", style: TextStyle(fontSize: 16, color: Colors.grey)),
-            Text("Submitted by: ${application['submitted_by']}", style: TextStyle(fontSize: 16, color: Colors.amber)),
-            Text("Status: ${application['status']}", style: TextStyle(fontSize: 16, color: Colors.white)),
-
-            SizedBox(height: 20),
-
-            // Buttons to Approve/Reject
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                  onPressed: () async {
-                    await FirebaseFirestore.instance
-                        .collection('applications')
-                        .doc(application['id']) // Ensure `id` is stored in each application document
-                        .update({'status': 'Approved'});
-
-                    Navigator.pop(context);
-                  },
-                  child: Text("Approve"),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                  onPressed: () async {
-                    await FirebaseFirestore.instance
-                        .collection('applications')
-                        .doc(application['id'])
-                        .update({'status': 'Rejected'});
-
-                    Navigator.pop(context);
-                  },
-                  child: Text("Reject"),
-                ),
-              ],
-            ),
-          ],
-        ),
+      bottomNavigationBar: BottomNavBar(
+        selectedIndex: _selectedIndex,
+        onItemTapped: _onItemTapped,
       ),
     );
   }

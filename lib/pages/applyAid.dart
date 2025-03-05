@@ -56,33 +56,40 @@ class _ApplyAidState extends State<ApplyAid> {
 
   void uploadToFirebase(Map<String, dynamic> data) async {
     try {
-      // Add your Firebase collection name, e.g., "applications"
+      final String userId = FirebaseAuth.instance.currentUser!.uid;
+      final DateTime now = DateTime.now(); // Get current date & time
+
+      // Add submission date to the data
+      data['date'] = now.toIso8601String(); // Store date as ISO8601 string
+      data['userId'] = userId; // Store user ID for reference
+
       await FirebaseFirestore.instance.collection("applications").add(data);
+
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => ApplicationReviewScreen()),
       );
 
-      // Notify user of successful upload
+      // Notify user of successful submission
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Application submitted successfully!")),
       );
 
-      // Optionally reset the form
+      // Reset form after submission
       setState(() {
         formData.clear();
         fileName1 = null;
         fileName2 = null;
         fileName3 = null;
       });
+
     } catch (e) {
-      // Handle errors
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text("Failed to submit application. Please try again.")),
+        SnackBar(content: Text("Failed to submit application. Please try again.")),
       );
     }
   }
+
 
   Future<void> _fetchUserData() async {
     try {

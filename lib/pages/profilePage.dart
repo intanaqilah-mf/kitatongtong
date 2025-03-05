@@ -21,6 +21,7 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   User? currentUser;
   File? _selectedImage;
+  String? _firestorePhotoUrl; // To store the fetched photo URL
 
   // Text controllers for editable fields
   TextEditingController nameController = TextEditingController();
@@ -34,7 +35,7 @@ class _ProfilePageState extends State<ProfilePage> {
   void initState() {
     super.initState();
     currentUser = widget.user ?? FirebaseAuth.instance.currentUser;
-    _loadCachedData();
+    _loadCachedData(); // Load cached data, including profile picture URL
     _initializeListeners();
 
     nameController.text = currentUser?.displayName ?? '';
@@ -53,31 +54,62 @@ class _ProfilePageState extends State<ProfilePage> {
       setState(() {
         _selectedImage = File(pickedImage.path);
       });
-      _saveData(isImageUpdated: true);
+      _saveData(isImageUpdated: true); // Save data when image is updated
     }
   }
 
   Future<void> clearAuthCache() async {
     await FirebaseAuth.instance.signOut();
+
     GoogleSignIn googleSignIn = GoogleSignIn();
     if (await googleSignIn.isSignedIn()) {
       await googleSignIn.disconnect();
     }
     await googleSignIn.signOut();
+
+    // Clear cached data for the current user only
+    final prefs = await SharedPreferences.getInstance();
+    String userId = FirebaseAuth.instance.currentUser?.uid ?? '';
+
+    if (userId.isNotEmpty) {
+      await prefs.remove('name_$userId');
+      await prefs.remove('phone_$userId');
+      await prefs.remove('nric_$userId');
+      await prefs.remove('address_$userId');
+      await prefs.remove('city_$userId');
+      await prefs.remove('postcode_$userId');
+      await prefs.remove('photoUrl_$userId');
+    }
+
+    print("✅ Cached user data cleared.");
   }
 
   Future<void> _saveData({bool isImageUpdated = false}) async {
     try {
+      String userId = FirebaseAuth.instance.currentUser?.uid ?? "";
+      if (userId.isEmpty) return;
+
       String? imageUrl;
+      final prefs = await SharedPreferences.getInstance();
 
       if (isImageUpdated && _selectedImage != null) {
-        final storageRef = FirebaseStorage.instance
-            .ref()
-            .child('profile_pictures/${currentUser!.uid}.jpg');
-        await storageRef.putFile(_selectedImage!);
-        imageUrl = await storageRef.getDownloadURL();
+        String fileName = "${userId}_${DateTime.now().millisecondsSinceEpoch}.jpg";
+        final storageRef = FirebaseStorage.instance.ref().child('profile_pictures/$fileName');
+
+        final TaskSnapshot snapshot = await storageRef.putFile(_selectedImage!);
+        imageUrl = await snapshot.ref.getDownloadURL();
+
+        // Save new image URL in Firestore
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId)
+            .set({'photoUrl': imageUrl}, SetOptions(merge: true));
+
+        // Cache updated image
+        prefs.setString('photoUrl_$userId', imageUrl);
       }
 
+      // Save the updated user data
       final userData = {
         'name': nameController.text,
         'phone': phoneController.text,
@@ -85,37 +117,70 @@ class _ProfilePageState extends State<ProfilePage> {
         'address': addressController.text,
         'city': cityController.text,
         'postcode': postcodeController.text,
-        'photoUrl': imageUrl ?? currentUser?.photoURL,
+        if (imageUrl != null) 'photoUrl': imageUrl,
       };
 
       await FirebaseFirestore.instance
-          .collection('asnafInfo')
-          .doc(currentUser!.uid)
-          .set(userData);
+          .collection('users')
+          .doc(userId)
+          .set(userData, SetOptions(merge: true));
 
-      final prefs = await SharedPreferences.getInstance();
-      prefs.setString('name', nameController.text);
-      prefs.setString('phone', phoneController.text);
-      prefs.setString('nric', nricController.text);
-      prefs.setString('address', addressController.text);
-      prefs.setString('city', cityController.text);
-      prefs.setString('postcode', postcodeController.text);
-      if (imageUrl != null) prefs.setString('photoUrl', imageUrl);
+      // Cache user-specific data
+      prefs.setString('name_$userId', nameController.text);
+      prefs.setString('phone_$userId', phoneController.text);
+      prefs.setString('nric_$userId', nricController.text);
+      prefs.setString('address_$userId', addressController.text);
+      prefs.setString('city_$userId', cityController.text);
+      prefs.setString('postcode_$userId', postcodeController.text);
+
+      setState(() {
+        if (imageUrl != null) {
+          _selectedImage = null;
+        }
+      });
+
+      print("✅ User data saved successfully.");
     } catch (e) {
-      debugPrint('Error saving data: $e');
+      print("❌ Error during data saving: $e");
     }
   }
 
+
   Future<void> _loadCachedData() async {
     final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      nameController.text = prefs.getString('name') ?? currentUser?.displayName ?? '';
-      phoneController.text = prefs.getString('phone') ?? currentUser?.phoneNumber ?? '';
-      nricController.text = prefs.getString('nric') ?? '';
-      addressController.text = prefs.getString('address') ?? '';
-      cityController.text = prefs.getString('city') ?? '';
-      postcodeController.text = prefs.getString('postcode') ?? '';
-    });
+    String userId = FirebaseAuth.instance.currentUser?.uid ?? "";
+
+    if (userId.isEmpty) return; // Ensure we have a logged-in user
+
+    final docSnapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .get();
+
+    if (docSnapshot.exists) {
+      final userData = docSnapshot.data();
+
+      setState(() {
+        nameController.text = userData?['name'] ?? '';
+        phoneController.text = userData?['phone'] ?? '';
+        nricController.text = userData?['nric'] ?? '';
+        addressController.text = userData?['address'] ?? '';
+        cityController.text = userData?['city'] ?? '';
+        postcodeController.text = userData?['postcode'] ?? '';
+        _firestorePhotoUrl = userData?['photoUrl'];
+
+        // Save user-specific data in SharedPreferences
+        prefs.setString('name_$userId', nameController.text);
+        prefs.setString('phone_$userId', phoneController.text);
+        prefs.setString('nric_$userId', nricController.text);
+        prefs.setString('address_$userId', addressController.text);
+        prefs.setString('city_$userId', cityController.text);
+        prefs.setString('postcode_$userId', postcodeController.text);
+        if (_firestorePhotoUrl != null) {
+          prefs.setString('photoUrl_$userId', _firestorePhotoUrl!);
+        }
+      });
+    }
   }
 
   void _initializeListeners() {
@@ -126,17 +191,17 @@ class _ProfilePageState extends State<ProfilePage> {
     cityController.addListener(() => _saveData());
     postcodeController.addListener(() => _saveData());
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
         child: GestureDetector(
-          onTap: () => FocusScope.of(context).unfocus(), // Dismiss keyboard when tapping outside
+          onTap: () => FocusScope.of(context).unfocus(),
           child: SingleChildScrollView(
             child: Column(
               children: [
-                // Your existing UI elements remain unchanged here
-                SizedBox(height: 50),
+                SizedBox(height: 20),
                 Center(
                   child: Column(
                     children: [
@@ -150,13 +215,11 @@ class _ProfilePageState extends State<ProfilePage> {
                           radius: 50,
                           backgroundImage: _selectedImage != null
                               ? FileImage(_selectedImage!)
-                              : (currentUser?.photoURL != null
-                              ? NetworkImage(currentUser!.photoURL!)
+                              : (_firestorePhotoUrl != null
+                              ? NetworkImage(_firestorePhotoUrl!)
                               : AssetImage('assets/profileNotLogin.png')) as ImageProvider,
                         ),
                       ),
-                      SizedBox(height: 10),
-                      // Your Name and Pencil Icon Row
                       Stack(
                         children: [
                           ConstrainedBox(
@@ -178,7 +241,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                 hintText: "Set your name",
                                 hintStyle: TextStyle(color: Colors.grey),
                               ),
-                              maxLines: 2, // Allow wrapping to the second line
+                              maxLines: 2,
                               textAlign: TextAlign.center,
                             ),
                           ),
@@ -203,7 +266,6 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                         child: Column(
                           children: [
-                            // All rows remain the same
                             ListTile(
                               leading: Image.asset(
                                 'assets/profileicon1.png',
@@ -220,6 +282,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                 ),
                               ),
                             ),
+                            buildEmailRow('assets/profileIcon9.png', currentUser?.email ?? 'No Email Available'),
                             buildNonEditableRow('assets/profileicon2.png', currentUser?.displayName ?? 'Set username'),
                             buildEditableRow('assets/profileicon3.png', 'Mobile Number', phoneController),
                             buildEditableRow('assets/profileicon4.png', 'NRIC', nricController),
@@ -233,10 +296,10 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 20.0), // Existing padding
+                  padding: const EdgeInsets.only(bottom: 5.0), // Existing padding
                   child: Column(
                     children: [
-                      SizedBox(height: 20), // Add space between table and logout button
+                      SizedBox(height: 12),
                       ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: currentUser != null ? Colors.red : Color(0xFFFFCF40),
@@ -276,6 +339,7 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
     );
   }
+
   Widget buildNonEditableRow(String iconPath, String text) {
     return ListTile(
       leading: Image.asset(
@@ -310,4 +374,20 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
     );
   }
+}
+
+Widget buildEmailRow(String iconPath, String email) {
+  return ListTile(
+    leading: Image.asset(
+      iconPath,
+      height: 24,
+      width: 24,
+    ),
+    title: Text(
+      email,
+      style: TextStyle(
+        color: Colors.white,
+      ),
+    ),
+  );
 }

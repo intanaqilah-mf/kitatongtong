@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../pages/loginPage.dart';
 import '../pages/profilePage.dart';
+import '../pages/homePage.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,7 +19,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         scaffoldBackgroundColor: Color(0xFF303030), // Background color for the app
       ),
-      home: AuthWrapper(), // Use an authentication wrapper
+      home: HomePage(), // Use an authentication wrapper
     );
   }
 }

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:projects/pages/applyAid.dart'; // Import the ApplyAid page
+import 'package:projects/pages/verifyApplications.dart'; // Import your verification page
 
 class AdminDashboard extends StatelessWidget {
   Widget build(BuildContext context) {
@@ -23,10 +23,10 @@ class AdminDashboard extends StatelessWidget {
                 ),
                 child: InkWell(
                   onTap: () {
-                    if (i == 2) {
+                    if (i == 1) {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => ApplyAid()),
+                        MaterialPageRoute(builder: (context) => VerifyApplicationsScreen()),
                       );
                     }
                   },

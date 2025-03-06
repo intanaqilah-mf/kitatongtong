@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
+import '../pages/screeningApplicants.dart';
 
 class VerifyApplicationsScreen extends StatefulWidget {
   @override
@@ -269,6 +270,16 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
+                      child: GestureDetector(
+                      onTap: () {
+                      // Navigate to the screeningApplicants screen and pass the application data
+                      Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ScreeningApplicants(applicationData: app),
+                      ),
+                      );
+                      },
                       child: Column(
                         children: [
                           ListTile(
@@ -327,6 +338,7 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
                           ),
                         ],
                       ),
+                    ),
                     );
                   },
                 );

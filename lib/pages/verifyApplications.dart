@@ -38,20 +38,10 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
       ),
       body: Column(
         children: [
-          // Header Section (Full Width)
+          // Header Section (Full Width) with inner shadow
           Container(
             width: double.infinity, // Full width
-            padding: EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-            decoration: BoxDecoration(
-              color: Color(0xFF303030), // Background color
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black26,
-                  blurRadius: 8,
-                  offset: Offset(0, 4),
-                ),
-              ],
-            ),
+            padding: EdgeInsets.symmetric(vertical: 15, horizontal: 16),
             child: Column(
               children: [
                 Text(
@@ -76,9 +66,9 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
             ),
           ),
 
-          // Search & Filter Row
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 6.0),
+          Container(
+            color: Color(0xFF303030),
+            padding: const EdgeInsets.only(left: 7.0, right: 6.0, top: 20.0, bottom: 6.0),
             child: Row(
               children: [
                 // Search Field (Increase width)
@@ -223,7 +213,12 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
               ],
             ),
           ),
-
+          Divider(
+            thickness: 1,
+            color: Colors.white, // White divider
+            indent: 10,
+            endIndent: 10,
+          ),
           // Fetch & Display Applications (Cards)
           Expanded(
             child: StreamBuilder<QuerySnapshot>(

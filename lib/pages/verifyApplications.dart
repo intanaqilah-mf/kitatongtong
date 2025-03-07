@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:math';
+import 'package:intl/intl.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
 import '../pages/screeningApplicants.dart';
 
@@ -12,15 +14,15 @@ class VerifyApplicationsScreen extends StatefulWidget {
 class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
   int _selectedIndex = 0;
   late Stream<QuerySnapshot> _applicationsStream;
-  Map<int, bool> _expandedStates = {}; // Track expanded states for each item
-
-  String selectedFilter = "All"; // Default filter
-  String selectedSort = "Date"; // Default sorting
+  Map<int, bool> _expandedStates = {};
+  String selectedFilter = "All";
+  String selectedSort = "Date";
 
   @override
   void initState() {
     super.initState();
-    _applicationsStream = FirebaseFirestore.instance.collection('applications').snapshots();
+    _applicationsStream =
+        FirebaseFirestore.instance.collection('applications').snapshots();
   }
 
   void _onItemTapped(int index) {
@@ -29,19 +31,46 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
     });
   }
 
+  // Generate a 6-character alphanumeric unique code starting with #
+  String generateUniqueCode() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    Random random = Random();
+    return "#" + String.fromCharCodes(Iterable.generate(
+        6, (_) => chars.codeUnitAt(random.nextInt(chars.length))));
+  }
+
+  Future<String> getOrCreateUniqueCode(String applicationId) async {
+    DocumentReference docRef =
+    FirebaseFirestore.instance.collection('applications').doc(applicationId);
+
+    DocumentSnapshot docSnap = await docRef.get();
+
+    if (docSnap.exists) {
+      var data = docSnap.data() as Map<String, dynamic>;
+      if (data.containsKey('applicationCode')) {
+        return data['applicationCode']; // Return existing code if found
+      } else {
+        // Generate and store the new code if it doesn't exist
+        String newCode = generateUniqueCode();
+        await docRef.update({'applicationCode': newCode});
+        return newCode;
+      }
+    }
+    return generateUniqueCode(); // Fallback (should not happen)
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(0xFF303030), // Background color
+      backgroundColor: Color(0xFF303030),
       appBar: AppBar(
         backgroundColor: Color(0xFF303030),
         elevation: 0,
       ),
       body: Column(
         children: [
-          // Header Section (Full Width) with inner shadow
           Container(
-            width: double.infinity, // Full width
+            width: double.infinity,
             padding: EdgeInsets.symmetric(vertical: 15, horizontal: 16),
             child: Column(
               children: [
@@ -52,175 +81,26 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
                   ),
-                  textAlign: TextAlign.center, // Center text
+                  textAlign: TextAlign.center,
                 ),
-                SizedBox(height: 15.0), // Add more space
+                SizedBox(height: 15.0),
                 Text(
                   "Track applications you’ve submitted or managed.",
                   style: TextStyle(
                     color: Color(0xFFAA820C),
                     fontSize: 14,
                   ),
-                  textAlign: TextAlign.center, // Center text
-                ),
-              ],
-            ),
-          ),
-
-          Container(
-            color: Color(0xFF303030),
-            padding: const EdgeInsets.only(left: 7.0, right: 6.0, top: 20.0, bottom: 6.0),
-            child: Row(
-              children: [
-                // Search Field (Increase width)
-                SizedBox(
-                  width: 160, // Increased width for Search field
-                  height: 40, // Match height of dropdowns
-                  child: TextField(
-                    decoration: InputDecoration(
-                      prefixIcon: ShaderMask(
-                        shaderCallback: (Rect bounds) {
-                          return LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            stops: [0.16, 0.38, 0.58, 0.88],
-                            colors: [
-                              Color(0xFFF9F295),
-                              Color(0xFFE0AA3E),
-                              Color(0xFFF9F295),
-                              Color(0xFFB88A44),
-                            ],
-                          ).createShader(bounds);
-                        },
-                        child: Icon(
-                          Icons.search_rounded,
-                          size: 25, // Adjust size to match dropdown icon size
-                          color: Colors.white, // This will be overridden by ShaderMask
-                        ),
-                      ),
-                      hintText: "Search Asnaf",
-                      hintStyle: TextStyle(fontSize: 14), // Match dropdown text size
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                      contentPadding: EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-                    ),
-                    style: TextStyle(fontSize: 14), // Match dropdown text size
-                    onChanged: (value) {
-                      setState(() {}); // Triggers UI refresh on text change
-                    },
-                  ),
-                ),
-
-                SizedBox(width: 8), // Small gap between search and filter
-
-                // Filter Dropdown (Reduce width)
-                SizedBox(
-                  width: 100, // Reduced width for Filter field
-                  height: 40,
-                  child: DropdownButtonFormField<String>(
-                    value: selectedFilter,
-                    decoration: InputDecoration(
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                      contentPadding: EdgeInsets.symmetric(vertical: 2, horizontal: 2), // Reduced padding
-                    ),
-                    dropdownColor: Colors.black,
-                    icon: Align(
-                      alignment: Alignment.centerRight,
-                      child: Icon(Icons.filter_list, color: Colors.black),
-                    ),
-                    style: TextStyle(color: Colors.black),
-                    selectedItemBuilder: (BuildContext context) {
-                      return ["All", "Pending", "Approved", "Rejected"]
-                          .map<Widget>((String value) {
-                        return Padding(
-                          padding: EdgeInsets.only(left: 10),  // Add left padding to move text to the right
-                          child: Center(
-                            child: Text(value, style: TextStyle(color: Colors.black)),
-                          ),
-                        );
-                      }).toList();
-                    },
-                    onChanged: (String? newValue) {
-                      setState(() {
-                        selectedFilter = newValue!;
-                      });
-                    },
-                    items: ["All", "Pending", "Approved", "Rejected"]
-                        .map<DropdownMenuItem<String>>((String value) {
-                      return DropdownMenuItem<String>(
-                        value: value,
-                        child: Center(
-                          child: Text(value, style: TextStyle(color: Colors.white)),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-
-                SizedBox(width: 8), // Small gap between filter and sort
-
-                // Sort Dropdown (Reduce width)
-                SizedBox(
-                  width: 90, // Reduced width for Sort field
-                  height: 40,
-                  child: DropdownButtonFormField<String>(
-                    value: selectedSort,
-                    decoration: InputDecoration(
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                      contentPadding: EdgeInsets.symmetric(vertical: 2, horizontal: 12), // Reduced padding
-                    ),
-                    dropdownColor: Colors.black,
-                    icon: Align(
-                      alignment: Alignment.centerRight,
-                      child: Icon(Icons.sort, color: Colors.black),
-                    ),
-                    style: TextStyle(color: Colors.black),
-                    selectedItemBuilder: (BuildContext context) {
-                      return ["Date", "Name", "Status"].map<Widget>((String value) {
-                        return Center(
-                          child: Text(
-                            value,
-                            style: TextStyle(color: Colors.black),
-                            textAlign: TextAlign.center,
-                          ),
-                        );
-                      }).toList();
-                    },
-                    onChanged: (String? newValue) {
-                      setState(() {
-                        selectedSort = newValue!;
-                      });
-                    },
-                    items: ["Date", "Name", "Status"]
-                        .map<DropdownMenuItem<String>>((String value) {
-                      return DropdownMenuItem<String>(
-                        value: value,
-                        child: Center(
-                          child: Text(
-                            value,
-                            style: TextStyle(color: Colors.white),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
+                  textAlign: TextAlign.center,
                 ),
               ],
             ),
           ),
           Divider(
             thickness: 1,
-            color: Colors.white, // White divider
+            color: Colors.white,
             indent: 10,
             endIndent: 10,
           ),
-          // Fetch & Display Applications (Cards)
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: _applicationsStream,
@@ -239,106 +119,53 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
                   var appData = doc.data() as Map<String, dynamic>;
                   return {
                     'fullname': appData['fullname'] ?? 'Unknown',
-                    'date': appData['date'] ?? 'No date provided',
+                    'date': appData['date'] ?? '',
                     'submitted_by': appData['submitted_by'] ?? 'Unknown',
-                    'status': appData['status'] ?? 'Pending',
+                    'statusApplication': appData['statusApplication'] ?? 'Pending',
+                    'id': doc.id,
+                    'userId': appData['userId'] ?? '',
                   };
                 }).toList();
-
-                // Sorting Logic
-                applications.sort((a, b) {
-                  if (selectedSort == "Date") {
-                    var dateA = a['date'] ?? '';
-                    var dateB = b['date'] ?? '';
-                    return dateB.compareTo(dateA);
-                  } else if (selectedSort == "Name") {
-                    return a['fullname'].compareTo(b['fullname']);
-                  } else {
-                    return a['status'].compareTo(b['status']);
-                  }
-                });
 
                 return ListView.builder(
                   itemCount: applications.length,
                   itemBuilder: (context, index) {
                     var app = applications[index];
                     bool isExpanded = _expandedStates[index] ?? false;
+                    String formattedDate = app['date'] != ''
+                        ? DateFormat("dd MMM yyyy").format(DateTime.parse(app['date']))
+                        : 'No date provided';
+                    String userId = app['userId'] ?? '';
 
-                    return Card(
-                      color: Colors.grey[850],
-                      elevation: 4,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: GestureDetector(
-                      onTap: () {
-                      // Navigate to the screeningApplicants screen and pass the application data
-                      Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ScreeningApplicants(applicationData: app),
-                      ),
-                      );
+                    return FutureBuilder<String>(
+                      future: getOrCreateUniqueCode(app['id']),
+                      builder: (context, codeSnapshot) {
+                        if (codeSnapshot.connectionState == ConnectionState.waiting) {
+                          return Center(child: CircularProgressIndicator());
+                        }
+                        String uniqueCode = codeSnapshot.data ?? generateUniqueCode();
+
+                        // Check if the userId is valid before querying Firestore
+                        if (userId.isEmpty) {
+                          // If userId is empty, show a default image (placeholder)
+                          return buildApplicationCard(app, formattedDate, uniqueCode, '');
+                        }
+
+                        return FutureBuilder<DocumentSnapshot>(
+                          future: FirebaseFirestore.instance.collection('users').doc(userId).get(),
+                          builder: (context, userSnapshot) {
+                            String photoUrl = "";
+                            if (userSnapshot.connectionState == ConnectionState.done &&
+                                userSnapshot.hasData &&
+                                userSnapshot.data!.exists) {
+                              var userData = userSnapshot.data!.data() as Map<String, dynamic>;
+                              photoUrl = userData['photoUrl'] ?? "";
+                            }
+
+                            return buildApplicationCard(app, formattedDate, uniqueCode, photoUrl);
+                          },
+                        );
                       },
-                      child: Column(
-                        children: [
-                          ListTile(
-                            leading: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                GestureDetector(
-                                  onTap: () {
-                                    setState(() {
-                                      _expandedStates[index] = !isExpanded;
-                                    });
-                                  },
-                                  child: Icon(
-                                    isExpanded
-                                        ? Icons.keyboard_arrow_up
-                                        : Icons.keyboard_arrow_down,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                SizedBox(width: 8),
-                                Container(
-                                  width: 30,
-                                  height: 30,
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey.shade800,
-                                    borderRadius: BorderRadius.circular(5),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            title: Text(
-                              app['fullname'],
-                              style: TextStyle(color: Colors.white),
-                            ),
-                            subtitle: Text(app['date'], style: TextStyle(color: Colors.grey)),
-                            trailing: Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(
-                                  "Submitted by: ${app['submitted_by']}",
-                                  style: TextStyle(color: Colors.amber, fontSize: 12),
-                                ),
-                                SizedBox(height: 4),
-                                Text(
-                                  app['status'],
-                                  style: TextStyle(
-                                    color: app['status'] == "Pending"
-                                        ? Colors.orange
-                                        : app['status'] == "Approved"
-                                        ? Colors.green
-                                        : Colors.red,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
                     );
                   },
                 );
@@ -353,4 +180,110 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
       ),
     );
   }
+
+  // Function to build the application card
+  Widget buildApplicationCard(Map<String, dynamic> app, String formattedDate, String uniqueCode, String photoUrl) {
+    bool isExpanded = _expandedStates[app['id']] ?? false;
+
+    // Fetch the correct 'statusApplication' field from Firestore
+    String statusApplication = app['statusApplication'] ?? 'Pending'; // Default to 'Pending' if field is missing
+
+    return Card(
+      color: Colors.grey[850],
+      elevation: 4,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: GestureDetector(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ScreeningApplicants(
+                documentId: app['id'],
+              ),
+            ),
+          );
+        },
+        child: Column(
+          children: [
+            ListTile(
+              leading: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _expandedStates[app['id']] = !isExpanded;
+                      });
+                    },
+                    child: Icon(
+                      isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                      color: Colors.white,
+                    ),
+                  ),
+                  SizedBox(width: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(5),
+                    child: photoUrl.isNotEmpty
+                        ? Image.network(
+                      photoUrl,
+                      width: 30,
+                      height: 30,
+                      fit: BoxFit.cover,
+                    )
+                        : Container(
+                      width: 30,
+                      height: 30,
+                      color: Colors.grey.shade800,
+                    ),
+                  ),
+                ],
+              ),
+              title: Text(
+                app['fullname'],
+                style: TextStyle(color: Colors.white),
+              ),
+              subtitle: Row(
+                children: [
+                  Text(
+                    formattedDate,
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                  SizedBox(width: 6),
+                  Icon(
+                    Icons.circle,
+                    color: Colors.white,
+                    size: 6,
+                  ),
+                  SizedBox(width: 6),
+                  Text(
+                    uniqueCode,
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ],
+              ),
+              trailing: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  SizedBox(height: 4),
+                  Text(
+                    statusApplication,  // Corrected to use 'statusApplication'
+                    style: TextStyle(
+                      color: statusApplication == "Pending"
+                          ? Colors.orange
+                          : statusApplication == "Approve"
+                          ? Colors.green
+                          : Colors.red,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
 }

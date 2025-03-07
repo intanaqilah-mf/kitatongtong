@@ -1,8 +1,8 @@
 import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
-import '../pages/verifyReviewScreen.dart';
 
 class ScreeningApplicants extends StatefulWidget {
   final String documentId;
@@ -14,9 +14,7 @@ class ScreeningApplicants extends StatefulWidget {
 }
 
 class _ScreeningApplicantsState extends State<ScreeningApplicants> {
-  int _selectedIndex = 0;
-  String selectedStatus = "Approve"; // Default status selection
-  TextEditingController reasonController = TextEditingController();
+  int _selectedIndex = 0; // Initialize index
 
   void _onItemTapped(int index) {
     setState(() {
@@ -32,35 +30,6 @@ class _ScreeningApplicantsState extends State<ScreeningApplicants> {
     return await FirebaseFirestore.instance.collection('users').doc(userId).get();
   }
 
-  void submitStatus() async {
-    String finalStatus = selectedStatus;
-
-    if (selectedStatus.isEmpty) {
-      finalStatus = "Pending";
-    }
-
-    try {
-      // Update the application status in Firestore
-      await FirebaseFirestore.instance.collection('applications').doc(widget.documentId).update({
-        'statusApplication': finalStatus,
-        'reasonStatus': reasonController.text,
-      });
-
-      // Show a success message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Application status updated successfully!")),
-      );
-
-      // Navigate to VerifyReviewScreen after submitting
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => VerifyReviewScreen()),
-      );
-    } catch (e) {
-      print("Error: $e"); // Debugging line to check for errors
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -69,53 +38,54 @@ class _ScreeningApplicantsState extends State<ScreeningApplicants> {
         backgroundColor: Color(0xFF303030),
         elevation: 0,
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            Container(
-              width: double.infinity,
-              padding: EdgeInsets.symmetric(vertical: 15, horizontal: 16),
-              child: Column(
-                children: [
-                  Text(
-                    "Screening applicants",
-                    style: TextStyle(
-                      color: Color(0xFFFDB515),
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
+      body: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.symmetric(vertical: 15, horizontal: 16),
+            child: Column(
+              children: [
+                Text(
+                  "Screening applicants",
+                  style: TextStyle(
+                    color: Color(0xFFFDB515),
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
                   ),
-                  SizedBox(height: 15.0),
-                  FutureBuilder<DocumentSnapshot>(
-                    future: fetchApplicationData(widget.documentId),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return CircularProgressIndicator();
-                      }
-                      if (snapshot.hasError) {
-                        return Text('Error: ${snapshot.error}');
-                      }
-                      if (!snapshot.hasData || !snapshot.data!.exists) {
-                        return Text('No data found for this applicant.');
-                      }
-                      var applicationData = snapshot.data!;
-                      var fullname = applicationData['fullname'] ?? 'N/A';
+                  textAlign: TextAlign.center,
+                ),
+                SizedBox(height: 15.0),
+                FutureBuilder<DocumentSnapshot>(
+                  future: fetchApplicationData(widget.documentId),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return CircularProgressIndicator();
+                    }
+                    if (snapshot.hasError) {
+                      return Text('Error: ${snapshot.error}');
+                    }
+                    if (!snapshot.hasData || !snapshot.data!.exists) {
+                      return Text('No data found for this applicant.');
+                    }
+                    var applicationData = snapshot.data!;
+                    var fullname = applicationData['fullname'] ?? 'N/A';
 
-                      return Text(
-                        fullname,
-                        style: TextStyle(
-                          color: Color(0xFFF1D789),
-                          fontSize: 25,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      );
-                    },
-                  ),
-                ],
-              ),
+                    return Text(
+                      fullname,
+                      style: TextStyle(
+                        color: Color(0xFFF1D789),
+                        fontSize: 25,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    );
+                  },
+                ),
+              ],
             ),
-            FutureBuilder<DocumentSnapshot>(
+          ),
+
+          Expanded(
+            child: FutureBuilder<DocumentSnapshot>(
               future: fetchApplicationData(widget.documentId),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
@@ -168,7 +138,7 @@ class _ScreeningApplicantsState extends State<ScreeningApplicants> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.center, // Keep photo centered
                           children: [
                             FutureBuilder<DocumentSnapshot>(
                               future: fetchUserData(userId),
@@ -273,82 +243,13 @@ class _ScreeningApplicantsState extends State<ScreeningApplicants> {
                           ],
                         ),
                       ),
-                      // Status and Reason sections
-                      SizedBox(height: 20),
-
-                      // Status Dropdown Section
-                      Text("Status", style: TextStyle(color: Colors.white, fontSize: 16)),
-                      SizedBox(height: 5),
-                      Container(
-                        padding: EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: selectedStatus,
-                            items: ["Approve", "Disapprove"].map((String value) {
-                              return DropdownMenuItem<String>(
-                                value: value,
-                                child: Text(value),
-                              );
-                            }).toList(),
-                            onChanged: (newValue) {
-                              setState(() {
-                                selectedStatus = newValue!;
-                              });
-                            },
-                          ),
-                        ),
-                      ),
-
-                      SizedBox(height: 20),
-
-                      // Reason TextField
-                      Text("Reason", style: TextStyle(color: Colors.white, fontSize: 16)),
-                      SizedBox(height: 5),
-                      TextField(
-                        controller: reasonController,
-                        maxLines: null, // Allows expanding dynamically
-                        minLines: 3, // Default height
-                        keyboardType: TextInputType.multiline,
-                        decoration: InputDecoration(
-                          filled: true,
-                          fillColor: Colors.white,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          hintText: "Enter reason...",
-                        ),
-                      ),
-
-                      SizedBox(height: 25),
-
-                      // Submit Button
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: submitStatus,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Color(0xFFFDB515),
-                            padding: EdgeInsets.symmetric(vertical: 12),
-                          ),
-                          child: Text(
-                            "Submit",
-                            style: TextStyle(color: Colors.black, fontSize: 16),
-                          ),
-                        ),
-                      ),
-
-                      SizedBox(height: 20),
                     ],
                   ),
                 );
               },
             ),
-          ],
-        ),
+          ),
+        ],
       ),
       bottomNavigationBar: BottomNavBar(
         selectedIndex: _selectedIndex,

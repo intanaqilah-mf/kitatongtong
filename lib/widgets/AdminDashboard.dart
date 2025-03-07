@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:projects/pages/verifyApplications.dart'; // Import your verification page
+import 'package:projects/pages/verifyApplications.dart';
+import 'package:projects/pages/issueReward.dart';
 
 class AdminDashboard extends StatelessWidget {
   Widget build(BuildContext context) {
@@ -27,6 +28,12 @@ class AdminDashboard extends StatelessWidget {
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (context) => VerifyApplicationsScreen()),
+                      );
+                    }
+                    else if (i ==2) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => IssueReward()),
                       );
                     }
                   },

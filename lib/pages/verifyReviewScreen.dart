@@ -31,12 +31,12 @@ class _VerifyReviewScreen extends State<VerifyReviewScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Image.asset(
-                      'assets/hourglass.png', // Replace with your hourglass asset
+                      'assets/check.png', // Replace with your hourglass asset
                       height: 100,
                     ),
                     SizedBox(height: 20),
                     Text(
-                      "You have successfully reviewed an application!",
+                      "You have reviewed an application!",
                       style: TextStyle(
                         fontSize: 35,
                         fontWeight: FontWeight.bold,

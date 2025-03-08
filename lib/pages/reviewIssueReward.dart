@@ -32,12 +32,12 @@ class _ReviewIssueRewardState extends State<ReviewIssueReward> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Image.asset(
-                      'assets/hourglass.png', // Replace with your hourglass asset
+                      'assets/check.png', // Replace with your hourglass asset
                       height: 100,
                     ),
                     SizedBox(height: 20),
                     Text(
-                      "You have successfully reviewed an application!",
+                      "You have issue reward to an applicant!",
                       style: TextStyle(
                         fontSize: 35,
                         fontWeight: FontWeight.bold,
@@ -47,7 +47,7 @@ class _ReviewIssueRewardState extends State<ReviewIssueReward> {
                     ),
                     SizedBox(height: 10),
                     Text(
-                      "Do you want to review another applicant?",
+                      "Do you want to issue another reward to another applicant?",
                       style: TextStyle(
                         fontSize: 18,
                         color: Colors.grey[400], // Light gray color

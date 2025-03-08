@@ -1,260 +1,143 @@
-import 'dart:ui';
+          Padding(
+               padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 6.0),
+             child: Row(
+               children: [
+                 SizedBox(
+                   width: 160, // Increased width for Search field
+                   height: 40, // Match height of dropdowns
+                   child: TextField(
+                     decoration: InputDecoration(
+                      prefixIcon: ShaderMask(
+                         shaderCallback: (Rect bounds) {
+                           return LinearGradient(
+                             begin: Alignment.topLeft,
+                             end: Alignment.bottomRight,
+                             stops: [0.16, 0.38, 0.58, 0.88],
+                             colors: [
+                               Color(0xFFF9F295),
+                               Color(0xFFE0AA3E),
+                               Color(0xFFF9F295),
+                               Color(0xFFB88A44),
+                             ],
+                           ).createShader(bounds);
+                         },
+                         child: Icon(
+                           Icons.search_rounded,
+                           size: 25, // Adjust size to match dropdown icon size
+                           color: Colors.white, // This will be overridden by ShaderMask
+                         ),
+                       ),
+                       hintText: "Search Asnaf",
+                       hintStyle: TextStyle(fontSize: 14), // Match dropdown text size
+                       filled: true,
+                       fillColor: Colors.white,
+                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                       contentPadding: EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                     ),
+                     style: TextStyle(fontSize: 14), // Match dropdown text size
+                     onChanged: (value) {
+                       setState(() {}); // Triggers UI refresh on text change
+                     },
+                   ),
+                 ),
+                          SizedBox(width: 8), // Small gap between search and filter
 
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:projects/widgets/bottomNavBar.dart';
+                 // Filter Dropdown (Reduce width)
+                 SizedBox(
+                   width: 100, // Reduced width for Filter field
+                   height: 40,
+                   child: DropdownButtonFormField<String>(
+                     value: selectedFilter,
+                     decoration: InputDecoration(
+                       filled: true,
+                       fillColor: Colors.white,
+                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                       contentPadding: EdgeInsets.symmetric(vertical: 2, horizontal: 2), // Reduced padding
+                     ),
+                     dropdownColor: Colors.black,
+                     icon: Align(
+                       alignment: Alignment.centerRight,
+                       child: Icon(Icons.filter_list, color: Colors.black),
+                     ),
+                     style: TextStyle(color: Colors.black),
+                     selectedItemBuilder: (BuildContext context) {
+                       return ["All", "Pending", "Approved", "Rejected"]
+                           .map<Widget>((String value) {
+                         return Padding(
+                           padding: EdgeInsets.only(left: 10),  // Add left padding to move text to the right
+                           child: Center(
+                             child: Text(value, style: TextStyle(color: Colors.black)),
+                           ),
+                         );
+                       }).toList();
+                     },
+                     onChanged: (String? newValue) {
+                       setState(() {
+                         selectedFilter = newValue!;
+                       });
+                     },
+                     items: ["All", "Pending", "Approved", "Rejected"]
+                         .map<DropdownMenuItem<String>>((String value) {
+                       return DropdownMenuItem<String>(
+                         value: value,
+                         child: Center(
+                           child: Text(value, style: TextStyle(color: Colors.white)),
+                         ),
+                       );
+                     }).toList(),
+                   ),
+                 ),
+                          SizedBox(width: 8), // Small gap between filter and sort
 
-class ScreeningApplicants extends StatefulWidget {
-  final String documentId;
-
-  ScreeningApplicants({required this.documentId});
-
-  @override
-  _ScreeningApplicantsState createState() => _ScreeningApplicantsState();
-}
-
-class _ScreeningApplicantsState extends State<ScreeningApplicants> {
-  int _selectedIndex = 0; // Initialize index
-
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-  }
-
-  Future<DocumentSnapshot> fetchApplicationData(String documentId) async {
-    return await FirebaseFirestore.instance.collection('applications').doc(documentId).get();
-  }
-
-  Future<DocumentSnapshot> fetchUserData(String userId) async {
-    return await FirebaseFirestore.instance.collection('users').doc(userId).get();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Color(0xFF303030),
-      appBar: AppBar(
-        backgroundColor: Color(0xFF303030),
-        elevation: 0,
-      ),
-      body: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.symmetric(vertical: 15, horizontal: 16),
-            child: Column(
-              children: [
-                Text(
-                  "Screening applicants",
-                  style: TextStyle(
-                    color: Color(0xFFFDB515),
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                SizedBox(height: 15.0),
-                FutureBuilder<DocumentSnapshot>(
-                  future: fetchApplicationData(widget.documentId),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return CircularProgressIndicator();
-                    }
-                    if (snapshot.hasError) {
-                      return Text('Error: ${snapshot.error}');
-                    }
-                    if (!snapshot.hasData || !snapshot.data!.exists) {
-                      return Text('No data found for this applicant.');
-                    }
-                    var applicationData = snapshot.data!;
-                    var fullname = applicationData['fullname'] ?? 'N/A';
-
-                    return Text(
-                      fullname,
-                      style: TextStyle(
-                        color: Color(0xFFF1D789),
-                        fontSize: 25,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-
-          Expanded(
-            child: FutureBuilder<DocumentSnapshot>(
-              future: fetchApplicationData(widget.documentId),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                }
-                if (!snapshot.hasData || !snapshot.data!.exists) {
-                  return Center(child: Text('No data found for this applicant.'));
-                }
-
-                var applicationData = snapshot.data!;
-                var fullname = applicationData['fullname'] ?? 'N/A';
-                var mobileNumber = applicationData['mobileNumber'] ?? 'No phone number available';
-                var email = applicationData['email'] ?? 'No email available';
-                var addressLine1 = applicationData['addressLine1'] ?? 'No address available';
-                var addressLine2 = applicationData['addressLine2'] ?? 'No address available';
-                var city = applicationData['city'] ?? 'No address available';
-                var postcode = applicationData['postcode'] ?? 'No address available';
-                var justificationApplication = applicationData['justificationApplication'] ?? 'No justification available';
-                var monthlyIncome = applicationData['monthlyIncome'] ?? 'No income available';
-                var nric = applicationData['nric'] ?? 'No NRIC available';
-                var userId = applicationData['userId'];
-                var residencyStatus = applicationData['residencyStatus'] ?? 'Unknown';
-                var employmentStatus = applicationData['employmentStatus'] ?? 'Unknown';
-                var date = applicationData['date'] ?? 'No date available';
-                var applicationCode = applicationData['applicationCode'] ?? 'No Code';
-
-                return Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: double.infinity,
-                        padding: EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            stops: [0.16, 0.38, 0.58, 0.88],
-                            colors: [
-                              Color(0xFFF9F295),
-                              Color(0xFFE0AA3E),
-                              Color(0xFFF9F295),
-                              Color(0xFFB88A44),
-                            ],
-                          ),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.center, // Keep photo centered
-                          children: [
-                            FutureBuilder<DocumentSnapshot>(
-                              future: fetchUserData(userId),
-                              builder: (context, userSnapshot) {
-                                if (userSnapshot.connectionState == ConnectionState.waiting) {
-                                  return CircularProgressIndicator();
-                                }
-                                if (userSnapshot.hasError) {
-                                  return Text('Error: ${userSnapshot.error}');
-                                }
-                                if (!userSnapshot.hasData || !userSnapshot.data!.exists) {
-                                  return CircleAvatar(
-                                    radius: 50,
-                                    backgroundColor: Colors.grey,
-                                    child: Icon(Icons.person, color: Colors.white),
-                                  );
-                                }
-
-                                var userData = userSnapshot.data!;
-                                var photoUrl = userData['photoUrl'];
-
-                                return CircleAvatar(
-                                  radius: 50,
-                                  backgroundImage: NetworkImage(photoUrl ?? ''),
-                                  child: photoUrl == null
-                                      ? Icon(Icons.person, size: 50, color: Colors.white)
-                                      : null,
-                                );
-                              },
-                            ),
-                            SizedBox(height: 10),
-
-                            // Application Code (Centered)
-                            Text(
-                              applicationCode,
-                              style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w400,
-                                  color: Colors.black
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-
-                            SizedBox(height: 10),
-
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text.rich(TextSpan(
-                                    children: [
-                                      TextSpan(text: "Full Name: ", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                                      TextSpan(text: fullname, style: TextStyle(fontSize: 16)),
-                                    ],
-                                  )),
-                                  Text.rich(TextSpan(
-                                    children: [
-                                      TextSpan(text: "Asnaf NRIC: ", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                                      TextSpan(text: nric, style: TextStyle(fontSize: 16)),
-                                    ],
-                                  )),
-                                  Text.rich(TextSpan(
-                                    children: [
-                                      TextSpan(text: "Phone number: ", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                                      TextSpan(text: "60$mobileNumber", style: TextStyle(fontSize: 16)),
-                                    ],
-                                  )),
-                                  Text.rich(TextSpan(
-                                    children: [
-                                      TextSpan(text: "Address: ", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                                      TextSpan(text: "$addressLine1, $addressLine2, $postcode, $city", style: TextStyle(fontSize: 16)),
-                                    ],
-                                  )),
-                                  Text.rich(TextSpan(
-                                    children: [
-                                      TextSpan(text: "Residency Status: ", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                                      TextSpan(text: residencyStatus, style: TextStyle(fontSize: 16)),
-                                    ],
-                                  )),
-                                  Text.rich(TextSpan(
-                                    children: [
-                                      TextSpan(text: "Employment Status: ", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                                      TextSpan(text: employmentStatus, style: TextStyle(fontSize: 16)),
-                                    ],
-                                  )),
-                                  Text.rich(TextSpan(
-                                    children: [
-                                      TextSpan(text: "Monthly Income: ", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                                      TextSpan(text: monthlyIncome, style: TextStyle(fontSize: 16)),
-                                    ],
-                                  )),
-                                  Text.rich(TextSpan(
-                                    children: [
-                                      TextSpan(text: "Justification of application: ", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                                      TextSpan(text: justificationApplication, style: TextStyle(fontSize: 16)),
-                                    ],
-                                  )),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: BottomNavBar(
-        selectedIndex: _selectedIndex,
-        onItemTapped: _onItemTapped,
-      ),
-    );
-  }
-}
+                 // Sort Dropdown (Reduce width)
+                 SizedBox(
+                   width: 90, // Reduced width for Sort field
+                   height: 40,
+                   child: DropdownButtonFormField<String>(
+                     value: selectedSort,
+                     decoration: InputDecoration(
+                       filled: true,
+                       fillColor: Colors.white,
+                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                       contentPadding: EdgeInsets.symmetric(vertical: 2, horizontal: 12), // Reduced padding
+                     ),
+                     dropdownColor: Colors.black,
+                     icon: Align(
+                       alignment: Alignment.centerRight,
+                       child: Icon(Icons.sort, color: Colors.black),
+                     ),
+                     style: TextStyle(color: Colors.black),
+                     selectedItemBuilder: (BuildContext context) {
+                       return ["Date", "Name", "Status"].map<Widget>((String value) {
+                         return Center(
+                           child: Text(
+                             value,
+                             style: TextStyle(color: Colors.black),
+                             textAlign: TextAlign.center,
+                           ),
+                         );
+                       }).toList();
+                     },
+                     onChanged: (String? newValue) {
+                       setState(() {
+                         selectedSort = newValue!;
+                       });
+                     },
+                     items: ["Date", "Name", "Status"]
+                         .map<DropdownMenuItem<String>>((String value) {
+                       return DropdownMenuItem<String>(
+                         value: value,
+                         child: Center(
+                           child: Text(
+                             value,
+                             style: TextStyle(color: Colors.white),
+                             textAlign: TextAlign.center,
+                           ),
+                         ),
+                       );
+                     }).toList(),
+                   ),
+                 ),
+               ],
+             ),
+           ),

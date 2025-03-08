@@ -15,6 +15,8 @@ class _IssueRewardScreenState extends State<IssueReward> {
   Map<int, bool> _expandedStates = {};
   String selectedFilter = "All";
   String selectedSort = "Date";
+  TextEditingController searchController = TextEditingController();
+  String searchQuery = "";
 
   @override
   void initState() {
@@ -61,6 +63,122 @@ class _IssueRewardScreenState extends State<IssueReward> {
                     fontSize: 14,
                   ),
                   textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 6.0),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 160,
+                  height: 40,
+                  child: TextField(
+                    controller: searchController,
+                    onChanged: (value) {
+                      setState(() {
+                        searchQuery = value.toLowerCase();
+                      });
+                    },
+                    decoration: InputDecoration(
+                      prefixIcon: ShaderMask(
+                        shaderCallback: (Rect bounds) {
+                          return LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            stops: [0.16, 0.38, 0.58, 0.88],
+                            colors: [
+                              Color(0xFFF9F295),
+                              Color(0xFFE0AA3E),
+                              Color(0xFFF9F295),
+                              Color(0xFFB88A44),
+                            ],
+                          ).createShader(bounds);
+                        },
+                        child: Icon(
+                          Icons.search_rounded,
+                          size: 25,
+                          color: Colors.white,
+                        ),
+                      ),
+                      hintText: "Search Asnaf",
+                      hintStyle: TextStyle(fontSize: 14),
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      contentPadding: EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                    ),
+                    style: TextStyle(fontSize: 14),
+                  ),
+                ),
+                SizedBox(width: 6),
+                SizedBox(
+                  width: 105,
+                  height: 40,
+                  child: DropdownButtonFormField<String>(
+                    value: selectedFilter,
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      contentPadding: EdgeInsets.symmetric(vertical: 2, horizontal: 10),
+                    ),
+                    dropdownColor: Colors.white,
+                    icon: Align(
+                      alignment: Alignment.centerRight,
+                      child: Icon(Icons.filter_list, color: Colors.black),
+                    ),
+                    style: TextStyle(color: Colors.black),
+                    onChanged: (String? newValue) {
+                      setState(() {
+                        selectedFilter = newValue!;
+                      });
+                    },
+                    items: ["All", "Pending", "Approved", "Rejected"]
+                        .map<DropdownMenuItem<String>>((String value) {
+                      return DropdownMenuItem<String>(
+                        value: value,
+                        child: Center(
+                          child: Text(value, style: TextStyle(color: Colors.black)),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+                SizedBox(width: 8),
+                SizedBox(
+                  width: 90,
+                  height: 40,
+                  child: DropdownButtonFormField<String>(
+                    value: selectedSort,
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      contentPadding: EdgeInsets.symmetric(vertical: 2, horizontal: 12),
+                    ),
+                    dropdownColor: Colors.white,
+                    icon: Align(
+                      alignment: Alignment.centerRight,
+                      child: Icon(Icons.sort, color: Colors.black),
+                    ),
+                    style: TextStyle(color: Colors.black),
+                    onChanged: (String? newValue) {
+                      setState(() {
+                        selectedSort = newValue!;
+                      });
+                    },
+                    items: ["Date", "Name", "Status"]
+                        .map<DropdownMenuItem<String>>((String value) {
+                      return DropdownMenuItem<String>(
+                        value: value,
+                        child: Center(
+                          child: Text(value, style: TextStyle(color: Colors.black)),
+                        ),
+                      );
+                    }).toList(),
+                  ),
                 ),
               ],
             ),

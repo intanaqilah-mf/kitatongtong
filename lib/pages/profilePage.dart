@@ -70,6 +70,7 @@ class _ProfilePageState extends State<ProfilePage> {
     // Clear cached data for the current user only
     final prefs = await SharedPreferences.getInstance();
     String userId = FirebaseAuth.instance.currentUser?.uid ?? '';
+    print("SharedPreferences for $userId: ${prefs.getString('name_$userId')}");
 
     if (userId.isNotEmpty) {
       await prefs.remove('name_$userId');
@@ -107,6 +108,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
         // Cache updated image
         prefs.setString('photoUrl_$userId', imageUrl);
+
       }
 
       // Save the updated user data
@@ -132,6 +134,7 @@ class _ProfilePageState extends State<ProfilePage> {
       prefs.setString('address_$userId', addressController.text);
       prefs.setString('city_$userId', cityController.text);
       prefs.setString('postcode_$userId', postcodeController.text);
+      prefs.setString('photoUrl_$userId', _firestorePhotoUrl!);
 
       setState(() {
         if (imageUrl != null) {

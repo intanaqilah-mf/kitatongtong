@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:projects/pages/applyAid.dart'; // Import the ApplyAid page
-
+import 'package:projects/pages/event.dart';
 class StaffDashboard extends StatelessWidget {
   Widget build(BuildContext context) {
     return GridView.count(
@@ -23,10 +23,15 @@ class StaffDashboard extends StatelessWidget {
                 ),
                 child: InkWell(
                   onTap: () {
-                    if (i == 2) {
+                    if (i == 1) {
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (context) => ApplyAid()),
+                      );
+                  } else if (i == 4) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => EventPage()), // Navigate to EventPage
                       );
                     }
                   },

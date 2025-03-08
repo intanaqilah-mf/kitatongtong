@@ -250,12 +250,16 @@ class LoginPage extends StatelessWidget {
 Future<UserCredential?> signInWithGoogle() async {
   try {
     final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+
     if (googleUser == null) {
-      print("Google Sign-In canceled by user.");
+      print("❌ Google Sign-In canceled by user.");
       return null;
     }
 
     final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+
+    print("✅ Google Sign-In Access Token: ${googleAuth.accessToken}");
+    print("✅ Google Sign-In ID Token: ${googleAuth.idToken}");
 
     final credential = GoogleAuthProvider.credential(
       accessToken: googleAuth.accessToken,
@@ -264,18 +268,16 @@ Future<UserCredential?> signInWithGoogle() async {
 
     final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
 
-    if (userCredential.user != null) {
-      print("User signed in successfully: ${userCredential.user!.uid}");
-    } else {
-      print("No user returned after sign-in.");
-    }
+    print("✅ Firebase UID: ${userCredential.user?.uid}");
+    print("✅ Email: ${userCredential.user?.email}");
 
     return userCredential;
   } catch (e) {
-    print("Error during Google Sign-In: $e");
+    print("❌ Error during Google Sign-In: $e");
     return null;
   }
 }
+
 
 void main() {
   runApp(MaterialApp(

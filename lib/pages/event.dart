@@ -29,7 +29,6 @@ class _EventPageState extends State<EventPage> {
   Map<String, String> formData = {};
   int _selectedIndex = 0;
 
-  // Function to handle BottomNavBar taps
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
@@ -69,25 +68,32 @@ class _EventPageState extends State<EventPage> {
   }
 }
 
-Future<void> _uploadImageToFirebase() async {
-  if (_selectedImage == null) return;
+  Future<void> _uploadImageToFirebase() async {
+    if (_selectedImage == null) return;
 
-  try {
-    String fileName = "event_banners/${DateTime.now().millisecondsSinceEpoch}.jpg";
-    Reference ref = FirebaseStorage.instance.ref().child(fileName);
-    UploadTask uploadTask = ref.putFile(_selectedImage!);
+    try {
+      String fileName = "event_banners/${DateTime.now().millisecondsSinceEpoch}.jpg";
+      Reference ref = FirebaseStorage.instance.ref().child(fileName);
+      UploadTask uploadTask = ref.putFile(_selectedImage!);
 
-    TaskSnapshot snapshot = await uploadTask;
-    String downloadUrl = await snapshot.ref.getDownloadURL();
+      TaskSnapshot snapshot = await uploadTask;
+      String downloadUrl = await snapshot.ref.getDownloadURL();
 
-    setState(() {
-      _uploadedImageUrl = downloadUrl;
-      formData["bannerUrl"] = downloadUrl; // Store the URL in form data
-    });
-  } catch (e) {
-    print("Error uploading image: $e");
+      setState(() {
+        _uploadedImageUrl = downloadUrl;
+        formData["bannerUrl"] = downloadUrl;
+      });
+
+      // ✅ If Editing, Update Firestore Immediately After Image Upload
+      if (_editingDocId != null) {
+        await FirebaseFirestore.instance.collection("event").doc(_editingDocId).update({
+          "bannerUrl": downloadUrl,
+        });
+      }
+    } catch (e) {
+      print("Error uploading image: $e");
+    }
   }
-}
 
   @override
   Widget build(BuildContext context) {
@@ -196,8 +202,8 @@ Future<void> _uploadImageToFirebase() async {
             return GestureDetector(
               onTap: () {
                 setState(() {
-                  isCreateEvent = true; // Switch to Create Event form
-                  _populateForm(event, docId); // Populate form fields
+                  isCreateEvent = true;
+                  _populateForm(event, docId);
                 });
               },
               child: Padding(
@@ -285,6 +291,7 @@ Future<void> _uploadImageToFirebase() async {
       },
     );
   }
+
 
 
   // Form UI
@@ -404,13 +411,62 @@ Future<void> _uploadImageToFirebase() async {
             // ✅ Submit Button Now Works for Both Create & Edit
             ElevatedButton(
               onPressed: () async {
-                if (_editingDocId != null) {
-                  await FirebaseFirestore.instance.collection("event").doc(_editingDocId).update(formData);
-                } else {
-                  await FirebaseFirestore.instance.collection("event").add(formData);
+                if (formData["attendanceCode"] == null ||
+                    formData["eventName"] == null ||
+                    formData["points"] == null ||
+                    formData["organiserName"] == null ||
+                    formData["organiserNumber"] == null ||
+                    formData["location"] == null ||
+                    formData["eventDate"] == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("Please fill in all fields!")),
+                  );
+                  return;
                 }
-                _editingDocId = null;
-                Navigator.push(context, MaterialPageRoute(builder: (context) => EventReview()));
+
+                try {
+                  // ✅ Upload banner if a new one was picked
+                  if (_selectedImage != null) {
+                    await _uploadImageToFirebase();
+                  }
+
+                  Map<String, dynamic> eventData = {
+                    "attendanceCode": formData["attendanceCode"],
+                    "eventName": formData["eventName"],
+                    "points": formData["points"],
+                    "organiserName": formData["organiserName"],
+                    "organiserNumber": formData["organiserNumber"],
+                    "location": formData["location"],
+                    "eventDate": formData["eventDate"],
+                    "bannerUrl": _uploadedImageUrl ?? "", // ✅ Ensure the latest image is stored
+                    "updatedAt": Timestamp.now(),
+                  };
+
+                  if (_editingDocId != null) {
+                    // ✅ UPDATE EXISTING EVENT
+                    await FirebaseFirestore.instance.collection("event").doc(_editingDocId).update(eventData);
+                  } else {
+                    // ✅ CREATE NEW EVENT
+                    await FirebaseFirestore.instance.collection("event").add(eventData);
+                  }
+
+                  // Reset editing state
+                  _editingDocId = null;
+
+                  // ✅ Force UI to refresh so latest banner is displayed
+                  setState(() {});
+
+                  // Navigate to eventReview.dart
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => EventReview()),
+                  );
+                } catch (e) {
+                  print("Error storing event: $e");
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("Failed to store event. Please try again.")),
+                  );
+                }
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Color(0xFFFDB515),
@@ -418,6 +474,7 @@ Future<void> _uploadImageToFirebase() async {
               ),
               child: Center(child: Text("Submit", style: TextStyle(fontSize: 16, color: Colors.white))),
             ),
+
           ],
         ),
       ),

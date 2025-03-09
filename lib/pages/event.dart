@@ -15,6 +15,7 @@ final TextEditingController _attendanceCodeController = TextEditingController();
 final TextEditingController _eventNameController = TextEditingController();
 final TextEditingController _pointsController = TextEditingController();
 final TextEditingController _organiserNameController = TextEditingController();
+final TextEditingController _organiserNumberController = TextEditingController();
 final TextEditingController _locationController = TextEditingController();
 
 class EventPage extends StatefulWidget {
@@ -55,6 +56,7 @@ class _EventPageState extends State<EventPage> {
       _eventNameController.text = formData["eventName"]!;
       _pointsController.text = formData["points"]!;
       _organiserNameController.text = formData["organiserName"]!;
+      _organiserNumberController.text = formData["organiserNumber"]!;
       _locationController.text = formData["location"]!;
     });
   }
@@ -292,9 +294,6 @@ class _EventPageState extends State<EventPage> {
     );
   }
 
-
-
-  // Form UI
   Widget buildCreateEventForm() {
     return Padding(
       padding: EdgeInsets.all(16),
@@ -315,13 +314,81 @@ class _EventPageState extends State<EventPage> {
             ),
             SizedBox(height: 20),
 
+            // Event form fields
             buildTextField("Enter Attendance Code", "attendanceCode", _attendanceCodeController),
             buildTextField("Event Name", "eventName", _eventNameController),
             buildTextField("Points per attendance", "points", _pointsController),
             buildTextField("Organiser’s name", "organiserName", _organiserNameController),
+
+            // Organiser's Number field
+            Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Organiser’s Number",
+                    style: TextStyle(
+                      color: Color(0xFFFDB515),
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+
+                  // Phone number input field with divider and +60 prefix
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Color(0xFFFDB515),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                          child: Text(
+                            "+60",
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black,
+                            ),
+                          ),
+                        ),
+                        Container( // Divider between +60 and input field
+                          width: 1,
+                          height: 42,
+                          color: Colors.black, // Divider color
+                        ),
+                        SizedBox(width: 8), // Space between divider and input field
+                        Expanded(
+                          child: TextField(
+                            controller: _controller,
+                            onChanged: (value) {
+                              setState(() {
+                                formData["organiserNumber"] = value;
+                              });
+                            },
+                            keyboardType: TextInputType.phone,
+                            style: TextStyle(color: Colors.black),
+                            decoration: InputDecoration(
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.all(8),
+                              hintText: "Enter your mobile number",
+                              hintStyle: TextStyle(color: Colors.black),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
             buildTextField("Location", "location", _locationController),
 
-            // ✅ Ensure Date Field is Pre-Filled Correctly
+            // Event Date Picker
             Padding(
               padding: EdgeInsets.symmetric(vertical: 8),
               child: Column(
@@ -371,7 +438,7 @@ class _EventPageState extends State<EventPage> {
               ),
             ),
 
-            // ✅ Event Banner Field
+            // Event Banner Field
             Padding(
               padding: EdgeInsets.symmetric(vertical: 8),
               child: Column(
@@ -408,7 +475,7 @@ class _EventPageState extends State<EventPage> {
 
             SizedBox(height: 20),
 
-            // ✅ Submit Button Now Works for Both Create & Edit
+            // Submit Button
             ElevatedButton(
               onPressed: () async {
                 if (formData["attendanceCode"] == null ||
@@ -425,7 +492,6 @@ class _EventPageState extends State<EventPage> {
                 }
 
                 try {
-                  // ✅ Upload banner if a new one was picked
                   if (_selectedImage != null) {
                     await _uploadImageToFirebase();
                   }
@@ -438,25 +504,23 @@ class _EventPageState extends State<EventPage> {
                     "organiserNumber": formData["organiserNumber"],
                     "location": formData["location"],
                     "eventDate": formData["eventDate"],
-                    "bannerUrl": _uploadedImageUrl ?? "", // ✅ Ensure the latest image is stored
+                    "bannerUrl": _uploadedImageUrl ?? "",
                     "updatedAt": Timestamp.now(),
                   };
 
                   if (_editingDocId != null) {
-                    // ✅ UPDATE EXISTING EVENT
+                    // UPDATE EXISTING EVENT
                     await FirebaseFirestore.instance.collection("event").doc(_editingDocId).update(eventData);
                   } else {
-                    // ✅ CREATE NEW EVENT
+                    // CREATE NEW EVENT
                     await FirebaseFirestore.instance.collection("event").add(eventData);
                   }
 
                   // Reset editing state
                   _editingDocId = null;
 
-                  // ✅ Force UI to refresh so latest banner is displayed
+                  // Refresh UI and navigate
                   setState(() {});
-
-                  // Navigate to eventReview.dart
                   Navigator.push(
                     context,
                     MaterialPageRoute(builder: (context) => EventReview()),
@@ -474,13 +538,12 @@ class _EventPageState extends State<EventPage> {
               ),
               child: Center(child: Text("Submit", style: TextStyle(fontSize: 16, color: Colors.white))),
             ),
-
           ],
         ),
       ),
     );
-  }
 
+  }
 
   // Reusable Text Field Widget
   Widget buildTextField(String label, String key, TextEditingController controller) {

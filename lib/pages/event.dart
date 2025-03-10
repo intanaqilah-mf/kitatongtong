@@ -11,6 +11,11 @@ import 'package:firebase_storage/firebase_storage.dart';
 File? _selectedImage;
 String? _uploadedImageUrl;
 String? _editingDocId;
+String? selectedSection = 'Upcoming Activities';
+Map<String, bool> eventSections = {
+  "Upcoming Activities": true,
+  "Others": true
+};
 final TextEditingController _attendanceCodeController = TextEditingController();
 final TextEditingController _eventNameController = TextEditingController();
 final TextEditingController _pointsController = TextEditingController();
@@ -27,12 +32,39 @@ class _EventPageState extends State<EventPage> {
   bool isCreateEvent = false; // Toggle switch state
   final TextEditingController _dateController = TextEditingController();
   final TextEditingController _controller = TextEditingController();
+  final TextEditingController _sectionController = TextEditingController();
   Map<String, String> formData = {};
   int _selectedIndex = 0;
+  String? _editingDocId;
 
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
+    });
+  }
+
+  void _resetForm() {
+    setState(() {
+      _editingDocId = null; // Ensure no document is being edited
+      _dateController.clear();
+      _controller.clear();
+      _sectionController.clear();
+      _attendanceCodeController.clear();
+      _eventNameController.clear();
+      _pointsController.clear();
+      _organiserNameController.clear();
+      _organiserNumberController.clear();
+      _locationController.clear();
+      formData.clear(); // Clear all form data
+      _uploadedImageUrl = null;
+      selectedSection = 'Upcoming Activities'; // Reset dropdown
+    });
+  }
+
+  void _onCreateEvent() {
+    _resetForm(); // Reset form first
+    setState(() {
+      isCreateEvent = true;
     });
   }
 
@@ -48,6 +80,7 @@ class _EventPageState extends State<EventPage> {
       formData["location"] = event["location"] ?? "";
       formData["eventDate"] = event["eventDate"] ?? "";
       _uploadedImageUrl = event["bannerUrl"] ?? "";
+      selectedSection = event["sectionEvent"] ?? "Upcoming Activities"; // Retrieve section
 
       // ✅ Ensure controllers update dynamically
       _dateController.text = formData["eventDate"]!;
@@ -69,7 +102,20 @@ class _EventPageState extends State<EventPage> {
     });
   }
 }
+  Future<void> _fetchSections() async {
+    QuerySnapshot snapshot = await FirebaseFirestore.instance.collection("event").get();
 
+    for (var doc in snapshot.docs) {
+      String section = doc["sectionEvent"] ?? ""; // Get sectionEvent, if exists
+      if (section.isNotEmpty && !eventSections.containsKey(section)) {
+        eventSections[section] = true; // Add to map if it's not already added
+      }
+    }
+
+    setState(() {
+      // Force refresh after fetching sections from Firestore
+    });
+  }
   Future<void> _uploadImageToFirebase() async {
     if (_selectedImage == null) return;
 
@@ -96,6 +142,11 @@ class _EventPageState extends State<EventPage> {
       print("Error uploading image: $e");
     }
   }
+  @override
+  void initState() {
+    super.initState();
+    _fetchSections(); // Fetch sections when the page loads
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -116,20 +167,18 @@ class _EventPageState extends State<EventPage> {
                   Expanded(
                     child: GestureDetector(
                       onTap: () {
-                        setState(() {
-                          isCreateEvent = false;
-                        });
+                        _onCreateEvent(); // Call reset method before opening form
                       },
                       child: Container(
                         decoration: BoxDecoration(
-                          color: !isCreateEvent ? Color(0xFFFDB515) : Colors.white,
+                          color: isCreateEvent ? Colors.white : Color(0xFFFDB515),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         alignment: Alignment.center,
                         child: Text(
-                          "List of Events",
+                          "Create Events",
                           style: TextStyle(
-                            color: !isCreateEvent ? Colors.white : Color(0xFFFDB515),
+                            color: isCreateEvent ? Color(0xFFFDB515) : Colors.white,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -140,19 +189,19 @@ class _EventPageState extends State<EventPage> {
                     child: GestureDetector(
                       onTap: () {
                         setState(() {
-                          isCreateEvent = true;
+                          isCreateEvent = false;
                         });
                       },
                       child: Container(
                         decoration: BoxDecoration(
-                          color: isCreateEvent ? Color(0xFFFDB515) : Colors.white,
+                          color: !isCreateEvent ? Colors.white : Color(0xFFFDB515),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         alignment: Alignment.center,
                         child: Text(
-                          "Create Events",
+                          "List of Events",
                           style: TextStyle(
-                            color: isCreateEvent ? Colors.white : Color(0xFFFDB515),
+                            color: !isCreateEvent ? Color(0xFFFDB515) : Colors.white,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -161,10 +210,8 @@ class _EventPageState extends State<EventPage> {
                   ),
                 ],
               ),
-
             ),
           ),
-
 
           // Display Content Based on Switch
           Expanded(
@@ -178,6 +225,8 @@ class _EventPageState extends State<EventPage> {
       ),
     );
   }
+
+  // ✅ Ensuring "Points" field only accepts numbers
 
   Widget buildEventList() {
     return StreamBuilder<QuerySnapshot>(
@@ -328,39 +377,26 @@ class _EventPageState extends State<EventPage> {
                 children: [
                   Text(
                     "Organiser’s Number",
-                    style: TextStyle(
-                      color: Color(0xFFFDB515),
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(color: Color(0xFFFDB515), fontSize: 14, fontWeight: FontWeight.bold),
                   ),
                   SizedBox(height: 4),
-
-                  // Phone number input field with divider and +60 prefix
                   Container(
-                    decoration: BoxDecoration(
-                      color: Color(0xFFFDB515),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
+                    decoration: BoxDecoration(color: Color(0xFFFDB515), borderRadius: BorderRadius.circular(8)),
                     child: Row(
                       children: [
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 8.0),
                           child: Text(
                             "+60",
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black,
-                            ),
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black),
                           ),
                         ),
-                        Container( // Divider between +60 and input field
+                        Container(
                           width: 1,
                           height: 42,
                           color: Colors.black, // Divider color
                         ),
-                        SizedBox(width: 8), // Space between divider and input field
+                        SizedBox(width: 8),
                         Expanded(
                           child: TextField(
                             controller: _controller,
@@ -386,6 +422,7 @@ class _EventPageState extends State<EventPage> {
               ),
             ),
 
+            // Location Field
             buildTextField("Location", "location", _locationController),
 
             // Event Date Picker
@@ -434,6 +471,48 @@ class _EventPageState extends State<EventPage> {
                       ),
                     ),
                   ),
+                ],
+              ),
+            ),
+
+            // Section Dropdown (to select Event Section)
+            Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Event Section",
+                    style: TextStyle(color: Color(0xFFFDB515), fontSize: 14, fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 4),
+                  DropdownButton<String>(
+                    value: eventSections.containsKey(selectedSection) ? selectedSection : null, // Ensure valid value
+                    items: eventSections.keys.map((String value) {
+                      return DropdownMenuItem<String>(
+                        value: value,
+                        child: Text(value),
+                      );
+                    }).toList(),
+                    onChanged: (String? newValue) {
+                      setState(() {
+                        selectedSection = newValue; // Update selected value
+                      });
+                    },
+                  ),
+
+                  if (selectedSection == 'Others')
+                    Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8),
+                      child: TextField(
+                        controller: _sectionController,
+                        decoration: InputDecoration(
+                          labelText: "Enter Custom Section Name",
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+
                 ],
               ),
             ),
@@ -496,6 +575,10 @@ class _EventPageState extends State<EventPage> {
                     await _uploadImageToFirebase();
                   }
 
+                  // Store Section Info
+                  String sectionEvent = selectedSection == "Others" ? (_sectionController.text.isEmpty ? "Custom Section" : _sectionController.text) : selectedSection ?? "Upcoming Activities";
+
+
                   Map<String, dynamic> eventData = {
                     "attendanceCode": formData["attendanceCode"],
                     "eventName": formData["eventName"],
@@ -505,6 +588,7 @@ class _EventPageState extends State<EventPage> {
                     "location": formData["location"],
                     "eventDate": formData["eventDate"],
                     "bannerUrl": _uploadedImageUrl ?? "",
+                    "sectionEvent": sectionEvent,
                     "updatedAt": Timestamp.now(),
                   };
 
@@ -542,7 +626,6 @@ class _EventPageState extends State<EventPage> {
         ),
       ),
     );
-
   }
 
   // Reusable Text Field Widget

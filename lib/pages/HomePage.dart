@@ -16,11 +16,13 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
   String? userRole;
+  Map<String, List<DocumentSnapshot>> sectionEvents = {};
 
   @override
   void initState() {
     super.initState();
     _getUserRole();
+    _fetchSections();
   }
 
   Future<void> _getUserRole() async {
@@ -35,7 +37,19 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  // Handle tab selection
+  Future<void> _fetchSections() async {
+    QuerySnapshot snapshot = await FirebaseFirestore.instance.collection("event").get();
+
+    for (var doc in snapshot.docs) {
+      String section = doc["sectionEvent"] ?? "Upcoming Activities"; // Default to "Upcoming Activities"
+      if (!sectionEvents.containsKey(section)) {
+        sectionEvents[section] = [];
+      }
+      sectionEvents[section]!.add(doc);
+    }
+    setState(() {}); // Refresh the UI with the new data
+  }
+
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
@@ -55,8 +69,13 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildUpcomingActivities() {
+    sectionEvents["Upcoming Activities"]?.sort((a, b) {
+      Timestamp aTimestamp = a["updatedAt"];
+      Timestamp bTimestamp = b["updatedAt"];
+      return bTimestamp.compareTo(aTimestamp); // Descending order
+    });
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 15, vertical: 20),
+      margin: EdgeInsets.symmetric(horizontal: 5, vertical: 1),
       padding: EdgeInsets.symmetric(horizontal: 15),
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -72,162 +91,173 @@ class _HomePageState extends State<HomePage> {
         ),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Title: Upcoming Activities
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Text(
-              "Upcoming Activities",
-              style: TextStyle(
-                fontSize: 25,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
-              ),
-            ),
-          ),
-
-          // Fetch Events from Firestore and display horizontally
-          Container(
-            height: 250, // Increased height of the box for more space
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance.collection("event").snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return Center(child: CircularProgressIndicator());
-                }
-
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return Center(child: Text("No Upcoming Activities", style: TextStyle(color: Colors.black)));
-                }
-
-                return ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: snapshot.data!.docs.length,
-                  itemBuilder: (context, index) {
-                    var event = snapshot.data!.docs[index];
-                    return Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          // Event Banner Image
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.network(
-                              event["bannerUrl"] ?? '', // Fetch banner image URL
-                              height: 120,
-                              width: 120,
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                          SizedBox(height: 8),
-
-                          // Event Name (Centered)
-                          Center(
-                            child: Text(
-                              event["eventName"] ?? "Unknown",
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                                color: Colors.black,
-                              ),
-                              textAlign: TextAlign.center, // Center align the event name
-                            ),
-                          ),
-                          SizedBox(height: 8),
-
-                          // Event Points
-                          Text(
-                            "Get ${event["points"] ?? "0"} points",
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                              color: Colors.black,
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-        ],
-      ),
     );
   }
 
   @override
-  @override
   Widget build(BuildContext context) {
     final _widgetOptions = <Widget>[
-      ListView(
-        children: [
-          Container(
-            padding: EdgeInsets.only(top: 15),
-            child: Column(
-              children: [
-                Container(
-                  margin: EdgeInsets.symmetric(horizontal: 15, vertical: 20),
-                  padding: EdgeInsets.symmetric(horizontal: 15),
-                  height: 50,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Container(
-                          height: 50,
-                          child: TextFormField(
-                            decoration: InputDecoration(
-                              border: InputBorder.none,
-                              hintText: userRole == 'admin'
-                                  ? "Admin here..."
-                                  : userRole == 'staff'
-                                  ? "Staff here..."
-                                  : "Asnaf here...",
+      SingleChildScrollView(  // Wrap the entire content in SingleChildScrollView for scrolling
+        child: Column(
+          children: [
+            Container(
+              padding: EdgeInsets.only(top: 60),
+              child: Column(
+                children: [
+                  Container(
+                    margin: EdgeInsets.symmetric(horizontal: 15, vertical: 1),
+                    padding: EdgeInsets.symmetric(horizontal: 15),
+                    height: 50,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            height: 50,
+                            child: TextFormField(
+                              decoration: InputDecoration(
+                                border: InputBorder.none,
+                                hintText: userRole == 'admin'
+                                    ? "Admin here..."
+                                    : userRole == 'staff'
+                                    ? "Staff here..."
+                                    : "Asnaf here...",
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      ShaderMask(
-                        shaderCallback: (Rect bounds) {
-                          return LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            stops: [0.16, 0.38, 0.58, 0.88],
-                            colors: [
-                              Color(0xFFF9F295),
-                              Color(0xFFE0AA3E),
-                              Color(0xFFF9F295),
-                              Color(0xFFB88A44),
-                            ],
-                          ).createShader(bounds);
-                        },
-                        child: Icon(
-                          Icons.search_rounded,
-                          size: 35,
-                          color: Colors.white,
+                        ShaderMask(
+                          shaderCallback: (Rect bounds) {
+                            return LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              stops: [0.16, 0.38, 0.58, 0.88],
+                              colors: [
+                                Color(0xFFF9F295),
+                                Color(0xFFE0AA3E),
+                                Color(0xFFF9F295),
+                                Color(0xFFB88A44),
+                              ],
+                            ).createShader(bounds);
+                          },
+                          child: Icon(
+                            Icons.search_rounded,
+                            size: 35,
+                            color: Colors.white,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                userRole == null
-                    ? CircularProgressIndicator()
-                    : _getDashboard(),
-                UserPoints(),
-                // ✅ Add the Upcoming Activities section below UserPoints
-                _buildUpcomingActivities(),
-              ],
+                  userRole == null
+                      ? CircularProgressIndicator()
+                      : _getDashboard(),
+                  UserPoints(),
+                  _buildUpcomingActivities(),
+                  Container(
+                    margin: EdgeInsets.symmetric(horizontal: 15, vertical: 1),
+                    padding: EdgeInsets.symmetric(horizontal: 15),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        stops: [0.16, 0.38, 0.58, 0.88],
+                        colors: [
+                          Color(0xFFF9F295),
+                          Color(0xFFE0AA3E),
+                          Color(0xFFF9F295),
+                          Color(0xFFB88A44),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Text(
+                            "Upcoming Activities",
+                            style: TextStyle(
+                              fontSize: 25,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black,
+                            ),
+                          ),
+                        ),
+                        // Fetch Events from Firestore and display horizontally
+                        Container(
+                          height: 200,  // Height of the container for the event list
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: sectionEvents["Upcoming Activities"]!.length,
+                            itemBuilder: (context, index) {
+                              var event = sectionEvents["Upcoming Activities"]![index];
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 10),
+                                child: Container(
+                                  width: 160,
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Image.network(
+                                          event["bannerUrl"] ?? '', // Fetch banner image URL
+                                          height: 120,
+                                          width: 120,  // Fixed width for the image
+                                          fit: BoxFit.cover,
+                                        ),
+                                      ),
+                                      SizedBox(height: 4),
+                                      Expanded(
+                                        child: Center(
+                                          child: Text(
+                                            event["eventName"] ?? "Unknown",
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16,
+                                              color: Colors.black,
+                                            ),
+                                            textAlign: TextAlign.start, // Align text to the left for better readability
+                                            softWrap: true,  // Allow text to wrap
+                                            overflow: TextOverflow.ellipsis,  // Add ellipsis if text is too long
+                                            maxLines: 2,  // Limit to 2 lines for better display
+                                          ),
+                                        ),
+                                      ),
+                                      SizedBox(height: 4),
+                                      Text(
+                                        "Get ${event["points"] ?? "0"} points",
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
+                                          color: Colors.black,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        ...sectionEvents.entries
+                            .where((entry) => entry.key != "Upcoming Activities")
+                            .map(
+                              (entry) => _buildSectionRow(entry.key, entry.value),
+                        ), // Add other event sections below "Upcoming Activities"
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
       Center(child: Text('Search Page')),
       Center(child: Text('Shopping Page')),
@@ -236,10 +266,88 @@ class _HomePageState extends State<HomePage> {
     ];
 
     return Scaffold(
-      body: _widgetOptions.elementAt(_selectedIndex),
       bottomNavigationBar: BottomNavBar(
         selectedIndex: _selectedIndex,
         onItemTapped: _onItemTapped,
+      ),
+      body: _widgetOptions.elementAt(_selectedIndex), // Display the selected page content
+    );
+  }
+
+  Widget _buildSectionRow(String sectionName, List<DocumentSnapshot> events) {
+
+    events.sort((a, b) {
+      Timestamp aTimestamp = a["updatedAt"];
+      Timestamp bTimestamp = b["updatedAt"];
+      return bTimestamp.compareTo(aTimestamp); // Descending order
+    });
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 1),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Section title
+          Text(
+            sectionName,
+            style: TextStyle(fontSize: 25, fontWeight: FontWeight.bold, color: Colors.black),
+          ),
+          Container(
+            height: 220,  // Height of the container for the event list
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: events.length,
+              itemBuilder: (context, index) {
+                var event = events[index];
+                return Padding(
+                  padding: const EdgeInsets.all(10.0),
+                  child: Container(
+                    width: 160,  // Adjust the width of each item for better space management
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            event["bannerUrl"] ?? '',
+                            height: 120,
+                            width: 120,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Container(
+                          width: 160,  // Set a fixed width for each event card
+                          child: Text(
+                            event["eventName"] ?? "Unknown",
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: Colors.black,
+                            ),
+                            textAlign: TextAlign.start,  // Align text to the left for better readability
+                            softWrap: true,  // Allow text to wrap
+                            overflow: TextOverflow.ellipsis,  // Add ellipsis if text is too long
+                            maxLines: 2,  // Limit to 2 lines for better display
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          "Get ${event["points"] ?? "0"} points",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

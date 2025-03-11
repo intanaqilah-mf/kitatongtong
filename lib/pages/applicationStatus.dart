@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:projects/widgets/bottomNavBar.dart';
+import '../pages/HomePage.dart';
 
 class ApplicationStatusPage extends StatefulWidget {
   @override
@@ -8,7 +10,14 @@ class ApplicationStatusPage extends StatefulWidget {
 }
 
 class _ApplicationStatusPageState extends State<ApplicationStatusPage> {
-  String? _applicationCode; // Store applicationCode
+  String? _applicationCode;
+  int _selectedIndex = 0;
+
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
 
   @override
   void initState() {
@@ -65,10 +74,10 @@ class _ApplicationStatusPageState extends State<ApplicationStatusPage> {
             children: [
               Container(
                 width: double.infinity,
-                padding: EdgeInsets.symmetric(vertical: 25, horizontal: 16), // Increased vertical padding
+                padding: EdgeInsets.symmetric(vertical: 25, horizontal: 16),
                 child: Column(
                   children: [
-                    SizedBox(height: 10), // Moves the title lower
+                    SizedBox(height: 50), // Moves title lower
                     Text(
                       "Application Status",
                       style: TextStyle(
@@ -78,20 +87,84 @@ class _ApplicationStatusPageState extends State<ApplicationStatusPage> {
                       ),
                       textAlign: TextAlign.center,
                     ),
-                    SizedBox(height: 20), // Adds more space before Full Name & Application Code
-                    Text(
-                      "Full Name: $fullName",
-                      style: TextStyle(color: Colors.white, fontSize: 16),
-                      textAlign: TextAlign.center,
+                    SizedBox(height: 20),
+
+                    // Row for Application Code & Full Name
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Text(
+                                "Application Code",
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                appCode,
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Text(
+                                "Full Name",
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                fullName,
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                    Text(
-                      "Application Code: $appCode",
-                      style: TextStyle(color: Colors.white, fontSize: 16),
-                      textAlign: TextAlign.center,
+                    SizedBox(height: 15), // Space before divider
+                    Container(
+                      width: double.infinity,
+                      height: 2, // Divider thickness
+                      decoration: BoxDecoration(
+                        color: Color(0xFF303030), // Divider color
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black54, // Inner shadow effect
+                            blurRadius: 4,
+                            spreadRadius: 1,
+                            offset: Offset(0, 2), // Adjust shadow for depth
+                          ),
+                        ],
+                      ),
                     ),
+                    SizedBox(height: 50), // Adds spacing after header
                   ],
                 ),
               ),
+
               statusTile(
                   "Application Submitted",
                   "We received your application.",
@@ -110,9 +183,28 @@ class _ApplicationStatusPageState extends State<ApplicationStatusPage> {
                   "assets/applicationStatus3.png",
                   getStatusColor(3, statusApplication, hasReward),
                   false),
+              SizedBox(height: 100),
+              ElevatedButton(
+                onPressed: () async {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => HomePage()),
+                  );
+                  },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Color(0xFFFDB515),
+                  padding: EdgeInsets.symmetric(vertical: 12, horizontal: 18),
+                ),
+                child: Center(child: Text("OK", style: TextStyle(fontSize: 16, color: Colors.white))),
+              ),
             ],
           );
         },
+      ),
+
+      bottomNavigationBar: BottomNavBar(
+        selectedIndex: _selectedIndex,
+        onItemTapped: _onItemTapped,
       ),
     );
   }
@@ -122,25 +214,25 @@ class _ApplicationStatusPageState extends State<ApplicationStatusPage> {
     if (stage == 2) {
       if (statusApplication == "Pending") return Colors.grey;
       if (statusApplication == "Rejected") return Colors.red;
-      if (statusApplication == "Approved") return Colors.green;
+      if (statusApplication == "Approve") return Colors.green;
     }
     if (stage == 3) {
-      return hasReward ? Colors.green : Colors.grey; // Grey if reward doesn't exist
+      return hasReward ? Colors.green : Colors.grey;
     }
     return Colors.grey;
   }
 
   Widget statusTile(String title, String subtitle, String iconPath, Color timelineColor, bool showLine) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0), // Moves text slightly higher
+      padding: const EdgeInsets.symmetric(vertical: 0.0),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center, // Aligns timeline and icon properly
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Column(
             children: [
               Container(
-                width: 60,
-                height: 25,
+                width: 65,
+                height: 30,
                 decoration: BoxDecoration(
                   color: timelineColor, // Colored based on status
                   shape: BoxShape.circle,
@@ -148,15 +240,15 @@ class _ApplicationStatusPageState extends State<ApplicationStatusPage> {
               ),
               if (showLine)
                 Container(
-                  width: 3, // Thicker timeline line
-                  height: 70, // Adjust height to match icon center
+                  width: 5, // Thicker timeline line
+                  height: 90, // Adjust height to match icon center
                   color: timelineColor,
                 ),
             ],
           ),
-          SizedBox(width: 15), // Adjust spacing between timeline and icon
-          Image.asset(iconPath, width: 45, height: 45), // Slightly bigger icons for balance
-          SizedBox(width: 15), // Adjust spacing between icon and text
+          SizedBox(width: 15),
+          Image.asset(iconPath, width: 45, height: 45),
+          SizedBox(width: 15),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -166,10 +258,10 @@ class _ApplicationStatusPageState extends State<ApplicationStatusPage> {
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     color: Color(0xFFFDB515),
-                    fontSize: 16, // Adjusted for better alignment
+                    fontSize: 16,
                   ),
                 ),
-                SizedBox(height: 10), // Moves the text slightly higher
+                SizedBox(height: 10),
                 Text(
                   subtitle,
                   style: TextStyle(color: Colors.white, fontSize: 14),
@@ -181,5 +273,6 @@ class _ApplicationStatusPageState extends State<ApplicationStatusPage> {
       ),
     );
   }
+
 
 }

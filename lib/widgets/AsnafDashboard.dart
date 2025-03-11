@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:projects/pages/applyAid.dart'; // Import the ApplyAid page
+import 'package:projects/pages/applyAid.dart';
+import 'package:projects/pages/applicationStatus.dart';
 
 class AsnafDashboard extends StatelessWidget {
   Widget build(BuildContext context) {
@@ -28,6 +29,11 @@ class AsnafDashboard extends StatelessWidget {
                         context,
                         MaterialPageRoute(builder: (context) => ApplyAid()),
                       );
+                    } else if (i == 3) {
+                    Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => ApplicationStatusPage()),
+                    );
                     }
                   },
                   child: Image.asset(

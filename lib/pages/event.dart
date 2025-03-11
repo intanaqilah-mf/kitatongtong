@@ -105,16 +105,29 @@ class _EventPageState extends State<EventPage> {
   Future<void> _fetchSections() async {
     QuerySnapshot snapshot = await FirebaseFirestore.instance.collection("event").get();
 
+    // Clear previous sections
+    eventSections.clear();
+    eventSections["Upcoming Activities"] = true;
+    eventSections["Others"] = true;
+
+    // Count events per section
+    Map<String, int> sectionCount = {};
+
     for (var doc in snapshot.docs) {
-      String section = doc["sectionEvent"] ?? ""; // Get sectionEvent, if exists
-      if (section.isNotEmpty && !eventSections.containsKey(section)) {
-        eventSections[section] = true; // Add to map if it's not already added
+      String section = doc["sectionEvent"] ?? "";
+      if (section.isNotEmpty) {
+        sectionCount[section] = (sectionCount[section] ?? 0) + 1;
       }
     }
 
-    setState(() {
-      // Force refresh after fetching sections from Firestore
+    // Only add sections that have at least one event
+    sectionCount.forEach((section, count) {
+      if (count > 0) {
+        eventSections[section] = true;
+      }
     });
+
+    setState(() {});
   }
   Future<void> _uploadImageToFirebase() async {
     if (_selectedImage == null) return;
@@ -476,48 +489,75 @@ class _EventPageState extends State<EventPage> {
             ),
 
             // Section Dropdown (to select Event Section)
-            Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Event Section",
-                    style: TextStyle(color: Color(0xFFFDB515), fontSize: 14, fontWeight: FontWeight.bold),
+          Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Event Section",
+                  style: TextStyle(color: Color(0xFFFDB515), fontSize: 14, fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: 4),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: Color(0xFFFDB515), // ✅ Set background color
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  SizedBox(height: 4),
-                  DropdownButton<String>(
-                    value: eventSections.containsKey(selectedSection) ? selectedSection : null, // Ensure valid value
-                    items: eventSections.keys.map((String value) {
-                      return DropdownMenuItem<String>(
-                        value: value,
-                        child: Text(value),
-                      );
-                    }).toList(),
-                    onChanged: (String? newValue) {
-                      setState(() {
-                        selectedSection = newValue; // Update selected value
-                      });
-                    },
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: eventSections.containsKey(selectedSection) ? selectedSection : null,
+                      items: eventSections.keys.map((String value) {
+                        return DropdownMenuItem<String>(
+                          value: value,
+                          child: Text(value, style: TextStyle(color: Colors.black)), // ✅ Ensure text is visible
+                        );
+                      }).toList(),
+                      onChanged: (String? newValue) {
+                        setState(() {
+                          selectedSection = newValue;
+                        });
+                      },
+                      dropdownColor: Color(0xFFFDB515), // ✅ Ensure dropdown matches field color
+                    ),
                   ),
+                ),
 
-                  if (selectedSection == 'Others')
-                    Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8),
+                if (selectedSection == 'Others')
+                  Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Color(0xFFFDB515), // ✅ Background color applied
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                       child: TextField(
                         controller: _sectionController,
+                        style: TextStyle(color: Colors.black), // ✅ Ensure text is visible
                         decoration: InputDecoration(
                           labelText: "Enter Custom Section Name",
-                          border: OutlineInputBorder(),
+                          labelStyle: TextStyle(color: Colors.black), // ✅ Label color for visibility
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          focusedBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: Colors.black), // ✅ Border color when focused
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderSide: BorderSide(color: Colors.black), // ✅ Border color when not focused
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14), // ✅ Better spacing
+                          filled: true,
+                          fillColor: Color(0xFFFDB515), // ✅ Ensure background color remains inside
                         ),
                       ),
                     ),
-
-                ],
-              ),
+                  ),
+              ],
             ),
+          ),
 
-            // Event Banner Field
             Padding(
               padding: EdgeInsets.symmetric(vertical: 8),
               child: Column(

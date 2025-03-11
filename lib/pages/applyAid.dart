@@ -7,12 +7,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import '../pages/applicationReviewScreen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:math';
 
 class ApplyAid extends StatefulWidget {
   @override
   _ApplyAidState createState() => _ApplyAidState();
 }
-
 
 class _ApplyAidState extends State<ApplyAid> {
   void initState() {
@@ -35,8 +35,14 @@ class _ApplyAidState extends State<ApplyAid> {
   TextEditingController incomeController = TextEditingController();
   TextEditingController justificationController = TextEditingController();
 
-
   final Map<String, dynamic> formData = {};
+
+  String generateUniqueCode() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    Random random = Random();
+    return "#" + String.fromCharCodes(Iterable.generate(
+        6, (_) => chars.codeUnitAt(random.nextInt(chars.length))));
+  }
 
   void updateFormData(String key, dynamic value) {
     setState(() {
@@ -59,10 +65,13 @@ class _ApplyAidState extends State<ApplyAid> {
       final String userId = FirebaseAuth.instance.currentUser!.uid;
       final DateTime now = DateTime.now(); // Get current date & time
 
-      // Add submission date to the data
+      String applicationCode = generateUniqueCode();
       data['date'] = now.toIso8601String(); // Store date as ISO8601 string
       data['userId'] = userId; // Store user ID for reference
+      data['applicationCode'] = applicationCode; // Store the unique application code
+      data['statusApplication'] = "Pending"; // Set status to Pending
 
+      // Upload to Firestore
       await FirebaseFirestore.instance.collection("applications").add(data);
 
       Navigator.push(
@@ -70,7 +79,6 @@ class _ApplyAidState extends State<ApplyAid> {
         MaterialPageRoute(builder: (context) => ApplicationReviewScreen()),
       );
 
-      // Notify user of successful submission
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Application submitted successfully!")),
       );
@@ -78,9 +86,6 @@ class _ApplyAidState extends State<ApplyAid> {
       // Reset form after submission
       setState(() {
         formData.clear();
-        fileName1 = null;
-        fileName2 = null;
-        fileName3 = null;
       });
 
     } catch (e) {
@@ -90,13 +95,12 @@ class _ApplyAidState extends State<ApplyAid> {
     }
   }
 
-
   Future<void> _fetchUserData() async {
     try {
       final String userId = FirebaseAuth.instance.currentUser!.uid;
 
       DocumentSnapshot userDoc = await FirebaseFirestore.instance
-          .collection('asnafInfo')
+          .collection('users')
           .doc(userId)
           .get();
 

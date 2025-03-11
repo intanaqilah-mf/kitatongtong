@@ -33,34 +33,6 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
     });
   }
 
-  // Generate a 6-character alphanumeric unique code starting with #
-  String generateUniqueCode() {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    Random random = Random();
-    return "#" + String.fromCharCodes(Iterable.generate(
-        6, (_) => chars.codeUnitAt(random.nextInt(chars.length))));
-  }
-
-  Future<String> getOrCreateUniqueCode(String applicationId) async {
-    DocumentReference docRef =
-    FirebaseFirestore.instance.collection('applications').doc(applicationId);
-
-    DocumentSnapshot docSnap = await docRef.get();
-
-    if (docSnap.exists) {
-      var data = docSnap.data() as Map<String, dynamic>;
-      if (data.containsKey('applicationCode')) {
-        return data['applicationCode']; // Return existing code if found
-      } else {
-        // Generate and store the new code if it doesn't exist
-        String newCode = generateUniqueCode();
-        await docRef.update({'applicationCode': newCode});
-        return newCode;
-      }
-    }
-    return generateUniqueCode(); // Fallback (should not happen)
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -241,6 +213,9 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
                     'date': appData['date'] ?? '',
                     'submitted_by': appData['submitted_by'] ?? 'Unknown',
                     'statusApplication': appData['statusApplication'] ?? 'Pending',
+                    'applicationCode': appData.containsKey('applicationCode')
+                        ? appData['applicationCode']
+                        : "No Code", // Fetch applicationCode from Firestore
                     'id': doc.id,
                     'userId': appData['userId'] ?? '',
                   };
@@ -255,35 +230,20 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
                         ? DateFormat("dd MMM yyyy").format(DateTime.parse(app['date']))
                         : 'No date provided';
                     String userId = app['userId'] ?? '';
+                    String uniqueCode = app['applicationCode']; // Use applicationCode directly
 
-                    return FutureBuilder<String>(
-                      future: getOrCreateUniqueCode(app['id']),
-                      builder: (context, codeSnapshot) {
-                        if (codeSnapshot.connectionState == ConnectionState.waiting) {
-                          return Center(child: CircularProgressIndicator());
-                        }
-                        String uniqueCode = codeSnapshot.data ?? generateUniqueCode();
-
-                        // Check if the userId is valid before querying Firestore
-                        if (userId.isEmpty) {
-                          // If userId is empty, show a default image (placeholder)
-                          return buildApplicationCard(app, formattedDate, uniqueCode, '');
+                    return FutureBuilder<DocumentSnapshot>(
+                      future: FirebaseFirestore.instance.collection('users').doc(userId).get(),
+                      builder: (context, userSnapshot) {
+                        String photoUrl = "";
+                        if (userSnapshot.connectionState == ConnectionState.done &&
+                            userSnapshot.hasData &&
+                            userSnapshot.data!.exists) {
+                          var userData = userSnapshot.data!.data() as Map<String, dynamic>;
+                          photoUrl = userData['photoUrl'] ?? "";
                         }
 
-                        return FutureBuilder<DocumentSnapshot>(
-                          future: FirebaseFirestore.instance.collection('users').doc(userId).get(),
-                          builder: (context, userSnapshot) {
-                            String photoUrl = "";
-                            if (userSnapshot.connectionState == ConnectionState.done &&
-                                userSnapshot.hasData &&
-                                userSnapshot.data!.exists) {
-                              var userData = userSnapshot.data!.data() as Map<String, dynamic>;
-                              photoUrl = userData['photoUrl'] ?? "";
-                            }
-
-                            return buildApplicationCard(app, formattedDate, uniqueCode, photoUrl);
-                          },
-                        );
+                        return buildApplicationCard(app, formattedDate, uniqueCode, photoUrl);
                       },
                     );
                   },

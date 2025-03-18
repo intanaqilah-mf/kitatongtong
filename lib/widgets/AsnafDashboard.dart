@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:projects/pages/applyAid.dart';
 import 'package:projects/pages/applicationStatus.dart';
+import 'package:projects/pages/rewards.dart';
 
 class AsnafDashboard extends StatelessWidget {
   Widget build(BuildContext context) {
@@ -34,6 +35,12 @@ class AsnafDashboard extends StatelessWidget {
                     context,
                     MaterialPageRoute(builder: (context) => ApplicationStatusPage()),
                     );
+                    }
+                    else if (i == 4) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => Rewards()),
+                      );
                     }
                   },
                   child: Image.asset(

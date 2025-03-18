@@ -145,7 +145,6 @@ class _EventPageState extends State<EventPage> {
         formData["bannerUrl"] = downloadUrl;
       });
 
-      // ✅ If Editing, Update Firestore Immediately After Image Upload
       if (_editingDocId != null) {
         await FirebaseFirestore.instance.collection("event").doc(_editingDocId).update({
           "bannerUrl": downloadUrl,

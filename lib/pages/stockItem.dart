@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class StockItem extends StatefulWidget {
   @override
@@ -14,6 +17,7 @@ class _StockItemState extends State<StockItem> {
   String selectedValue = "RM 10";
   int? voucherValue;
   File? _selectedImage;
+  String? _selectedImageUrl;
   List<String> packageItems = [];
   String? selectedPackageItem;
   TextEditingController packageItemController = TextEditingController();
@@ -22,12 +26,72 @@ class _StockItemState extends State<StockItem> {
   List<int> rmScalingOptions = [1, 2, 5, 10, 15, 20];
   int rmScalingIndex = 0;
 
-  Future<void> _pickImage() async {
+  Future<void> _pickImage(Function setModalState) async {
     final pickedFile = await ImagePicker().pickImage(source: ImageSource.gallery);
     if (pickedFile != null) {
-      setState(() {
-        _selectedImage = File(pickedFile.path);
+      File imageFile = File(pickedFile.path);
+      setModalState(() { // ✅ Update UI inside modal
+        _selectedImage = imageFile;
       });
+
+      print("📸 Image selected: ${pickedFile.path}");
+
+      // ✅ Upload image to Firebase Storage
+      String fileName = "voucherBanner/${DateTime.now().millisecondsSinceEpoch}.jpg";
+      Reference storageRef = FirebaseStorage.instance.ref().child(fileName);
+      UploadTask uploadTask = storageRef.putFile(imageFile);
+      TaskSnapshot snapshot = await uploadTask;
+
+      // ✅ Get the download URL
+      String downloadUrl = await snapshot.ref.getDownloadURL();
+      setModalState(() { // ✅ Update UI with Firebase URL
+        _selectedImageUrl = downloadUrl; // Store Firebase URL
+      });
+
+      print("✅ Image uploaded to Firebase: $downloadUrl");
+    } else {
+      print("❌ No image selected");
+    }
+  }
+
+  Future<String?> generateVoucherBannerImage(int points, int value) async {
+    try {
+      final url = Uri.parse("https://generatevoucherimage-m4nvbdigca-uc.a.run.app");
+
+      final response = await http.post(
+        url,
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({"points": points, "value": value}),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['image_url'];
+      } else {
+        print("❌ Failed to generate image: ${response.body}");
+      }
+    } catch (e) {
+      print("❌ Error calling function: $e");
+    }
+    return null;
+  }
+
+  Future<void> deleteOldVoucherImages(List<DocumentSnapshot> existingVouchers) async {
+    final storage = FirebaseStorage.instance;
+
+    for (var doc in existingVouchers) {
+      final data = doc.data() as Map<String, dynamic>;
+      final imageUrl = data['bannerVoucher'];
+
+      if (imageUrl != null && imageUrl is String) {
+        try {
+          final ref = storage.refFromURL(imageUrl);
+          await ref.delete();
+          print("Deleted old image: $imageUrl");
+        } catch (e) {
+          print("Failed to delete image $imageUrl: $e");
+        }
+      }
     }
   }
 
@@ -105,22 +169,25 @@ class _StockItemState extends State<StockItem> {
                         SizedBox(height: 16),
                         Text("Voucher Banner", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFF1D789))),
                         GestureDetector(
-                          onTap: _pickImage,
+                          onTap: () async { // ✅ Fix: Make onTap an async function
+                            await _pickImage(setModalState); // ✅ Calls function properly
+                          },
                           child: Container(
                             height: 150,
                             decoration: BoxDecoration(
                               color: Color(0xFFFFCF40),
                               border: Border.all(color: Colors.grey),
                               borderRadius: BorderRadius.circular(8),
-                              image: _selectedImage != null
-                                  ? DecorationImage(image: FileImage(_selectedImage!), fit: BoxFit.cover)
+                              image: _selectedImageUrl != null
+                                  ? DecorationImage(image: NetworkImage(_selectedImageUrl!), fit: BoxFit.cover)
                                   : null,
                             ),
-                            child: _selectedImage == null
+                            child: _selectedImageUrl == null
                                 ? Center(child: Icon(Icons.add_a_photo, size: 40, color: Colors.grey))
                                 : null,
                           ),
                         ),
+
                       ],
 
                       // If "Points" is selected
@@ -197,19 +264,19 @@ class _StockItemState extends State<StockItem> {
                                   .get();
 
                               if (existingVoucher.docs.isNotEmpty) {
-                                // **Update existing Cash Voucher**
+                                // ✅ Update Firestore with Firebase URL
                                 await vouchersRef.doc(existingVoucher.docs.first.id).update({
                                   "voucherValue": voucherValue ?? 0,
-                                  "bannerVoucher": _selectedImage != null ? _selectedImage!.path : null,
+                                  "bannerVoucher": _selectedImageUrl, // ✅ Store Firebase URL, NOT Local Path
                                   "updatedAt": Timestamp.now(),
                                 });
                                 print("🔥 Updated Cash Voucher");
                               } else {
-                                // **Create Cash Voucher if none exist**
+                                // ✅ Create new Firestore entry with Firebase URL
                                 await vouchersRef.add({
                                   "typeVoucher": "Cash Voucher",
                                   "voucherValue": voucherValue ?? 0,
-                                  "bannerVoucher": _selectedImage != null ? _selectedImage!.path : null,
+                                  "bannerVoucher": _selectedImageUrl, // ✅ Store Firebase URL
                                   "createdAt": Timestamp.now(),
                                 });
                                 print("🔥 Created Cash Voucher");
@@ -236,13 +303,33 @@ class _StockItemState extends State<StockItem> {
                                   .get();
 
                               int voucherCount = existingVouchers.docs.length;
+                              // Get existing vouchers of type "Points"
+                              final existingPointsVouchers = await FirebaseFirestore.instance
+                                  .collection('vouchers')
+                                  .where('typeVoucher', isEqualTo: 'Points')
+                                  .get();
+                              await deleteOldVoucherImages(existingPointsVouchers.docs);
+
 
                               if (voucherCount == 4) {
                                 // **Update the 4 existing vouchers**
                                 for (int i = 0; i < 4; i++) {
+                                  String? bannerUrl = await generateVoucherBannerImage(pointsList[i], valuesList[i]);
+
+                                  String? oldBannerUrl = existingVouchers.docs[i]["bannerVoucher"];
+                                  if (oldBannerUrl != null && oldBannerUrl.isNotEmpty) {
+                                    try {
+                                      final oldRef = FirebaseStorage.instance.refFromURL(oldBannerUrl);
+                                      await oldRef.delete();
+                                      print("🗑️ Deleted old banner: $oldBannerUrl");
+                                    } catch (e) {
+                                      print("⚠️ Failed to delete old banner: $e");
+                                    }
+                                  }
                                   await vouchersRef.doc(existingVouchers.docs[i].id).update({
                                     "points": pointsList[i],
                                     "valuePoints": valuesList[i],
+                                    "bannerVoucher": bannerUrl ?? "",
                                     "updatedAt": Timestamp.now(),
                                   });
                                   print("✅ Updated: ${pointsList[i]} pts → RM${valuesList[i]}");
@@ -252,10 +339,13 @@ class _StockItemState extends State<StockItem> {
                                 // **Create 4 new vouchers if none exist**
                                 List<DocumentReference> createdDocs = [];
                                 for (int i = 0; i < 4; i++) {
+                                  String? bannerUrl = await generateVoucherBannerImage(pointsList[i], valuesList[i]);
+
                                   DocumentReference newDoc = await vouchersRef.add({
                                     "typeVoucher": "Points",
                                     "points": pointsList[i],
                                     "valuePoints": valuesList[i],
+                                    "bannerVoucher": bannerUrl ?? "", // 🔥 Save generated banner
                                     "createdAt": Timestamp.now(),
                                   });
                                   createdDocs.add(newDoc);
@@ -277,14 +367,20 @@ class _StockItemState extends State<StockItem> {
                                 }
 
                                 // If fewer than 4, create missing ones
-                                for (int i = voucherCount; i < 4; i++) {
-                                  DocumentReference newDoc = await vouchersRef.add({
-                                    "typeVoucher": "Points",
-                                    "points": pointsList[i],
-                                    "valuePoints": valuesList[i],
-                                    "createdAt": Timestamp.now(),
-                                  });
-                                  print("🔥 Created missing voucher: ${pointsList[i]} pts → RM${valuesList[i]}");
+                                for (int i = 0; i < 4; i++) {
+                                  String? bannerUrl = await generateVoucherBannerImage(pointsList[i], valuesList[i]);
+
+                                  if (bannerUrl != null) {
+                                    await vouchersRef.doc(existingVouchers.docs[i].id).update({
+                                      "points": pointsList[i],
+                                      "valuePoints": valuesList[i],
+                                      "bannerVoucher": bannerUrl,
+                                      "updatedAt": Timestamp.now(),
+                                    });
+                                    print("✅ Updated with AI banner: ${pointsList[i]} pts → RM${valuesList[i]}");
+                                  } else {
+                                    print("❌ Failed to generate image for: ${pointsList[i]} pts");
+                                  }
                                 }
                               }
                             }
@@ -295,7 +391,6 @@ class _StockItemState extends State<StockItem> {
                             print("❌ Firestore ERROR: $e");
                           }
                         },
-
 
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Color(0xFFFDB515),
@@ -435,9 +530,12 @@ class _StockItemState extends State<StockItem> {
                         ),
 
                         SizedBox(height: 16),
+                        SizedBox(height: 16),
                         Text("Package Kasih Banner", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFF1D789))),
                         GestureDetector(
-                          onTap: _pickImage,
+                          onTap: () async { // ✅ Fix: Make onTap an async function
+                            await _pickImage(setModalState); // ✅ Calls function properly
+                          },
                           child: Container(
                             height: 150,
                             decoration: BoxDecoration(
@@ -481,7 +579,8 @@ class _StockItemState extends State<StockItem> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Color(0xFF303030),
-      body: Column(
+      body: SingleChildScrollView(
+        child: Column(
         children: [
           Padding(
             padding: EdgeInsets.only(top: 70, left: 16, right: 16),
@@ -543,16 +642,122 @@ class _StockItemState extends State<StockItem> {
               ),
             ),
           ),
+          if (isVoucherSelected)
+            Container(
+              margin: EdgeInsets.symmetric(horizontal: 5, vertical: 10),
+              padding: EdgeInsets.symmetric(horizontal: 15, vertical: 20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  stops: [0.16, 0.38, 0.58, 0.88],
+                  colors: [
+                    Color(0xFFF9F295),
+                    Color(0xFFE0AA3E),
+                    Color(0xFFF9F295),
+                    Color(0xFFB88A44),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Vouchers",
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
+                  ),
+                  SizedBox(height: 10),
 
-          Expanded(
-            child: Center(
-              child: Text(
-                isVoucherSelected ? "No vouchers here" : "No package kasih here",
-                style: TextStyle(color: Colors.white, fontSize: 18),
+                  StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance.collection("vouchers").snapshots(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return Center(child: CircularProgressIndicator());
+                      }
+                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                        return Center(
+                          child: Text(
+                            "No vouchers here",
+                            style: TextStyle(fontSize: 16, color: Colors.black),
+                          ),
+                        );
+                      }
+
+                      return Column(
+                        children: snapshot.data!.docs.map((doc) {
+                          Map<String, dynamic> voucher = doc.data() as Map<String, dynamic>;
+                          String bannerUrl = voucher["bannerVoucher"] ?? "";
+                          String valueText = voucher.containsKey("voucherValue")
+                              ? "Value RM ${voucher["voucherValue"]}"
+                              : "Value RM ${voucher["valuePoints"]}";
+
+                          return Container(
+                            margin: EdgeInsets.symmetric(vertical: 8),
+                            padding: EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.transparent, // ✅ Transparent Box
+                              border: Border.all(color: Colors.black), // ✅ Black Border
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // ✅ Voucher Image
+                                bannerUrl.isNotEmpty
+                                    ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Image.network(
+                                    bannerUrl,
+                                    height: 140,
+                                    width: double.infinity,
+                                    fit: BoxFit.cover,
+                                  ),
+                                )
+                                    : Container(
+                                  height: 100,
+                                  color: Colors.grey[300],
+                                  child: Center(
+                                    child: Icon(Icons.image, color: Colors.grey),
+                                  ),
+                                ),
+                                SizedBox(height: 10),
+
+                                // ✅ Voucher Value
+                                Text(
+                                  valueText,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      );
+                    },
+                  ),
+                ],
               ),
             ),
-          ),
+          if (!isVoucherSelected)
+            Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 20),
+                child: Text(
+                  "No package kasih here",
+                  style: TextStyle(color: Colors.white, fontSize: 18),
+                ),
+              ),
+            ),
         ],
+      ),
       ),
 
       // ✅ Calls different functions for each section

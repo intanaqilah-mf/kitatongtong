@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:projects/widgets/bottomNavBar.dart';
 
 class StockItem extends StatefulWidget {
   @override
@@ -25,6 +26,13 @@ class _StockItemState extends State<StockItem> {
   int minRedeemablePointsIndex = 0;
   List<int> rmScalingOptions = [1, 2, 5, 10, 15, 20];
   int rmScalingIndex = 0;
+  int _selectedIndex = 0;
+
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
 
   Future<void> _pickImage(Function setModalState) async {
     final pickedFile = await ImagePicker().pickImage(source: ImageSource.gallery);
@@ -37,7 +45,9 @@ class _StockItemState extends State<StockItem> {
       print("📸 Image selected: ${pickedFile.path}");
 
       // ✅ Upload image to Firebase Storage
-      String fileName = "voucherBanner/${DateTime.now().millisecondsSinceEpoch}.jpg";
+      String fileName = isVoucherSelected
+          ? "voucherBanner/${DateTime.now().millisecondsSinceEpoch}.jpg"
+          : "package_kasih_banner/${DateTime.now().millisecondsSinceEpoch}.jpg";
       Reference storageRef = FirebaseStorage.instance.ref().child(fileName);
       UploadTask uploadTask = storageRef.putFile(imageFile);
       TaskSnapshot snapshot = await uploadTask;
@@ -410,6 +420,12 @@ class _StockItemState extends State<StockItem> {
   }
 
   void _AddPackageKasih() {
+    TextEditingController itemNameController = TextEditingController();
+    TextEditingController itemNumberController = TextEditingController();
+    String selectedUnit = "kg";
+
+    List<Map<String, dynamic>> detailedPackageItems = [];
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -439,7 +455,7 @@ class _StockItemState extends State<StockItem> {
                       Text("Value Package Kasih", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFF1D789))),
                       Container(
                         decoration: BoxDecoration(
-                          color: Color(0xFFFFCF40), // ✅ Updated field box background color
+                          color: Color(0xFFFFCF40),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         padding: EdgeInsets.symmetric(horizontal: 12),
@@ -447,15 +463,15 @@ class _StockItemState extends State<StockItem> {
                           child: DropdownButton<String>(
                             value: selectedValue,
                             isExpanded: true,
-                            dropdownColor: Color(0xFFFFCF40), // ✅ Ensures dropdown matches field color
+                            dropdownColor: Color(0xFFFFCF40),
                             items: ["RM 10", "RM 20", "RM 30", "RM 40", "RM 50"].map((String type) {
                               return DropdownMenuItem<String>(
                                 value: type,
-                                child: Text(type, style: TextStyle(color: Colors.black)), // ✅ Ensures text is visible
+                                child: Text(type, style: TextStyle(color: Colors.black)),
                               );
                             }).toList(),
                             onChanged: (String? newValue) {
-                              setModalState(() { // ✅ Use setModalState to update UI inside modal
+                              setModalState(() {
                                 selectedValue = newValue!;
                               });
                             },
@@ -463,101 +479,166 @@ class _StockItemState extends State<StockItem> {
                         ),
                       ),
                       SizedBox(height: 16),
-
-                      if (selectedValue == "RM 10" || selectedValue == "RM 20" || selectedValue == "RM 30") ...[
-                        // Editable Multiple-Choice List (Google Forms Style)
-                        Text("Package Item", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFF1D789))),
-                        Column(
-                          children: List.generate(packageItems.length, (index) {
-                            return Container(
-                              margin: EdgeInsets.symmetric(vertical: 5),
-                              padding: EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Color(0xFFFFCF40), // ✅ Box filled with required color
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Row(
-                                children: [
-                                  Radio(
-                                    value: packageItems[index],
-                                    groupValue: selectedPackageItem,
-                                    onChanged: (value) {
-                                      setModalState(() {
-                                        selectedPackageItem = value.toString();
-                                      });
-                                    },
-                                  ),
-                                  Expanded(
-                                    child: Text(packageItems[index], style: TextStyle(color: Colors.black)),
-                                  ),
-                                  GestureDetector(
-                                    onTap: () {
-                                      setModalState(() {
-                                        packageItems.removeAt(index);
-                                      });
-                                    },
-                                    child: Image.asset(
-                                      'assets/trash.png', // ✅ Custom delete icon (replace with actual path)
-                                      width: 24,
-                                      height: 24,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }),
-                        ),
-                        SizedBox(height: 10),
-                        TextField(
-                          controller: packageItemController,
-                          decoration: InputDecoration(
-                            filled: true,
-                            fillColor: Color(0xFFFFCF40),
-                            border: OutlineInputBorder(),
-                            hintText: "Add option",
-                            suffixIcon: IconButton(
-                              icon: Icon(Icons.add, color: Colors.black),
-                              onPressed: () {
-                                if (packageItemController.text.trim().isNotEmpty) {
-                                  setModalState(() {
-                                    packageItems.add(packageItemController.text.trim());
-                                    packageItemController.clear();
-                                  });
-                                }
-                              },
-                            ),
-                          ),
-                        ),
-
-                        SizedBox(height: 16),
-                        SizedBox(height: 16),
-                        Text("Package Kasih Banner", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFF1D789))),
-                        GestureDetector(
-                          onTap: () async { // ✅ Fix: Make onTap an async function
-                            await _pickImage(setModalState); // ✅ Calls function properly
-                          },
-                          child: Container(
-                            height: 150,
+                      Text("Package Item", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFF1D789))),
+                      Column(
+                        children: List.generate(detailedPackageItems.length, (index) {
+                          final item = detailedPackageItems[index];
+                          return Container(
+                            margin: EdgeInsets.symmetric(vertical: 5),
+                            padding: EdgeInsets.all(8),
                             decoration: BoxDecoration(
                               color: Color(0xFFFFCF40),
-                              border: Border.all(color: Colors.grey),
                               borderRadius: BorderRadius.circular(8),
-                              image: _selectedImage != null
-                                  ? DecorationImage(image: FileImage(_selectedImage!), fit: BoxFit.cover)
-                                  : null,
                             ),
-                            child: _selectedImage == null
-                                ? Center(child: Icon(Icons.add_a_photo, size: 40, color: Colors.grey))
+                            child: Row(
+                              children: [
+                                Expanded(child: Text(item["name"], style: TextStyle(color: Colors.black))),
+                                Text("${item["number"]} ${item["unit"]}", style: TextStyle(color: Colors.black)),
+                                SizedBox(width: 8),
+                                GestureDetector(
+                                  onTap: () {
+                                    setModalState(() {
+                                      detailedPackageItems.removeAt(index);
+                                    });
+                                  },
+                                  child: Icon(Icons.delete, color: Colors.red),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      ),
+                      Row(
+                        children: [
+                          Expanded(
+                            flex: 4,
+                            child: TextField(
+                              controller: itemNameController,
+                              decoration: InputDecoration(
+                                filled: true,
+                                fillColor: Color(0xFFFFCF40),
+                                hintText: "Item name",
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 8),
+                          Expanded(
+                            flex: 2,
+                            child: TextField(
+                              controller: itemNumberController,
+                              keyboardType: TextInputType.number,
+                              decoration: InputDecoration(
+                                filled: true,
+                                fillColor: Color(0xFFFFCF40),
+                                hintText: "No.",
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 8),
+                          Expanded(
+                            flex: 3,
+                            child: Container(
+                              padding: EdgeInsets.symmetric(horizontal: 8),
+                              decoration: BoxDecoration(
+                                color: Color(0xFFFFCF40),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  value: selectedUnit,
+                                  isExpanded: true,
+                                  items: ["kg", "g", "cartoon", "unit"].map((String unit) {
+                                    return DropdownMenuItem<String>(
+                                      value: unit,
+                                      child: Text(unit),
+                                    );
+                                  }).toList(),
+                                  onChanged: (String? newUnit) {
+                                    setModalState(() {
+                                      selectedUnit = newUnit!;
+                                    });
+                                  },
+                                ),
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            icon: Icon(Icons.add, color: Colors.white),
+                            onPressed: () {
+                              if (itemNameController.text.trim().isNotEmpty &&
+                                  int.tryParse(itemNumberController.text.trim()) != null) {
+                                setModalState(() {
+                                  detailedPackageItems.add({
+                                    "name": itemNameController.text.trim(),
+                                    "number": int.parse(itemNumberController.text.trim()),
+                                    "unit": selectedUnit,
+                                  });
+                                  itemNameController.clear();
+                                  itemNumberController.clear();
+                                });
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 16),
+                      Text("Package Kasih Banner", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFF1D789))),
+                      GestureDetector(
+                        onTap: () async {
+                          await _pickImage(setModalState);
+                        },
+                        child: Container(
+                          height: 150,
+                          decoration: BoxDecoration(
+                            color: Color(0xFFFFCF40),
+                            border: Border.all(color: Colors.grey),
+                            borderRadius: BorderRadius.circular(8),
+                            image: _selectedImage != null
+                                ? DecorationImage(image: FileImage(_selectedImage!), fit: BoxFit.cover)
                                 : null,
                           ),
+                          child: _selectedImage == null
+                              ? Center(child: Icon(Icons.add_a_photo, size: 40, color: Colors.grey))
+                              : null,
                         ),
-                      ],
-
+                      ),
                       SizedBox(height: 20),
                       ElevatedButton(
-                        onPressed: () {
-                          Navigator.pop(context);
+                        onPressed: () async {
+                          try {
+                            final response = await http.post(
+                              Uri.parse("https://us-central1-kita-tongtong.cloudfunctions.net/generatePackageKasihImage"),
+                              headers: {"Content-Type": "application/json"},
+                              body: jsonEncode({
+                                "items": detailedPackageItems.map((item) => {
+                                  "name": item["name"],
+                                }).toList(),
+                              }),
+                            );
+
+                            if (response.statusCode == 200) {
+                              final imageUrl = jsonDecode(response.body)["image_url"];
+
+                              await FirebaseFirestore.instance.collection("package_kasih").add({
+                                "value": selectedValue,
+                                "items": detailedPackageItems,
+                                "bannerUrl": imageUrl,
+                                "createdAt": Timestamp.now(),
+                              });
+
+                              print("✅ Package Kasih saved with generated banner!");
+                              Navigator.pop(context);
+                            } else {
+                              print("❌ Failed to generate image: ${response.body}");
+                              // Optional: show dialog or snackBar
+                            }
+                          } catch (e) {
+                            print("❌ Error calling Cloud Function: $e");
+                          }
                         },
+
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Color(0xFFFDB515),
                           padding: EdgeInsets.symmetric(vertical: 12, horizontal: 24),
@@ -747,13 +828,140 @@ class _StockItemState extends State<StockItem> {
               ),
             ),
           if (!isVoucherSelected)
-            Center(
-              child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 20),
-                child: Text(
-                  "No package kasih here",
-                  style: TextStyle(color: Colors.white, fontSize: 18),
+            Container(
+              margin: EdgeInsets.symmetric(horizontal: 5, vertical: 10),
+              padding: EdgeInsets.symmetric(horizontal: 15, vertical: 20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  stops: [0.16, 0.38, 0.58, 0.88],
+                  colors: [
+                    Color(0xFFF9F295),
+                    Color(0xFFE0AA3E),
+                    Color(0xFFF9F295),
+                    Color(0xFFB88A44),
+                  ],
                 ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Package Kasih",
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
+                  ),
+                  SizedBox(height: 10),
+
+                  StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance.collection("package_kasih").snapshots(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return Center(child: CircularProgressIndicator());
+                      }
+                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                        return Center(
+                          child: Text(
+                            "No Package Kasih available",
+                            style: TextStyle(fontSize: 16, color: Colors.black),
+                          ),
+                        );
+                      }
+
+                      final docs = snapshot.data!.docs;
+                      docs.sort((a, b) {
+                        int valueA = int.tryParse((a['value'] as String).replaceAll("RM ", "")) ?? 0;
+                        int valueB = int.tryParse((b['value'] as String).replaceAll("RM ", "")) ?? 0;
+                        if (valueA != valueB) return valueA.compareTo(valueB);
+                        return a.reference.id.compareTo(b.reference.id); // fallback sort
+                      });
+
+                      return Column(
+                        children: docs.asMap().entries.map((entry) {
+                          final index = entry.key;
+                          final doc = entry.value;
+                          final pkg = doc.data() as Map<String, dynamic>;
+                          final bannerUrl = pkg["bannerUrl"] ?? "";
+                          final value = pkg["value"] ?? "RM 0";
+                          final label = String.fromCharCode(65 + index); // A, B, C, ...
+
+                          return Container(
+                            margin: EdgeInsets.symmetric(vertical: 8),
+                            padding: EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.transparent,
+                              border: Border.all(color: Colors.black),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                bannerUrl.isNotEmpty
+                                    ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Image.network(
+                                    bannerUrl,
+                                    height: 140,
+                                    width: double.infinity,
+                                    fit: BoxFit.cover,
+                                  ),
+                                )
+                                    : Container(
+                                  height: 100,
+                                  color: Colors.grey[300],
+                                  child: Center(
+                                    child: Icon(Icons.image, color: Colors.grey),
+                                  ),
+                                ),
+                                Text(
+                                  "Package $label:",
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFFA67C00),
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                                SizedBox(height: 5),
+                                if (pkg["items"] != null)
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.center,
+                                    children: (pkg["items"] as List<dynamic>)
+                                        .asMap()
+                                        .entries
+                                        .map((entry) {
+                                      final i = entry.key;
+                                      final item = entry.value as Map<String, dynamic>;
+                                      return Text(
+                                        "${i + 1}. ${item['name']} ${item['unit']}",
+                                        style: TextStyle(color: Colors.black),
+                                        textAlign: TextAlign.center,
+                                      );
+                                    }).toList(),
+                                  ),
+                                SizedBox(height: 10),
+                                Text(
+                                  "Value $value",
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      );
+
+                    },
+                  ),
+                ],
               ),
             ),
         ],
@@ -765,6 +973,10 @@ class _StockItemState extends State<StockItem> {
         backgroundColor: Color(0xFFFDB515),
         child: Icon(Icons.add, color: Colors.black),
         onPressed: isVoucherSelected ? _showAddVoucherForm : _AddPackageKasih, // ✅ Uses different functions
+      ),
+      bottomNavigationBar: BottomNavBar(
+        selectedIndex: _selectedIndex,
+        onItemTapped: _onItemTapped,
       ),
     );
   }

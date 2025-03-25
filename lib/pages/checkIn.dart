@@ -18,6 +18,7 @@ class checkIn extends StatefulWidget {
 class _checkInState extends State<checkIn> {
   Map<String, String> formData = {};
   int _selectedIndex = 0;
+  String? currentUserEmail;
 
   void _onItemTapped(int index) {
     setState(() {
@@ -53,6 +54,7 @@ class _checkInState extends State<checkIn> {
         setState(() {
           _participantNameController.text = userData['name'] ?? '';
           _participantNumberController.text = userData['phone'] ?? '';
+          currentUserEmail = userData['email'];
         });
       }
     } catch (e) {
@@ -151,14 +153,32 @@ class _checkInState extends State<checkIn> {
               ElevatedButton(
                 onPressed: () async {
                   try {
+                    final userId = FirebaseAuth.instance.currentUser!.uid;
+                    final pointsToAdd = int.tryParse(_pointsController.text) ?? 0;
                     await FirebaseFirestore.instance.collection("checkIn_list").add({
                       "attendanceCode": _attendanceCodeController.text,
                       "eventName": _eventNameController.text,
-                      "points": _pointsController.text,
-                      "participantName": _participantNameController.text,
+                      "points": pointsToAdd,
                       "participantNumber": _participantNumberController.text,
                       "checkedInAt": Timestamp.now(),
+                      "submittedBy": {
+                        "name": _participantNameController.text,
+                        "email": currentUserEmail ?? '',
+                      },
                     });
+
+                    final userDocRef = FirebaseFirestore.instance.collection("users").doc(userId);
+                    final userDoc = await userDocRef.get();
+
+                    if (userDoc.exists) {
+                      int currentPoints = (userDoc.data()?['points'] ?? 0) as int;
+                      await userDocRef.update({
+                        'points': currentPoints + pointsToAdd,
+                      });
+                    } else {
+                      // Set it in case points field doesn't exist
+                      await userDocRef.set({'points': pointsToAdd}, SetOptions(merge: true));
+                    }
                     Navigator.pushAndRemoveUntil(
                       context,
                       MaterialPageRoute(builder: (context) => successCheckIn()),

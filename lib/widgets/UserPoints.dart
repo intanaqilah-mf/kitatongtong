@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../pages/checkIn.dart';  // Import Check-In page
 import '../pages/rewards.dart'; // Import Rewards page
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class UserPoints extends StatelessWidget {
   @override
@@ -47,14 +49,41 @@ class UserPoints extends StatelessWidget {
                               ),
                             ),
                             SizedBox(height: 5),
-                            Text(
-                              "159",
-                              style: TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
+                            StreamBuilder<QuerySnapshot>(
+                              stream: FirebaseFirestore.instance
+                                  .collection('checkIn_list')
+                                  .where('submittedBy.email', isEqualTo: FirebaseAuth.instance.currentUser!.email)
+                                  .snapshots(),
+                              builder: (context, snapshot) {
+                                if (!snapshot.hasData) {
+                                  return Text(
+                                    "Loading...",
+                                    style: TextStyle(
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  );
+                                }
+
+                                final docs = snapshot.data!.docs;
+                                final totalPoints = docs.fold<int>(0, (sum, doc) {
+                                  final pointValue = doc['points'];
+                                  return sum + (pointValue is int ? pointValue : (pointValue as num).toInt());
+                                });
+
+                                return Text(
+                                  "$totalPoints",
+                                  style: TextStyle(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                );
+                              },
+
                             ),
+
                           ],
                         ),
                         Positioned(

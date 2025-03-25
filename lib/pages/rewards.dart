@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart';
 
 class Rewards extends StatefulWidget {
   @override
@@ -16,13 +17,15 @@ class _RewardsState extends State<Rewards> {
   int valuePoints = 0;
   String validityMessage = "Valid for 1 month";
   List<Map<String, dynamic>> eligibleVouchers = [];
+  List<Map<String, dynamic>> eventList = [];
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   @override
   void initState() {
     super.initState();
-    fetchUserData(); // <-- This must be here
+    fetchUserData();
+    fetchEvents();
   }
 
   void _onItemTapped(int index) {
@@ -99,6 +102,38 @@ class _RewardsState extends State<Rewards> {
       //eligiblePointVouchers = eligibleVouchers;
     });
   }
+  Future<void> fetchEvents() async {
+    final querySnapshot =
+    await FirebaseFirestore.instance.collection('event').get();
+
+    final List<Map<String, dynamic>> fetchedEvents = querySnapshot.docs.map((doc) {
+      final data = doc.data();
+      return {
+        'bannerUrl': data['bannerUrl'] ?? '',
+        'eventName': data['eventName'] ?? '',
+        'organiserName': data['organiserName'] ?? '',
+        'points': data['points'] ?? 0,
+        'eventEndDate': data['eventEndDate'] ?? '',
+      };
+    }).toList();
+    final now = DateTime.now();
+    // Filter events: include only if eventEndDate is today or in the future.
+    final upcomingEvents = fetchedEvents.where((event) {
+      final String eventEndDateStr = event['eventEndDate'] as String;
+      if (eventEndDateStr.isEmpty) return false;
+      try {
+        final eventEndDate = DateFormat("dd MMM yyyy").parse(eventEndDateStr);
+        final today = DateTime(now.year, now.month, now.day);
+        return eventEndDate.isAtSameMomentAs(today) || eventEndDate.isAfter(today);
+      } catch (e) {
+        return false;
+      }
+    }).toList();
+
+    setState(() {
+      eventList = upcomingEvents;
+    });
+  }
 
   Future<void> redeemPoints() async {
     final uid = _auth.currentUser?.uid;
@@ -116,7 +151,6 @@ class _RewardsState extends State<Rewards> {
     final currentTotalValue = userData?['totalValuePoints'] ?? 0;
     final currentVoucherHistory = userData?['voucherReceived'] ?? [];
 
-    // Prevent negative balance
     if (redeemablePoints > currentPoints) return;
 
     await _firestore.runTransaction((transaction) async {
@@ -222,7 +256,6 @@ class _RewardsState extends State<Rewards> {
             ],
           ),
           SizedBox(height: 20),
-          SizedBox(height: 20),
           Center(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
@@ -273,11 +306,9 @@ class _RewardsState extends State<Rewards> {
                 ),
                 SizedBox(height: 20),
 
-// 🔶 Golden box section
                 if (eligibleVouchers.isNotEmpty)
                   Container(
-                    margin: EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                    padding: EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+                    padding: EdgeInsets.symmetric(horizontal: 10, vertical: 15),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topLeft,
@@ -296,7 +327,7 @@ class _RewardsState extends State<Rewards> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          "Available Vouchers",
+                          "Redeem your Points!",
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -363,7 +394,7 @@ class _RewardsState extends State<Rewards> {
                                             child: ElevatedButton(
                                               onPressed: () => claimVoucher(pointsCost, valuePoints),
                                               style: ElevatedButton.styleFrom(
-                                                backgroundColor: Colors.black,
+                                                backgroundColor: Color(0xFFFDB515),
                                                 padding: EdgeInsets.symmetric(vertical: 10),
                                                 shape: RoundedRectangleBorder(
                                                   borderRadius: BorderRadius.circular(8),
@@ -380,8 +411,148 @@ class _RewardsState extends State<Rewards> {
                               );
                             },
                           ),
-                        )
+                        ),
+                        Text(
+                          "Join Activity and Get Rewards!",
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        ),
+                        SizedBox(height: 10),
+                        if (eventList.isNotEmpty)
+                        SizedBox(
+                          height: 260, // match the voucher box height
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: eventList.length,
+                            itemBuilder: (context, index) {
+                              final event = eventList[index];
+                              final bannerUrl = event['bannerUrl'];
+                              final eventName = event['eventName'];
+                              final organiserName = event['organiserName'];
+                              final eventPoints = event['points'];
 
+                              return Container(
+                                width: 200,
+                                margin: EdgeInsets.only(right: 10),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // Event Banner
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(10),
+                                      child: bannerUrl.isNotEmpty
+                                          ? Image.network(
+                                        bannerUrl,
+                                        fit: BoxFit.cover,
+                                        width: 200,
+                                        height: 110,
+                                      )
+                                          : Container(
+                                        width: 200,
+                                        height: 110,
+                                        color: Colors.grey,
+                                        child: Center(child: Text("No Image")),
+                                      ),
+                                    ),
+                                    // White info box (like vouchers)
+                                    Container(
+                                      width: 200,
+                                      padding: EdgeInsets.symmetric(
+                                          horizontal: 10, vertical: 8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.only(
+                                          bottomLeft: Radius.circular(10),
+                                          bottomRight: Radius.circular(10),
+                                        ),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          // Event Name
+                                          Text(
+                                            eventName,
+                                            style: TextStyle(
+                                              color: Color(0xFFA67C00),
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                          SizedBox(height: 4),
+                                          // Organiser Name
+                                          Text(
+                                            "by $organiserName",
+                                            style: TextStyle(
+                                              color: Colors.black54,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                          // Points
+                                          SizedBox(height: 4),
+                                          Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Text(
+                                                "$eventPoints pts",
+                                                style: TextStyle(
+                                                  color: Colors.black,
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 13,
+                                                ),
+                                              ),
+                                              Row(
+                                                children: [
+                                                  Icon(Icons.calendar_today, color: Colors.red, size: 16),
+                                                  SizedBox(width: 4),
+                                                  Text(
+                                                    event['eventEndDate'],
+                                                    style: TextStyle(
+                                                      color: Colors.black,
+                                                      fontWeight: FontWeight.w600,
+                                                      fontSize: 13,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
+                                          SizedBox(height: 8),
+
+                                          // "View" or "Join" button
+                                          SizedBox(
+                                            width: double.infinity,
+                                            child: ElevatedButton(
+                                              onPressed: () {
+                                                // navigate to event details or do something else
+                                              },
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: Color(0xFFFDB515),
+                                                padding:
+                                                EdgeInsets.symmetric(vertical: 10),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                  BorderRadius.circular(8),
+                                                ),
+                                              ),
+                                              child: Text(
+                                                "Join",
+                                                style: TextStyle(
+                                                    fontSize: 14, color: Colors.white),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        )
                       ],
                     ),
                   ),

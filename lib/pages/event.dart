@@ -16,12 +16,14 @@ Map<String, bool> eventSections = {
   "Upcoming Activities": true,
   "Others": true
 };
+
 final TextEditingController _attendanceCodeController = TextEditingController();
 final TextEditingController _eventNameController = TextEditingController();
 final TextEditingController _pointsController = TextEditingController();
 final TextEditingController _organiserNameController = TextEditingController();
 final TextEditingController _organiserNumberController = TextEditingController();
 final TextEditingController _locationController = TextEditingController();
+final TextEditingController _endDateController = TextEditingController();
 
 class EventPage extends StatefulWidget {
   @override
@@ -47,6 +49,7 @@ class _EventPageState extends State<EventPage> {
     setState(() {
       _editingDocId = null; // Ensure no document is being edited
       _dateController.clear();
+      _endDateController.clear();
       _controller.clear();
       _sectionController.clear();
       _attendanceCodeController.clear();
@@ -79,11 +82,13 @@ class _EventPageState extends State<EventPage> {
       formData["organiserNumber"] = event["organiserNumber"] ?? "";
       formData["location"] = event["location"] ?? "";
       formData["eventDate"] = event["eventDate"] ?? "";
+      formData["eventEndDate"] = event["eventEndDate"] ?? "";
       _uploadedImageUrl = event["bannerUrl"] ?? "";
       selectedSection = event["sectionEvent"] ?? "Upcoming Activities"; // Retrieve section
 
       // ✅ Ensure controllers update dynamically
       _dateController.text = formData["eventDate"]!;
+      _endDateController.text = formData["eventEndDate"]!;
       _controller.text = formData["organiserNumber"]!;
       _attendanceCodeController.text = formData["attendanceCode"]!;
       _eventNameController.text = formData["eventName"]!;
@@ -154,6 +159,63 @@ class _EventPageState extends State<EventPage> {
       print("Error uploading image: $e");
     }
   }
+  Widget buildEndDatePicker() {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "Event's End Date",
+            style: TextStyle(
+              color: Color(0xFFBB86FC), // Use a different accent color
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          SizedBox(height: 4),
+          GestureDetector(
+            onTap: () async {
+              DateTime? pickedDate = await showDatePicker(
+                context: context,
+                initialDate: DateTime.now(),
+                firstDate: DateTime(2000),
+                lastDate: DateTime(2100),
+              );
+              if (pickedDate != null) {
+                String formattedDate =
+                DateFormat("dd MMM yyyy").format(pickedDate);
+                setState(() {
+                  _endDateController.text = formattedDate;
+                  formData["eventEndDate"] = formattedDate;
+                });
+              }
+            },
+            child: Container(
+              padding: EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+              decoration: BoxDecoration(
+                color: Color(0xFFBB86FC).withOpacity(0.2), // distinct background
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    _endDateController.text.isEmpty
+                        ? "Select Event End Date"
+                        : _endDateController.text,
+                    style: TextStyle(color: Colors.black),
+                  ),
+                  Icon(Icons.calendar_today, color: Colors.black),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -337,7 +399,11 @@ class _EventPageState extends State<EventPage> {
                         style: TextStyle(color: Colors.black),
                       ),
                       Text(
-                        "Event Date: ${event["eventDate"] ?? "Unknown"}",
+                        "Event Start Date: ${event["eventDate"] ?? "Unknown"}",
+                        style: TextStyle(color: Colors.black),
+                      ),
+                      Text(
+                        "Event End Date: ${event["eventEndDate"] ?? "Unknown"}",
                         style: TextStyle(color: Colors.black),
                       ),
                       Text(
@@ -437,14 +503,13 @@ class _EventPageState extends State<EventPage> {
             // Location Field
             buildTextField("Location", "location", _locationController),
 
-            // Event Date Picker
             Padding(
               padding: EdgeInsets.symmetric(vertical: 8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    "Event’s date",
+                    "Event’s start date",
                     style: TextStyle(color: Color(0xFFFDB515), fontSize: 14, fontWeight: FontWeight.bold),
                   ),
                   SizedBox(height: 4),
@@ -486,8 +551,54 @@ class _EventPageState extends State<EventPage> {
                 ],
               ),
             ),
+            Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Event’s end date",
+                    style: TextStyle(color: Color(0xFFFDB515), fontSize: 14, fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 4),
+                  GestureDetector(
+                    onTap: () async {
+                      DateTime? pickedDate = await showDatePicker(
+                        context: context,
+                        initialDate: DateTime.now(),
+                        firstDate: DateTime(2000),
+                        lastDate: DateTime(2100),
+                      );
 
-            // Section Dropdown (to select Event Section)
+                      if (pickedDate != null) {
+                        String formattedDate = DateFormat("dd MMM yyyy").format(pickedDate);
+                        setState(() {
+                          _endDateController.text = formattedDate;
+                          formData["eventEndDate"] = formattedDate;
+                        });
+                      }
+                    },
+                    child: Container(
+                      padding: EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: Color(0xFFFDB515),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            _endDateController.text.isEmpty ? "Select Event End Date" : _endDateController.text,
+                            style: TextStyle(color: Colors.black),
+                          ),
+                          Icon(Icons.calendar_today, color: Colors.black),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           Padding(
             padding: EdgeInsets.symmetric(vertical: 8),
             child: Column(
@@ -602,7 +713,8 @@ class _EventPageState extends State<EventPage> {
                     formData["organiserName"] == null ||
                     formData["organiserNumber"] == null ||
                     formData["location"] == null ||
-                    formData["eventDate"] == null) {
+                    formData["eventDate"] == null ||
+                    formData["eventEndDate"] == null) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text("Please fill in all fields!")),
                   );
@@ -626,6 +738,7 @@ class _EventPageState extends State<EventPage> {
                     "organiserNumber": formData["organiserNumber"],
                     "location": formData["location"],
                     "eventDate": formData["eventDate"],
+                    "eventEndDate": formData["eventEndDate"] ?? "",
                     "bannerUrl": _uploadedImageUrl ?? "",
                     "sectionEvent": sectionEvent,
                     "updatedAt": Timestamp.now(),

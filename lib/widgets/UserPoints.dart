@@ -49,10 +49,10 @@ class UserPoints extends StatelessWidget {
                               ),
                             ),
                             SizedBox(height: 5),
-                            StreamBuilder<QuerySnapshot>(
+                            StreamBuilder<DocumentSnapshot>(
                               stream: FirebaseFirestore.instance
-                                  .collection('checkIn_list')
-                                  .where('submittedBy.email', isEqualTo: FirebaseAuth.instance.currentUser!.email)
+                                  .collection('users')
+                                  .doc(FirebaseAuth.instance.currentUser!.uid)
                                   .snapshots(),
                               builder: (context, snapshot) {
                                 if (!snapshot.hasData) {
@@ -66,11 +66,8 @@ class UserPoints extends StatelessWidget {
                                   );
                                 }
 
-                                final docs = snapshot.data!.docs;
-                                final totalPoints = docs.fold<int>(0, (sum, doc) {
-                                  final pointValue = doc['points'];
-                                  return sum + (pointValue is int ? pointValue : (pointValue as num).toInt());
-                                });
+                                final userDoc = snapshot.data!;
+                                final totalPoints = userDoc['points'] ?? 0;
 
                                 return Text(
                                   "$totalPoints",

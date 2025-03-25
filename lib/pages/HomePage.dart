@@ -203,44 +203,71 @@ class _HomePageState extends State<HomePage> {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
+                                      // Event Image
                                       ClipRRect(
                                         borderRadius: BorderRadius.circular(8),
                                         child: Image.network(
-                                          event["bannerUrl"] ?? '', // Fetch banner image URL
-                                          height: 120,
-                                          width: 120,  // Fixed width for the image
+                                          event["bannerUrl"] ?? '',
+                                          height: 100,
+                                          width: double.infinity,
                                           fit: BoxFit.cover,
                                         ),
                                       ),
                                       SizedBox(height: 4),
-                                      Expanded(
-                                        child: Center(
-                                          child: Text(
-                                            event["eventName"] ?? "Unknown",
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 16,
-                                              color: Colors.black,
-                                            ),
-                                            textAlign: TextAlign.start, // Align text to the left for better readability
-                                            softWrap: true,  // Allow text to wrap
-                                            overflow: TextOverflow.ellipsis,  // Add ellipsis if text is too long
-                                            maxLines: 2,  // Limit to 2 lines for better display
+
+                                      // Event Name (fixed height space for alignment)
+                                      SizedBox(
+                                        height: 36, // enough for 2 lines of text
+                                        child: Text(
+                                          event["eventName"] ?? "Unknown",
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
+                                            color: Colors.black,
                                           ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
                                       ),
-                                      SizedBox(height: 4),
-                                      Text(
-                                        "Get ${event["points"] ?? "0"} points",
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 14,
-                                          color: Colors.black,
-                                        ),
+
+                                      SizedBox(height: 8), // space before bottom section
+
+                                      // Points and Date (will always be same vertical position)
+                                      Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            "Get ${event["points"] ?? "0"} pts",
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 13,
+                                              color: Colors.black,
+                                            ),
+                                          ),
+                                          SizedBox(height: 4),
+                                          Row(
+                                            children: [
+                                              Icon(Icons.calendar_today, color: Colors.red, size: 14),
+                                              SizedBox(width: 4),
+                                              Expanded(
+                                                child: Text(
+                                                  event["eventEndDate"] ?? "",
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w500,
+                                                    color: Colors.black87,
+                                                  ),
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
                                       ),
                                     ],
                                   ),
-                                ),
+                                )
+
                               );
                             },
                           ),
@@ -293,58 +320,87 @@ class _HomePageState extends State<HomePage> {
             style: TextStyle(fontSize: 25, fontWeight: FontWeight.bold, color: Colors.black),
           ),
           Container(
-            height: 220,  // Height of the container for the event list
+            height: 250,  // Height of the container for the event list
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               itemCount: events.length,
-              itemBuilder: (context, index) {
-                var event = events[index];
-                return Padding(
-                  padding: const EdgeInsets.all(10.0),
-                  child: Container(
-                    width: 160,  // Adjust the width of each item for better space management
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.network(
-                            event["bannerUrl"] ?? '',
-                            height: 120,
-                            width: 120,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Container(
-                          width: 160,  // Set a fixed width for each event card
-                          child: Text(
-                            event["eventName"] ?? "Unknown",
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                              color: Colors.black,
+                itemBuilder: (context, index) {
+                  var event = events[index];
+                  return Padding(
+                    padding: const EdgeInsets.all(10.0),
+                    child: Container(
+                      width: 160,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Event Image
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.network(
+                              event["bannerUrl"] ?? '',
+                              height: 100,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
                             ),
-                            textAlign: TextAlign.start,  // Align text to the left for better readability
-                            softWrap: true,  // Allow text to wrap
-                            overflow: TextOverflow.ellipsis,  // Add ellipsis if text is too long
-                            maxLines: 2,  // Limit to 2 lines for better display
                           ),
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          "Get ${event["points"] ?? "0"} points",
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                            color: Colors.black,
+                          SizedBox(height: 4),
+
+                          // Event Name (fixed height space for alignment)
+                          SizedBox(
+                            height: 36, // enough for 2 lines of text
+                            child: Text(
+                              event["eventName"] ?? "Unknown",
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                color: Colors.black,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
+
+                          SizedBox(height: 8), // space before bottom section
+
+                          // Points and Date (will always be same vertical position)
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "Get ${event["points"] ?? "0"} pts",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                  color: Colors.black,
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Icon(Icons.calendar_today, color: Colors.red, size: 14),
+                                  SizedBox(width: 4),
+                                  Expanded(
+                                    child: Text(
+                                      event["eventEndDate"] ?? "",
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                        color: Colors.black87,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    )
+
+                  );
+                }
+
             ),
           ),
         ],

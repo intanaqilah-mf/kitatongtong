@@ -4,7 +4,6 @@ import 'package:file_picker/file_picker.dart';
 import '../pages/PDFViewerScreen.dart';
 import 'package:path/path.dart' as path;
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart';
 import '../pages/applicationReviewScreen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:math';

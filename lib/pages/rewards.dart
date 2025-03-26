@@ -3,6 +3,7 @@ import 'package:projects/widgets/bottomNavBar.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
+import 'package:projects/pages/packageKasih.dart';
 
 class Rewards extends StatefulWidget {
   @override
@@ -39,26 +40,48 @@ class _RewardsState extends State<Rewards> {
     if (uid == null) return;
 
     final userDoc = await _firestore.collection('users').doc(uid).get();
-    final voucherDocs = await _firestore.collection('vouchers').get();
-    Timestamp? redeemedAt;
-    int daysLeft = 0;
+    final voucherQuery = await _firestore.collection('vouchers').get();
 
+    // Print user's doc info
+    debugPrint("==== FETCHING USER DATA ====");
+    debugPrint("UserDoc ID: $uid");
+    debugPrint("UserDoc data: ${userDoc.data()}");
+
+    // userPoints is from the 'points' field (not totalValuePoints!)
     int points = userDoc.data()?['points'] ?? 0;
+    debugPrint("User has $points points.");
 
-    // Filter vouchers of type "Points" and sort descending by 'points'
-    final validVouchers = voucherDocs.docs
-        .map((doc) => doc.data())
-        .where((data) => (data['typeVoucher'] ?? '').toString().trim().toLowerCase() == 'points')
+    // All voucher docs
+    final allVouchers = voucherQuery.docs.map((doc) => doc.data()).toList();
+    debugPrint("Total vouchers found in Firestore: ${allVouchers.length}");
+
+    // Filter only vouchers of type "Points"
+    final validVouchers = allVouchers
+        .where((data) =>
+    (data['typeVoucher'] ?? '').toString().trim().toLowerCase() == 'points')
         .toList()
       ..sort((a, b) => b['points'].compareTo(a['points'])); // Sort descending
-    final pointVouchers = voucherDocs.docs
-        .map((doc) => doc.data())
-        .where((data) =>
-    (data['typeVoucher'] ?? '').toString().trim().toLowerCase() == 'points' &&
-        (data['points'] ?? 0) <= points &&
-        (data['bannerVoucher'] ?? '').toString().isNotEmpty)
-        .toList();
 
+    // Print all "Points" vouchers
+    debugPrint("All 'Points' vouchers (descending by points):");
+    for (var v in validVouchers) {
+      debugPrint("  - points=${v['points']}, valuePoints=${v['valuePoints']}, bannerVoucher=${v['bannerVoucher']}");
+    }
+
+    // Filter for vouchers user can claim (points <= user's points, and has a banner)
+    final pointVouchers = validVouchers.where((data) {
+      final voucherPoints = data['points'] ?? 0;
+      final banner = (data['bannerVoucher'] ?? '').toString().trim();
+      return voucherPoints <= points && banner.isNotEmpty;
+    }).toList();
+
+    // Print the vouchers that user is actually eligible for
+    debugPrint("Eligible vouchers (user has $points pts):");
+    for (var v in pointVouchers) {
+      debugPrint("  * points=${v['points']}, valuePoints=${v['valuePoints']}, bannerVoucher=${v['bannerVoucher']}");
+    }
+
+    // Keep for building your horizontal list
     eligibleVouchers = pointVouchers
         .where((v) =>
     v['points'] != null &&
@@ -66,16 +89,21 @@ class _RewardsState extends State<Rewards> {
         v['bannerVoucher'] != null)
         .toList();
 
+    // Now find the single "best match" voucher
     int bestMatchPoints = 0;
     int bestMatchValue = 0;
-
     for (var voucher in validVouchers) {
-      if (voucher['points'] <= points) {
+      if ((voucher['points'] ?? 0) <= points) {
         bestMatchPoints = voucher['points'];
         bestMatchValue = voucher['valuePoints'];
-        break; // Found best match, no need to continue
+        break; // Found the largest voucher that user can afford
       }
     }
+
+    debugPrint("==> BEST MATCH: $bestMatchPoints points => RM$bestMatchValue");
+
+    // Check if there's a redeemed voucher currently active
+    int daysLeft = 0;
     if (userDoc.data()?['voucherReceived'] != null) {
       final received = userDoc.data()!['voucherReceived'];
       if (received is Map && received['redeemedAt'] != null) {
@@ -84,7 +112,6 @@ class _RewardsState extends State<Rewards> {
           final redeemedDate = redeemedAt.toDate();
           final now = DateTime.now();
           final difference = 30 - now.difference(redeemedDate).inDays;
-
           if (difference >= 0) {
             daysLeft = difference;
             validityMessage = "Valid for $daysLeft day${daysLeft == 1 ? '' : 's'}";
@@ -99,9 +126,53 @@ class _RewardsState extends State<Rewards> {
       userPoints = points;
       redeemablePoints = bestMatchPoints;
       valuePoints = bestMatchValue;
-      //eligiblePointVouchers = eligibleVouchers;
     });
   }
+
+  Future<Map<String, dynamic>?> fetchBestVoucherForTotalValuePoints() async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return null;
+
+    // 1) Read the user's totalValuePoints
+    final userDoc = await _firestore.collection('users').doc(uid).get();
+    final int totalVal = userDoc.data()?['totalValuePoints'] ?? 0;
+    // Convert totalValuePoints to effective points (assuming factor 10)
+    final int effectivePoints = totalVal * 10;
+    debugPrint("User has totalValuePoints: $totalVal, effectivePoints: $effectivePoints");
+
+    // 2) Get all vouchers of type "Points"
+    final voucherDocs = await _firestore.collection('vouchers').get();
+    final allVouchers = voucherDocs.docs.map((doc) => doc.data()).toList();
+
+    final validVouchers = allVouchers.where((v) {
+      final tv = (v['typeVoucher'] ?? '').toString().trim().toLowerCase();
+      return tv == 'points';
+    }).toList()
+      ..sort((a, b) {
+        final aPoints = int.tryParse(a['points'].toString()) ?? 0;
+        final bPoints = int.tryParse(b['points'].toString()) ?? 0;
+        return bPoints.compareTo(aPoints); // descending order
+      });
+
+    // 3) Find the best voucher: largest voucher whose threshold <= effectivePoints
+    Map<String, dynamic>? bestVoucher;
+    for (var v in validVouchers) {
+      final int threshold = int.tryParse(v['points'].toString()) ?? 0;
+      if (threshold <= effectivePoints) {
+        bestVoucher = v;
+        break;
+      }
+    }
+
+    if (bestVoucher == null) {
+      debugPrint("No voucher found for effectivePoints = $effectivePoints");
+      return null;
+    }
+
+    debugPrint("Best voucher for effectivePoints=$effectivePoints is threshold=${bestVoucher['points']} => RM${bestVoucher['valuePoints']}");
+    return bestVoucher;
+  }
+
   Future<void> fetchEvents() async {
     final querySnapshot =
     await FirebaseFirestore.instance.collection('event').get();
@@ -219,14 +290,124 @@ class _RewardsState extends State<Rewards> {
     fetchUserData();
   }
   Widget buildRewardsListSection() {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Center(
-        child: Text(
-          "Rewards list goes here...",
-          style: TextStyle(color: Colors.white),
-        ),
-      ),
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: fetchBestVoucherForTotalValuePoints(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Center(child: CircularProgressIndicator());
+        }
+        if (!snapshot.hasData || snapshot.data == null) {
+          return Container(
+            alignment: Alignment.center,
+            padding: EdgeInsets.symmetric(vertical: 20),
+            child: Text(
+              "No active vouchers found.",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          );
+        }
+
+        final bestVoucher = snapshot.data!;
+        final bannerUrl = bestVoucher['bannerVoucher'] ?? '';
+        // parse points & valuePoints carefully in case they are strings
+        final thresholdPoints = int.tryParse(bestVoucher['points'].toString()) ?? 0;
+        final rmValue = int.tryParse(bestVoucher['valuePoints'].toString()) ?? 0;
+
+        return Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                stops: [0.16, 0.38, 0.58, 0.88],
+                colors: [
+                  Color(0xFFF9F295),
+                  Color(0xFFE0AA3E),
+                  Color(0xFFF9F295),
+                  Color(0xFFB88A44),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            padding: EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "This is your Rewards!",
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
+                ),
+                SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  child: GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => PackageKasihPage(rmValue: rmValue)),
+                      );
+                    },
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Show the banner
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Image.network(
+                          bannerUrl,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          height: 110,
+                        ),
+                      ),
+                      // Show the threshold points and the RM value
+                      Container(
+                        width: double.infinity,
+                        padding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.only(
+                            bottomLeft: Radius.circular(10),
+                            bottomRight: Radius.circular(10),
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                          Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text("Redeem with", style: TextStyle(color: Color(0xFFA67C00), fontWeight: FontWeight.bold, fontSize: 13)),
+                                Text("Rewards", style: TextStyle(color: Color(0xFFA67C00), fontWeight: FontWeight.bold, fontSize: 13)),
+                              ],
+                            ),
+                            SizedBox(height: 4),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text("$thresholdPoints pts", style: TextStyle(color: Colors.black, fontWeight: FontWeight.w600, fontSize: 13)),
+                                Text("RM$rmValue", style: TextStyle(color: Colors.black, fontWeight: FontWeight.w600, fontSize: 13)),
+                              ],
+                            ),
+                          ],
+                        ),
+                        ])
+                      ),
+                    ],
+                  ),),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 

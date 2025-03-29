@@ -3,6 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:projects/pages/pickupSuccess.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:projects/pages/pickupFail.dart';
+import 'package:intl/intl.dart';
 
 final TextEditingController _attendanceCodeController = TextEditingController();
 final TextEditingController _eventNameController = TextEditingController();
@@ -204,11 +206,35 @@ class _pickUpItemState extends State<pickUpItem> {
                     }
 
                     try {
-                      await FirebaseFirestore.instance
-                          .collection("redeemedKasih")
-                          .doc(docIdToUpdate)
-                          .update({"pickedUp": "yes"});
+                      final docRef = FirebaseFirestore.instance.collection("redeemedKasih").doc(docIdToUpdate);
+                      final docSnap = await docRef.get();
+                      final docData = docSnap.data();
 
+                      if (docData?['pickedUp'] == 'yes') {
+                        final pickedUpAt = docData?['pickedUpAt']?.toDate();
+                        String formattedPickedUpAt = pickedUpAt != null
+                            ? DateFormat("d MMM yyyy").format(pickedUpAt)
+                            : "Unknown date";
+
+                        Navigator.pushAndRemoveUntil(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => PickupFail(
+                              name: _participantNameController.text,
+                              phone: _participantNumberController.text,
+                              reward: _eventNameController.text,
+                              pickupCode: _attendanceCodeController.text,
+                              pickedUpAt: formattedPickedUpAt,
+                            ),
+                          ),
+                              (route) => false,
+                        );
+                        return;
+                      }
+                      await docRef.update({
+                        "pickedUp": "yes",
+                        "pickedUpAt": FieldValue.serverTimestamp(),
+                      });
                       Navigator.pushAndRemoveUntil(
                         context,
                         MaterialPageRoute(

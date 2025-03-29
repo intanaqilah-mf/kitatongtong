@@ -69,6 +69,8 @@ class _RedemptionstatusState extends State<Redemptionstatus> {
           String appCode = pickupData['pickupCode'] ?? "N/A";
           String statusApplication = pickupData['statusApplication'] ?? "Submitted";
           bool hasReward = pickupData.containsKey('reward') && pickupData['reward'] != null;
+          String processedOrder = pickupData['processedOrder'] ?? 'no';
+          String pickedUp = pickupData['pickedUp'] ?? 'no';
 
           return Column(
             children: [
@@ -163,26 +165,30 @@ class _RedemptionstatusState extends State<Redemptionstatus> {
                     SizedBox(height: 50), // Adds spacing after header
                   ],
                 ),
+              ),statusTile(
+                "Order Placed",
+                "We have received your order",
+                "assets/pickup1.png",
+                Colors.green,
+                true,
+                processedOrder == 'yes' ? Colors.green : Colors.grey,
               ),
-
               statusTile(
-                  "Order Placed",
-                  "We have received your order",
-                  "assets/pickup1.png",
-                  getStatusColor(1, statusApplication, hasReward),
-                  true),
+                "Order Processed",
+                "We are processing your order",
+                "assets/pickup2.png",
+                getStatusColor(2, processedOrder, pickedUp),
+                true,
+                pickedUp == 'yes' ? Colors.green : Colors.grey,
+              ),
               statusTile(
-                  "Order Processed",
-                  "We are processing your order",
-                  "assets/pickup2.png",
-                  getStatusColor(2, statusApplication, hasReward),
-                  true),
-              statusTile(
-                  "Ready to Pickup",
-                  "Your order is ready to pickup",
-                  "assets/pickup3.png",
-                  getStatusColor(3, statusApplication, hasReward),
-                  false),
+                "Ready to Pickup",
+                "Your order is ready to pickup",
+                "assets/pickup3.png",
+                getStatusColor(3, processedOrder, pickedUp),
+                false,
+                Colors.transparent,
+              ),
               SizedBox(height: 100),
               ElevatedButton(
                 onPressed: () async {
@@ -209,20 +215,21 @@ class _RedemptionstatusState extends State<Redemptionstatus> {
     );
   }
 
-  Color getStatusColor(int stage, String statusApplication, bool hasReward) {
-    if (stage == 1) return Colors.green; // Always green for submitted
+  Color getStatusColor(int stage, String processedOrder, String pickedUp) {
+    if (stage == 1) return Colors.green; // Order placed always green
+
     if (stage == 2) {
-      if (statusApplication == "Pending") return Colors.grey;
-      if (statusApplication == "Rejected") return Colors.red;
-      if (statusApplication == "Approve") return Colors.green;
+      return processedOrder == 'yes' ? Colors.green : Colors.grey;
     }
+
     if (stage == 3) {
-      return hasReward ? Colors.green : Colors.grey;
+      return pickedUp == 'yes' ? Colors.green : Colors.grey;
     }
+
     return Colors.grey;
   }
 
-  Widget statusTile(String title, String subtitle, String iconPath, Color timelineColor, bool showLine) {
+  Widget statusTile(String title, String subtitle, String iconPath, Color dotColor, bool showLine, Color lineColor) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 0.0),
       child: Row(
@@ -231,18 +238,18 @@ class _RedemptionstatusState extends State<Redemptionstatus> {
           Column(
             children: [
               Container(
-                width: 65,
+                width: 30, // Optional: smaller size
                 height: 30,
                 decoration: BoxDecoration(
-                  color: timelineColor, // Colored based on status
+                  color: dotColor, // ✅ FIXED: use dotColor here
                   shape: BoxShape.circle,
                 ),
               ),
               if (showLine)
                 Container(
-                  width: 5, // Thicker timeline line
-                  height: 90, // Adjust height to match icon center
-                  color: timelineColor,
+                  width: 5,
+                  height: 90,
+                  color: lineColor, // ✅ this is fine
                 ),
             ],
           ),

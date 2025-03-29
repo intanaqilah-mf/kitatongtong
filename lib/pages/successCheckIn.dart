@@ -12,8 +12,7 @@ class successCheckIn extends StatefulWidget {
 
 class _successCheckInState extends State<successCheckIn> {
   int _selectedIndex = 0;
-  Map<String, dynamic>? userData;
-  Map<String, dynamic>? eventData;
+  Map<String, dynamic>? checkInData;
 
   void _onItemTapped(int index) {
     setState(() {
@@ -23,27 +22,11 @@ class _successCheckInState extends State<successCheckIn> {
 
   void initState() {
     super.initState();
-    _fetchUserDetails();
-    _fetchEventDetails();
-  }
-  void _fetchUserDetails() async {
-    try {
-      String userId = FirebaseAuth.instance.currentUser!.uid; // Get current user ID
-      var userDoc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
-
-      if (userDoc.exists) {
-        setState(() {
-          userData = userDoc.data();
-        });
-      }
-    } catch (e) {
-      print("Error fetching user details: $e");
-    }
+    _fetchCheckInDetails();
   }
 
-  void _fetchEventDetails() async {
+  void _fetchCheckInDetails() async {
     try {
-      // Fetch the last check-in (or based on other criteria)
       var checkInDoc = await FirebaseFirestore.instance
           .collection('checkIn_list')
           .orderBy('checkedInAt', descending: true)
@@ -51,23 +34,12 @@ class _successCheckInState extends State<successCheckIn> {
           .get();
 
       if (checkInDoc.docs.isNotEmpty) {
-        var checkInData = checkInDoc.docs.first.data();
-        String attendanceCode = checkInData['attendanceCode']; // Get the attendance code
-
-        // Fetch the event with the matching attendance code
-        var eventDoc = await FirebaseFirestore.instance
-            .collection('event')
-            .where('attendanceCode', isEqualTo: attendanceCode)
-            .get();
-
-        if (eventDoc.docs.isNotEmpty) {
-          setState(() {
-            eventData = eventDoc.docs.first.data(); // Set the event data
-          });
-        }
+        setState(() {
+          checkInData = checkInDoc.docs.first.data();
+        });
       }
     } catch (e) {
-      print("Error fetching event details: $e");
+      print("Error fetching check-in details: $e");
     }
   }
 
@@ -108,23 +80,23 @@ class _successCheckInState extends State<successCheckIn> {
                     ),
                     SizedBox(height: 14),
                     Text(
-                      "Participant's Name: ${userData?["name"] ?? "Unknown"}",
+                      "Participant's Name: ${checkInData?["participantName"] ?? "Unknown"}",
                       style: TextStyle(color: Colors.white, fontSize: 20),
                     ),
                     Text(
-                      "Participant's Number: ${userData?["phone"] ?? "Unknown"}",
+                      "Participant's Number: ${checkInData?["participantNumber"] ?? "Unknown"}",
                       style: TextStyle(color: Colors.white, fontSize: 20),
                     ),
                     Text(
-                      "Event Name: ${eventData?["eventName"] ?? "Unknown"}",
+                      "Event Name: ${checkInData?["eventName"] ?? "Unknown"}",
                       style: TextStyle(color: Colors.white, fontSize: 20),
                     ),
                     Text(
-                      "Event Date: ${eventData?["eventDate"] ?? "Unknown"}",
+                      "Event Date: ${checkInData?["eventDate"] ?? "Unknown"}",
                       style: TextStyle(color: Colors.white, fontSize: 20),
                     ),
                     Text(
-                      "Eligible Points: ${eventData?["points"] ?? "Unknown"}",
+                      "Eligible Points: ${checkInData?["points"] ?? "Unknown"}",
                       style: TextStyle(color: Colors.white, fontSize: 20),
                     ),
                   ],

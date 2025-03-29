@@ -195,17 +195,17 @@ class _PackageRedeemPageState extends State<PackageRedeemPage> {
                             };
                           }).toList();
 
-                          // Store in redeemedKasih
                           await FirebaseFirestore.instance.collection('redeemedKasih').add({
                             'userId': user.uid,
                             'userName': userName,
                             'valueRedeemed': widget.rmValue,
                             'pickupCode': pickupCode,
                             'itemRedeemed': itemList,
+                            'pickedUp': 'no',
+                            'processedOrder': 'no',
                             'redeemedAt': Timestamp.now(),
                           });
 
-                          // Update user points
                           await FirebaseFirestore.instance
                               .collection('users')
                               .doc(user.uid)

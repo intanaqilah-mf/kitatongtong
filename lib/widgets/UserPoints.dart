@@ -105,8 +105,7 @@ Widget build(BuildContext context) {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) =>
-                      role == 'asnaf' ? checkIn() : Placeholder(), // Replace with HelpAttendancePage()
+                      builder: (context) =>checkIn(), // Replace with HelpAttendancePage()
                     ),
                   );
                 },

@@ -4,6 +4,8 @@ import 'package:projects/pages/ProfilePage.dart'; // Import your Profile page
 import 'package:cloud_firestore/cloud_firestore.dart'; // Add Firestore import
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:projects/pages/stockItem.dart';
+import 'package:projects/pages/redemptionStatus.dart';
+import 'package:projects/pages/orderProcessed.dart';
 
 class BottomNavBar extends StatefulWidget {
   final int selectedIndex; // Selected index passed from the parent
@@ -67,7 +69,24 @@ class _BottomNavBarState extends State<BottomNavBar> {
               builder: (context) => HomePage(), // Navigate to HomePage
             ),
           );
-        } else if (index == 2) {
+        } else if (index == 1) {
+          if (role == 'asnaf') {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => Redemptionstatus(),
+              ),
+            );
+          } else if (role == 'staff') {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => OrderProcessed(),
+              ),
+            );
+          }
+        }
+        else if (index == 2) {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
@@ -95,11 +114,11 @@ class _BottomNavBarState extends State<BottomNavBar> {
         ),
         BottomNavigationBarItem(
           icon: Image.asset(
-            'assets/bottomNaviAsnaf2.png',
+            role == 'asnaf' ? 'assets/bottomNaviAsnaf2.png' : 'assets/checklist.png',
             height: 30,
             width: 30,
           ),
-          label: 'Search',
+          label: role == 'asnaf' ? 'Track order' : 'Order',
         ),
         BottomNavigationBarItem(
           icon: Image.asset(

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
 import 'package:projects/pages/amount.dart';
-//import 'package.dart';
+import 'package:projects/pages/package.dart';
+
 class HelpAsnaf extends StatefulWidget {
   @override
   _HelpAsnafState createState() =>
@@ -97,7 +98,7 @@ class _HelpAsnafState extends State<HelpAsnaf> {
                   ),
                   GestureDetector(
                     onTap: () {
-                     // Navigator.push(context, MaterialPageRoute(builder: (context) => const PackagePage()));
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const PackagePage()));
                     },
                     child: Container(
                       width: double.infinity,

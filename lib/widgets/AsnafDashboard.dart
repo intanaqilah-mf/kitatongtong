@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:projects/pages/applyAid.dart';
 import 'package:projects/pages/applicationStatus.dart';
 import 'package:projects/pages/rewards.dart';
+import 'package:projects/pages/helpAsnaf.dart';
 
 class AsnafDashboard extends StatelessWidget {
   Widget build(BuildContext context) {
@@ -25,7 +26,12 @@ class AsnafDashboard extends StatelessWidget {
                 ),
                 child: InkWell(
                   onTap: () {
-                    if (i == 2) {
+                    if (i == 1) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => HelpAsnaf()),
+                      );
+                    } else if (i == 2) {
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (context) => ApplyAid()),

@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:projects/pages/email_service.dart';
+import 'dart:typed_data';
 
 class AmountPage extends StatefulWidget {
   const AmountPage({super.key});
@@ -9,6 +14,56 @@ class AmountPage extends StatefulWidget {
 }
 
 class _AmountPageState extends State<AmountPage> {
+  @override
+  void initState() {
+    super.initState();
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      FirebaseFirestore.instance.collection('users').doc(user.uid).get().then((doc) {
+        if (doc.exists) {
+          final data = doc.data()!;
+          nameController.text = data['name'] ?? '';
+          emailController.text = data['email'] ?? '';
+          contactController.text = data['phone'] ?? '';
+        }
+      });
+    }
+  }
+
+  void generateAndSendPDF({required String name, required String email, required String amount}) async {
+    final pdf = pw.Document();
+    final now = DateTime.now();
+
+    pdf.addPage(
+      pw.Page(
+        build: (pw.Context context) => pw.Center(
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text("Tax Exemption Receipt", style: pw.TextStyle(fontSize: 24)),
+              pw.SizedBox(height: 20),
+              pw.Text("To: $name"),
+              pw.Text("Email: $email"),
+              pw.Text("Date: ${now.toLocal()}"),
+              pw.SizedBox(height: 20),
+              pw.Text("Thank you for your kind donation of RM $amount."),
+              pw.Text("This letter serves as official acknowledgment for tax exemption purposes."),
+              pw.SizedBox(height: 20),
+              pw.Text("Issued by: Your Organization"),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    final bytes = await pdf.save();
+
+    // You can now send this PDF via email using backend function or SMTP
+    // This step depends on whether you're using Firebase Functions, SMTP, or other
+  }
+
+
   int _selectedIndex = 0;
   void _onItemTapped(int index) {
     setState(() {
@@ -16,6 +71,8 @@ class _AmountPageState extends State<AmountPage> {
     });
   }
   final Map<String, dynamic> formData = {};
+  final TextEditingController nameController = TextEditingController();
+  final TextEditingController emailController = TextEditingController();
   final TextEditingController otherAmountController = TextEditingController();
   final TextEditingController contactController = TextEditingController();
 
@@ -27,7 +84,7 @@ class _AmountPageState extends State<AmountPage> {
 
   Widget buildAmountBox(String label) {
     final isOther = label == 'Other';
-    //final isSelected = selectedAmount == label;
+    final isSelected = selectedAmount == label;
 
     return GestureDetector(
       onTap: () {
@@ -39,7 +96,7 @@ class _AmountPageState extends State<AmountPage> {
         height: 50,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: const Color(0xFFFFCF40),
+          color: isSelected ? const Color(0xFFFDB515) : const Color(0xFFFFCF40),
           borderRadius: BorderRadius.circular(10),
         ),
         child: isOther && selectedAmount == 'Other'
@@ -59,8 +116,8 @@ class _AmountPageState extends State<AmountPage> {
         )
             : Text(
           label,
-          style: const TextStyle(
-            color: Color(0xFFA67C00),
+          style: TextStyle(
+            color: isSelected ? Colors.white : Color(0xFFA67C00),
             fontWeight: FontWeight.bold,
             fontSize: 18,
           ),
@@ -84,6 +141,34 @@ class _AmountPageState extends State<AmountPage> {
         ],
       ),
     );
+  }
+
+  Future<Uint8List> generatePdfBytes({required String name, required String email, required String amount}) async {
+    final pdf = pw.Document();
+    final now = DateTime.now();
+
+    pdf.addPage(
+      pw.Page(
+        build: (pw.Context context) => pw.Center(
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text("Tax Exemption Receipt", style: pw.TextStyle(fontSize: 24)),
+              pw.SizedBox(height: 20),
+              pw.Text("To: $name"),
+              pw.Text("Email: $email"),
+              pw.Text("Date: ${now.toLocal()}"),
+              pw.SizedBox(height: 20),
+              pw.Text("Thank you for your kind donation of RM $amount."),
+              pw.Text("This letter serves as official acknowledgment for tax exemption purposes."),
+              pw.SizedBox(height: 20),
+              pw.Text("Issued by: Your Organization"),
+            ],
+          ),
+        ),
+      ),
+    );
+    return pdf.save();
   }
 
   @override
@@ -200,7 +285,8 @@ class _AmountPageState extends State<AmountPage> {
                   color: const Color(0xFFFFCF40),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const TextField(
+                child:  TextField(
+                  controller: nameController,
                   decoration: InputDecoration(
                     border: InputBorder.none,
                     hintText: 'Enter full name',
@@ -216,7 +302,8 @@ class _AmountPageState extends State<AmountPage> {
                   color: const Color(0xFFFFCF40),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const TextField(
+                child: TextField(
+                  controller: emailController ,
                   decoration: InputDecoration(
                     border: InputBorder.none,
                     hintText: 'Enter email',
@@ -325,7 +412,54 @@ class _AmountPageState extends State<AmountPage> {
               width: 160,
               height: 45,
               child: ElevatedButton(
-                onPressed: () {},
+                onPressed: () async {
+                  print("Donate Now pressed");
+                  // Get the donation amount: if "Other", use text from otherAmountController; otherwise, use the selectedAmount.
+                  final amount = selectedAmount == 'Other'
+                      ? otherAmountController.text
+                      : selectedAmount;
+
+                  if (amount == null || amount.isEmpty) return;
+                  final donationData = {
+                    'amount': amount,
+                    'designation': selectedSalutation,
+                    'name': nameController.text,
+                    'email': emailController.text,
+                    'contact': contactController.text,
+                    'timestamp': FieldValue.serverTimestamp(),
+                  };
+
+                  await FirebaseFirestore.instance
+                      .collection('donation')
+                      .add(donationData);
+                  print("Donation data added: $donationData");
+
+                  if (wantsTaxExemption) {
+                    try {
+                      // Generate the PDF bytes using your helper function.
+                      final pdfBytes = await generatePdfBytes(
+                        name: nameController.text,
+                        email: emailController.text,
+                        amount: amount,
+                      );
+                      print("PDF generated, bytes length: ${pdfBytes.length}");
+
+                      // Call your email service function using the recipient from the emailController.
+                      await sendTaxEmail(
+                        name: nameController.text,
+                        recipientEmail: emailController.text,
+                        pdfBytes: pdfBytes,
+                      );
+                    } catch (e) {
+                      print('Error sending tax email: $e');
+                    }
+                  }
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Donation submitted successfully!')),
+                  );
+                },
+
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFEFBF04),
                   shape: RoundedRectangleBorder(
@@ -340,6 +474,7 @@ class _AmountPageState extends State<AmountPage> {
                   ),
                 ),
               ),
+
             ),
             const SizedBox(height: 40),
           ],

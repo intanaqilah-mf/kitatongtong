@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:projects/widgets/bottomNavBar.dart';
 
 class AmountPage extends StatefulWidget {
   const AmountPage({super.key});
@@ -8,6 +9,12 @@ class AmountPage extends StatefulWidget {
 }
 
 class _AmountPageState extends State<AmountPage> {
+  int _selectedIndex = 0;
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
   final Map<String, dynamic> formData = {};
   final TextEditingController otherAmountController = TextEditingController();
   final TextEditingController contactController = TextEditingController();
@@ -20,7 +27,7 @@ class _AmountPageState extends State<AmountPage> {
 
   Widget buildAmountBox(String label) {
     final isOther = label == 'Other';
-    final isSelected = selectedAmount == label;
+    //final isSelected = selectedAmount == label;
 
     return GestureDetector(
       onTap: () {
@@ -86,10 +93,6 @@ class _AmountPageState extends State<AmountPage> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF1C1C1C),
         elevation: 0,
-        title: const Text(
-          'Wallet and Rewards',
-          style: TextStyle(color: Colors.white),
-        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -105,15 +108,20 @@ class _AmountPageState extends State<AmountPage> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 20),
-            GridView.count(
-              crossAxisCount: 3,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              children: ['10', '20', '30', '50', 'Other'].map(buildAmountBox).toList(),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              alignment: WrapAlignment.center,
+              children: ['10', '20', '30', '50', 'Other'].map((label) {
+                return SizedBox(
+                  width: 100, // adjust width here
+                  height: 60, // adjust height here
+                  child: buildAmountBox(label),
+                );
+              }).toList(),
             ),
-            const SizedBox(height: 30),
+
+            const SizedBox(height: 20),
             const Text(
               "Donor’s information",
               style: TextStyle(
@@ -336,6 +344,10 @@ class _AmountPageState extends State<AmountPage> {
             const SizedBox(height: 40),
           ],
         ),
+      ),
+      bottomNavigationBar: BottomNavBar(
+        selectedIndex: _selectedIndex,
+        onItemTapped: _onItemTapped,
       ),
     );
   }

@@ -4,11 +4,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../pages/loginPage.dart';
 import '../pages/profilePage.dart';
 import '../pages/homePage.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(); // Initialize Firebase
-  runApp(MyApp());
+  await Firebase.initializeApp();
+  await dotenv.load(fileName: ".env");
+    runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {

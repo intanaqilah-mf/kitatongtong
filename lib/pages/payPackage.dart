@@ -5,6 +5,10 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:projects/pages/email_service.dart';
 import 'dart:typed_data';
+import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
+import 'dart:convert';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class PayPackage extends StatefulWidget {
   final int totalQuantity;
@@ -53,7 +57,6 @@ class _PayPackageState extends State<PayPackage> {
     }
   }
 
-  // Generates PDF bytes for the tax exemption letter
   Future<Uint8List> generatePdfBytes({required String name, required String email, required String amount}) async {
     final pdf = pw.Document();
     final now = DateTime.now();
@@ -73,7 +76,7 @@ class _PayPackageState extends State<PayPackage> {
               pw.Text("Thank you for your kind donation of RM $amount."),
               pw.Text("This letter serves as official acknowledgment for tax exemption purposes."),
               pw.SizedBox(height: 20),
-              pw.Text("Issued by: Your Organization"),
+              pw.Text("Issued by: MADAD"),
             ],
           ),
         ),
@@ -98,6 +101,50 @@ class _PayPackageState extends State<PayPackage> {
         ],
       ),
     );
+  }
+  Future<void> redirectToToyyibPay({
+    required String name,
+    required String email,
+    required String phone,
+    required String amount,
+  }) async {
+    final response = await http.post(
+      Uri.parse('https://toyyibpay.com/index.php/api/createBill'),
+      body: {
+        'userSecretKey': dotenv.env['TOYYIBPAY_SECRET_KEY'],
+        'categoryCode': dotenv.env['TOYYIBPAY_CATEGORY_CODE'],
+        'billName': 'Kita Tongtong Donation',
+        'billDescription': 'Donation to Asnaf Program',
+        'billPriceSetting': '1',
+        'billPayorInfo': '1',
+        'billAmount': amount,
+        'billReturnUrl': 'https://yourdomain.com/thankyou',
+        'billCallbackUrl': 'https://yourdomain.com/callback',
+        'billExternalReferenceNo': 'TXN${DateTime.now().millisecondsSinceEpoch}',
+        'billTo': name,
+        'billEmail': email,
+        'billPhone': phone,
+        'billSplitPayment': '0',
+        'billPaymentChannel': '0',
+        'billDisplayMerchant': '1'
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      final billCode = data[0]['BillCode'];
+      final url = 'https://toyyibpay.com/$billCode';
+      if (await canLaunchUrl(Uri.parse(url))) {
+        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      } else {
+        throw 'Could not launch $url';
+      }
+    } else {
+      print("ToyyibPay bill creation failed: ${response.body}");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Failed to initiate payment.")),
+      );
+    }
   }
 
   void _onItemTapped(int index) {
@@ -345,8 +392,7 @@ class _PayPackageState extends State<PayPackage> {
                 onPressed: () async {
                   print("Donate Now pressed");
 
-                  // Use the overall amount passed from PackagePage
-                  final donationAmount = widget.overallAmount.toString();
+                  final donationAmount = (widget.overallAmount * 100).toString();  // RM10 → "1000"
 
                   final donationData = {
                     'amount': donationAmount,
@@ -378,6 +424,12 @@ class _PayPackageState extends State<PayPackage> {
                       print('Error sending tax email: $e');
                     }
                   }
+                  await redirectToToyyibPay(
+                    name: nameController.text,
+                    email: emailController.text,
+                    phone: contactController.text,
+                    amount: donationAmount,
+                  );
 
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Donation submitted successfully!')),

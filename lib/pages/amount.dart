@@ -5,6 +5,10 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:projects/pages/email_service.dart';
 import 'dart:typed_data';
+import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
+import 'dart:convert';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class AmountPage extends StatefulWidget {
   const AmountPage({super.key});
@@ -58,11 +62,52 @@ class _AmountPageState extends State<AmountPage> {
     );
 
     final bytes = await pdf.save();
+}
 
-    // You can now send this PDF via email using backend function or SMTP
-    // This step depends on whether you're using Firebase Functions, SMTP, or other
+  Future<void> redirectToToyyibPay({
+    required String name,
+    required String email,
+    required String phone,
+    required String amount,
+  }) async {
+    final response = await http.post(
+      Uri.parse('https://toyyibpay.com/index.php/api/createBill'),
+      body: {
+        'userSecretKey': dotenv.env['TOYYIBPAY_SECRET_KEY'],
+        'categoryCode': dotenv.env['TOYYIBPAY_CATEGORY_CODE'],
+        'billName': 'Kita Tongtong Donation',
+        'billDescription': 'Donation to Asnaf Program',
+        'billPriceSetting': '1',
+        'billPayorInfo': '1',
+        'billAmount': amount, // Already multiplied by 100
+        'billReturnUrl': 'https://yourdomain.com/thankyou',
+        'billCallbackUrl': 'https://yourdomain.com/callback',
+        'billExternalReferenceNo': 'TXN${DateTime.now().millisecondsSinceEpoch}',
+        'billTo': name,
+        'billEmail': email,
+        'billPhone': phone,
+        'billSplitPayment': '0',
+        'billPaymentChannel': '0',
+        'billDisplayMerchant': '1'
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      final billCode = data[0]['BillCode'];
+      final url = 'https://toyyibpay.com/$billCode';
+      if (await canLaunchUrl(Uri.parse(url))) {
+        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      } else {
+        throw 'Could not launch $url';
+      }
+    } else {
+      print("ToyyibPay bill creation failed: ${response.body}");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Failed to initiate payment.")),
+      );
+    }
   }
-
 
   int _selectedIndex = 0;
   void _onItemTapped(int index) {
@@ -414,14 +459,19 @@ class _AmountPageState extends State<AmountPage> {
               child: ElevatedButton(
                 onPressed: () async {
                   print("Donate Now pressed");
-                  // Get the donation amount: if "Other", use text from otherAmountController; otherwise, use the selectedAmount.
-                  final amount = selectedAmount == 'Other'
+
+                  // Get raw amount (RM)
+                  final rawAmount = selectedAmount == 'Other'
                       ? otherAmountController.text
                       : selectedAmount;
 
-                  if (amount == null || amount.isEmpty) return;
+                  if (rawAmount == null || rawAmount.isEmpty) return;
+
+                  // Multiply by 100 to convert to cents
+                  final int amountInCents = (double.parse(rawAmount) * 100).round();
+
                   final donationData = {
-                    'amount': amount,
+                    'amount': rawAmount,
                     'designation': selectedSalutation,
                     'name': nameController.text,
                     'email': emailController.text,
@@ -429,22 +479,16 @@ class _AmountPageState extends State<AmountPage> {
                     'timestamp': FieldValue.serverTimestamp(),
                   };
 
-                  await FirebaseFirestore.instance
-                      .collection('donation')
-                      .add(donationData);
+                  await FirebaseFirestore.instance.collection('donation').add(donationData);
                   print("Donation data added: $donationData");
 
                   if (wantsTaxExemption) {
                     try {
-                      // Generate the PDF bytes using your helper function.
                       final pdfBytes = await generatePdfBytes(
                         name: nameController.text,
                         email: emailController.text,
-                        amount: amount,
+                        amount: rawAmount,
                       );
-                      print("PDF generated, bytes length: ${pdfBytes.length}");
-
-                      // Call your email service function using the recipient from the emailController.
                       await sendTaxEmail(
                         name: nameController.text,
                         recipientEmail: emailController.text,
@@ -455,10 +499,19 @@ class _AmountPageState extends State<AmountPage> {
                     }
                   }
 
+                  // Redirect to ToyyibPay FPX
+                  await redirectToToyyibPay(
+                    name: nameController.text,
+                    email: emailController.text,
+                    phone: contactController.text,
+                    amount: amountInCents.toString(),
+                  );
+
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Donation submitted successfully!')),
+                    const SnackBar(content: Text('Donation submitted successfully!')),
                   );
                 },
+
 
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFEFBF04),

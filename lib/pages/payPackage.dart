@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:projects/pages/PaymentWebview.dart';
 
 class PayPackage extends StatefulWidget {
   final int totalQuantity;
@@ -56,6 +57,55 @@ class _PayPackageState extends State<PayPackage> {
       });
     }
   }
+  Future<void> redirectToToyyibPayWebView({
+    required BuildContext context,
+    required Map<String, dynamic> donationData,
+    required String name,
+    required String email,
+    required String phone,
+    required String amount, // amount in "cents" (as a string, e.g. "1000")
+  }) async {
+    final response = await http.post(
+      Uri.parse('https://toyyibpay.com/index.php/api/createBill'),
+      body: {
+        'userSecretKey': dotenv.env['TOYYIBPAY_SECRET_KEY'],
+        'categoryCode': dotenv.env['TOYYIBPAY_CATEGORY_CODE'],
+        'billName': 'Kita Tongtong Donation',
+        'billDescription': 'Donation to Asnaf Program',
+        'billPriceSetting': '1',
+        'billPayorInfo': '1',
+        'billAmount': amount, // amount in cents
+        // Use your custom deep link URLs in both fields:
+        'billReturnUrl': 'myapp://payment-result?status=success',
+        'billCallbackUrl': 'myapp://payment-result?status=fail',
+        'billExternalReferenceNo': 'TXN${DateTime.now().millisecondsSinceEpoch}',
+        'billTo': name,
+        'billEmail': email,
+        'billPhone': phone,
+        'billSplitPayment': '0',
+        'billPaymentChannel': '0',
+        'billDisplayMerchant': '1'
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      final billCode = data[0]['BillCode'];
+      final url = 'https://toyyibpay.com/$billCode';
+      // Instead of launching an external browser, navigate to our PaymentWebView
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PaymentWebView(paymentUrl: url, donationData: donationData),
+        ),
+      );
+    } else {
+      print("ToyyibPay bill creation failed: ${response.body}");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Failed to initiate payment.")),
+      );
+    }
+  }
 
   Future<Uint8List> generatePdfBytes({required String name, required String email, required String amount}) async {
     final pdf = pw.Document();
@@ -101,50 +151,6 @@ class _PayPackageState extends State<PayPackage> {
         ],
       ),
     );
-  }
-  Future<void> redirectToToyyibPay({
-    required String name,
-    required String email,
-    required String phone,
-    required String amount,
-  }) async {
-    final response = await http.post(
-      Uri.parse('https://toyyibpay.com/index.php/api/createBill'),
-      body: {
-        'userSecretKey': dotenv.env['TOYYIBPAY_SECRET_KEY'],
-        'categoryCode': dotenv.env['TOYYIBPAY_CATEGORY_CODE'],
-        'billName': 'Kita Tongtong Donation',
-        'billDescription': 'Donation to Asnaf Program',
-        'billPriceSetting': '1',
-        'billPayorInfo': '1',
-        'billAmount': amount,
-        'billReturnUrl': 'https://yourdomain.com/thankyou',
-        'billCallbackUrl': 'https://yourdomain.com/callback',
-        'billExternalReferenceNo': 'TXN${DateTime.now().millisecondsSinceEpoch}',
-        'billTo': name,
-        'billEmail': email,
-        'billPhone': phone,
-        'billSplitPayment': '0',
-        'billPaymentChannel': '0',
-        'billDisplayMerchant': '1'
-      },
-    );
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      final billCode = data[0]['BillCode'];
-      final url = 'https://toyyibpay.com/$billCode';
-      if (await canLaunchUrl(Uri.parse(url))) {
-        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-      } else {
-        throw 'Could not launch $url';
-      }
-    } else {
-      print("ToyyibPay bill creation failed: ${response.body}");
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Failed to initiate payment.")),
-      );
-    }
   }
 
   void _onItemTapped(int index) {
@@ -424,11 +430,13 @@ class _PayPackageState extends State<PayPackage> {
                       print('Error sending tax email: $e');
                     }
                   }
-                  await redirectToToyyibPay(
+                  await redirectToToyyibPayWebView(
+                    context: context,
+                    donationData: donationData,
                     name: nameController.text,
                     email: emailController.text,
                     phone: contactController.text,
-                    amount: donationAmount,
+                    amount: donationAmount,  // pass the amount in cents string
                   );
 
                   ScaffoldMessenger.of(context).showSnackBar(

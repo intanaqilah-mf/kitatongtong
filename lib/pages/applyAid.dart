@@ -14,6 +14,9 @@ class ApplyAid extends StatefulWidget {
 }
 
 class _ApplyAidState extends State<ApplyAid> {
+  // Added state variable to store user role
+  String? userRole;
+
   void initState() {
     super.initState();
     _fetchUserData();
@@ -70,6 +73,16 @@ class _ApplyAidState extends State<ApplyAid> {
       data['applicationCode'] = applicationCode; // Store the unique application code
       data['statusApplication'] = "Pending"; // Set status to Pending
 
+      // Add the new submittedBy field based on user role
+      if (userRole != null && userRole!.toLowerCase() == 'asnaf') {
+        data['submittedBy'] = 'system';
+      } else if (userRole != null && userRole!.toLowerCase() == 'staff') {
+        // For staff, fetch the name from the users collection; fullnameController is populated in _fetchUserData
+        data['submittedBy'] = fullnameController.text;
+      } else {
+        data['submittedBy'] = ''; // Default value if role is not defined
+      }
+
       // Upload to Firestore
       await FirebaseFirestore.instance.collection("applications").add(data);
 
@@ -86,7 +99,6 @@ class _ApplyAidState extends State<ApplyAid> {
       setState(() {
         formData.clear();
       });
-
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Failed to submit application. Please try again.")),
@@ -105,6 +117,9 @@ class _ApplyAidState extends State<ApplyAid> {
 
       if (userDoc.exists) {
         final userData = userDoc.data() as Map<String, dynamic>;
+
+        // Fetch the role from the users collection and assign it to userRole
+        userRole = userData['role'] ?? '';
 
         // Split address into two lines
         final fullAddress = userData['address'] ?? '';
@@ -130,11 +145,9 @@ class _ApplyAidState extends State<ApplyAid> {
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
-    double progressValue = currentStep /
-        totalSteps; // Calculate progress percentage
+    double progressValue = currentStep / totalSteps; // Calculate progress percentage
 
     return Scaffold(
       appBar: PreferredSize(
@@ -158,8 +171,7 @@ class _ApplyAidState extends State<ApplyAid> {
                             currentStep--;
                           });
                         } else {
-                          Navigator.pop(
-                              context); // Exit the page if on the first step
+                          Navigator.pop(context); // Exit the page if on the first step
                         }
                       },
                       child: Icon(
@@ -167,7 +179,6 @@ class _ApplyAidState extends State<ApplyAid> {
                         color: Colors.white,
                       ),
                     ),
-
                     Expanded(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -183,12 +194,8 @@ class _ApplyAidState extends State<ApplyAid> {
                             AnimatedContainer(
                               duration: Duration(milliseconds: 300),
                               curve: Curves.easeInOut,
-                              width: MediaQuery
-                                  .of(context)
-                                  .size
-                                  .width * 0.74 * progressValue,
-                              height: 23,
-                              // Same height as background
+                              width: MediaQuery.of(context).size.width * 0.74 * progressValue,
+                              height: 23, // Same height as background
                               decoration: BoxDecoration(
                                 color: Colors.green,
                                 borderRadius: BorderRadius.circular(10),
@@ -249,8 +256,7 @@ class _ApplyAidState extends State<ApplyAid> {
                         ? "We need to verify your identity and financial status. Please upload the required documents"
                         : currentStep == 4
                         ? "We need to verify your identity and financial status. Please upload the required documents"
-                        : "By submitting your application for financial aid through the Kita Tongtong platform, you acknowledge and agree to the following Terms and Conditions."
-                        " Please read these terms carefully before proceeding.",
+                        : "By submitting your application for financial aid through the Kita Tongtong platform, you acknowledge and agree to the following Terms and Conditions. Please read these terms carefully before proceeding.",
                     style: TextStyle(
                       fontSize: 14,
                       color: Colors.yellow[200],
@@ -290,8 +296,7 @@ class _ApplyAidState extends State<ApplyAid> {
                     // Add space from the bottom
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Color(0xFFFFCF40),
-                        // Button background color
+                        backgroundColor: Color(0xFFFFCF40), // Button background color
                         foregroundColor: Colors.black, // Text color
                       ),
                       onPressed: () {
@@ -343,17 +348,13 @@ class _ApplyAidState extends State<ApplyAid> {
 
   List<Widget> buildEligibilityForm() {
     return [
-      buildTextField(
-          "Residency Status", "residencyStatus", residencyController),
+      buildTextField("Residency Status", "residencyStatus", residencyController),
       SizedBox(height: 10),
-      buildTextField(
-          "Employment Status", "employmentStatus", employmentController),
+      buildTextField("Employment Status", "employmentStatus", employmentController),
       SizedBox(height: 10),
       buildTextField("Monthly Income", "monthlyIncome", incomeController),
       SizedBox(height: 10),
-      buildLongTextField(
-          "Justification of Application", "justificationApplication",
-          justificationController),
+      buildLongTextField("Justification of Application", "justificationApplication", justificationController),
     ];
   }
 
@@ -395,7 +396,22 @@ class _ApplyAidState extends State<ApplyAid> {
     ];
   }
 
+  // This method now updates all text field values into formData before uploading
   void consolidateAndUploadData() {
+    // Update formData with the current text values from controllers
+    formData["nric"] = nricController.text;
+    formData["fullname"] = fullnameController.text;
+    formData["email"] = emailController.text;
+    formData["mobileNumber"] = mobileNumberController.text;
+    formData["addressLine1"] = add1Controller.text;
+    formData["addressLine2"] = add2Controller.text;
+    formData["city"] = cityController.text;
+    formData["postcode"] = postcodeController.text;
+    formData["residencyStatus"] = residencyController.text;
+    formData["employmentStatus"] = employmentController.text;
+    formData["monthlyIncome"] = incomeController.text;
+    formData["justificationApplication"] = justificationController.text;
+
     formData["nricSnapshot"] = fileName1 ?? "No file uploaded";
     formData["proofOfAddress"] = fileName2 ?? "No file uploaded";
     formData["proofOfIncome"] = fileName3 ?? "No file uploaded";
@@ -447,7 +463,6 @@ You understand that providing false or misleading information may result in the 
                   ),
                 ),
                 SizedBox(height: 10),
-
                 // Point 2
                 Text(
                   "2. Use of Financial Aid",
@@ -469,7 +484,6 @@ You agree to use any funds or vouchers received only as directed and for approve
                   ),
                 ),
                 SizedBox(height: 10),
-
                 // Point 3
                 Text(
                   "3. Privacy and Data Usage",
@@ -491,7 +505,6 @@ Your information will be used only to assess your eligibility for aid, manage fu
                   ),
                 ),
                 SizedBox(height: 10),
-
                 // Point 4
                 Text(
                   "4. Review and Verification Process",
@@ -520,7 +533,6 @@ Failure to provide requested information within the specified timeline may resul
     ];
   }
 
-
   Widget buildFileDisplayField(String title, String? fileName) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -535,7 +547,6 @@ Failure to provide requested information within the specified timeline may resul
           ),
         ),
         SizedBox(height: 8), // Spacing between title and box
-
         // File display box
         GestureDetector(
           onTap: () async {
@@ -545,7 +556,6 @@ Failure to provide requested information within the specified timeline may resul
                 type: FileType.custom,
                 allowedExtensions: ['jpeg', 'jpg', 'pdf'],
               );
-
               if (result != null) {
                 setState(() {
                   // Assign the uploaded file path
@@ -584,24 +594,17 @@ Failure to provide requested information within the specified timeline may resul
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Image.asset('assets/docAsnaf.png', height: 24),
-                      // Document icon
                       SizedBox(width: 10),
-                      // Space between icon and text
                       Expanded(
                         child: Text(
-                          fileName != null
-                              ? path.basename(
-                              fileName) // Extract and display only the file name
-                              : "No file uploaded",
+                          fileName != null ? path.basename(fileName) : "No file uploaded",
                           style: TextStyle(
                             color: Colors.black,
                             fontWeight: FontWeight.bold,
                             fontSize: 14,
                           ),
                           maxLines: 2,
-                          // Allow wrapping to 2 lines
                           overflow: TextOverflow.ellipsis,
-                          // Truncate text if it exceeds 2 lines
                           softWrap: true,
                         ),
                       ),
@@ -610,10 +613,8 @@ Failure to provide requested information within the specified timeline may resul
                 ),
                 IconButton(
                   icon: Image.asset('assets/trash.png', height: 24),
-                  // Trash icon asset
                   onPressed: () {
                     setState(() {
-                      // Clear the file name based on the title
                       if (title.contains("NRIC")) fileName1 = null;
                       if (title.contains("Address")) fileName2 = null;
                       if (title.contains("Income")) fileName3 = null;
@@ -628,10 +629,8 @@ Failure to provide requested information within the specified timeline may resul
     );
   }
 
-  Widget buildFileUploadField(String title, String label, String subtitle,
-      String key, int index) {
+  Widget buildFileUploadField(String title, String label, String subtitle, String key, int index) {
     String? uploadedFileName; // Variable to store the file name
-
     return StatefulBuilder(
       builder: (BuildContext context, StateSetter setState) {
         return Column(
@@ -648,28 +647,21 @@ Failure to provide requested information within the specified timeline may resul
             SizedBox(height: 8),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: Color(0xFFFFCF40), // Match your box design
+                backgroundColor: Color(0xFFFFCF40),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10), // Rounded corners
+                  borderRadius: BorderRadius.circular(10),
                 ),
               ),
               onPressed: () async {
                 try {
                   // Open file picker to select a file
-                  FilePickerResult? result = await FilePicker.platform
-                      .pickFiles(
+                  FilePickerResult? result = await FilePicker.platform.pickFiles(
                     type: FileType.custom,
-                    allowedExtensions: [
-                      'jpeg',
-                      'jpg',
-                      'pdf'
-                    ], // Accepted file types
+                    allowedExtensions: ['jpeg', 'jpg', 'pdf'],
                   );
-
                   if (result != null) {
                     setState(() {
-                      uploadedFileName = result.files.single
-                          .name; // Store the selected file name
+                      uploadedFileName = result.files.single.name;
                       if (index == 1) fileName1 = uploadedFileName;
                       if (index == 2) fileName2 = uploadedFileName;
                       if (index == 3) fileName3 = uploadedFileName;
@@ -679,25 +671,21 @@ Failure to provide requested information within the specified timeline may resul
                 } catch (e) {
                   debugPrint("Error while picking file: $e");
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(
-                        "Failed to pick file. Please try again.")),
+                    SnackBar(content: Text("Failed to pick file. Please try again.")),
                   );
                 }
               },
               child: Container(
-                height: 90, // Maintain the original box height
-                width: double.infinity, // Match the original box width
+                height: 90,
+                width: double.infinity,
                 child: Center(
-                  child: uploadedFileName == null // If no file is uploaded
+                  child: uploadedFileName == null
                       ? Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Image.asset(
-                        'assets/uploadAsnaf.png',
-                        height: 24, // Icon size
-                      ),
-                      SizedBox(height: 6), // Space between icon and label
+                      Image.asset('assets/uploadAsnaf.png', height: 24),
+                      SizedBox(height: 6),
                       Text(
                         label,
                         style: TextStyle(
@@ -707,7 +695,7 @@ Failure to provide requested information within the specified timeline may resul
                         ),
                         textAlign: TextAlign.center,
                       ),
-                      SizedBox(height: 4), // Space between label and subtitle
+                      SizedBox(height: 4),
                       Text(
                         subtitle,
                         style: TextStyle(
@@ -719,7 +707,7 @@ Failure to provide requested information within the specified timeline may resul
                     ],
                   )
                       : Text(
-                    uploadedFileName!, // Display the file name
+                    uploadedFileName!,
                     style: TextStyle(
                       color: Colors.black,
                       fontWeight: FontWeight.bold,
@@ -736,9 +724,7 @@ Failure to provide requested information within the specified timeline may resul
     );
   }
 
-
-  Widget buildLongTextField(String label, String key,
-      TextEditingController controller) {
+  Widget buildLongTextField(String label, String key, TextEditingController controller) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -752,25 +738,21 @@ Failure to provide requested information within the specified timeline may resul
         ),
         SizedBox(height: 8),
         Container(
-          height: 120, // Make the container taller
+          height: 120,
           decoration: BoxDecoration(
             color: Color(0xFFFFCF40),
             borderRadius: BorderRadius.circular(10),
           ),
           child: TextField(
             controller: controller,
-            // Use the passed controller
             onChanged: (value) {
               setState(() {
-                formData[key] = value; // Save value in formData
+                formData[key] = value;
               });
             },
             maxLines: null,
-            // Allows multi-line input
             expands: true,
-            // Makes the field expand to fill the container
             textAlignVertical: TextAlignVertical.top,
-            // Align text to the top
             decoration: InputDecoration(
               border: InputBorder.none,
               contentPadding: EdgeInsets.all(8),
@@ -781,9 +763,7 @@ Failure to provide requested information within the specified timeline may resul
     );
   }
 
-
-  Widget buildTextField(String label, String key,
-      TextEditingController controller) {
+  Widget buildTextField(String label, String key, TextEditingController controller) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -806,7 +786,7 @@ Failure to provide requested information within the specified timeline may resul
             controller: controller,
             onChanged: (value) {
               setState(() {
-                formData[key] = value; // Save value in applicationData
+                formData[key] = value;
               });
             },
             decoration: InputDecoration(
@@ -854,10 +834,10 @@ Failure to provide requested information within the specified timeline may resul
               VerticalDivider(color: Colors.black, thickness: 1),
               Expanded(
                 child: TextField(
-                  controller: controller, // Use the passed controller
+                  controller: controller,
                   onChanged: (value) {
                     setState(() {
-                      formData[key] = value; // Save input to formData
+                      formData[key] = value;
                     });
                   },
                   keyboardType: TextInputType.phone,
@@ -875,4 +855,3 @@ Failure to provide requested information within the specified timeline may resul
     );
   }
 }
-

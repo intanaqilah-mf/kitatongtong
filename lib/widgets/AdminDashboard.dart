@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:projects/pages/verifyApplications.dart';
 import 'package:projects/pages/issueReward.dart';
+import 'package:projects/pages/manageStaffs.dart';
 
 class AdminDashboard extends StatelessWidget {
   Widget build(BuildContext context) {
@@ -34,6 +35,12 @@ class AdminDashboard extends StatelessWidget {
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (context) => IssueReward()),
+                      );
+                    }
+                    else if (i ==4) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => ManageStaffsScreen()),
                       );
                     }
                   },
@@ -75,7 +82,7 @@ String getTextForIndex(int index) {
     case 3:
       return "View Reports";
     case 4:
-      return "Manage Staff";
+      return "Manage User";
     default:
       return "";
   }

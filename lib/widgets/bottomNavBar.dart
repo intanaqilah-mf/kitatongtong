@@ -77,7 +77,7 @@ class _BottomNavBarState extends State<BottomNavBar> {
                 builder: (context) => Redemptionstatus(),
               ),
             );
-          } else if (role == 'staff') {
+          } else if (role == 'staff' || role == 'admin') {
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
@@ -122,11 +122,13 @@ class _BottomNavBarState extends State<BottomNavBar> {
         ),
         BottomNavigationBarItem(
           icon: Image.asset(
-            role == 'staff' ? 'assets/stock2.png' : 'assets/bottomNaviAsnaf3.png',
+            role == 'staff' || role == 'admin'
+                ? 'assets/stock2.png'
+                : 'assets/bottomNaviAsnaf3.png',
             height: 30,
             width: 30,
           ),
-          label: role == 'staff' ? 'Stock' : 'Shopping',
+          label: role == 'staff' || role == 'admin' ? 'Stock' : 'Shopping',
         ),
         BottomNavigationBarItem(
           icon: Image.asset(

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'staffDetails.dart';
-import 'package:intl/intl.dart'; // In case you want to display a formatted date or similar
 import 'package:projects/widgets/bottomNavBar.dart';
 
 class ManageStaffsScreen extends StatefulWidget {
@@ -11,14 +10,9 @@ class ManageStaffsScreen extends StatefulWidget {
 
 class _ManageStaffsScreenState extends State<ManageStaffsScreen> {
   int _selectedIndex = 0;
-  // Query users collection where role is not "admin"
-  late Stream<QuerySnapshot> _usersStream = FirebaseFirestore.instance
-      .collection('users')
-      .orderBy('role') // required when using isNotEqualTo
-      .where('role', isNotEqualTo: 'admin')
-      .snapshots();
-  Map<String, bool> _expandedStates = {};
-  String searchQuery = "";
+  List<String> selectedRoles = []; // empty means show all roles
+  String sortBy = 'created_at'; // or 'name'
+  String searchQuery = '';
   TextEditingController searchController = TextEditingController();
 
   void _onItemTapped(int index) {
@@ -27,9 +21,22 @@ class _ManageStaffsScreenState extends State<ManageStaffsScreen> {
     });
   }
 
+  Stream<QuerySnapshot> getUsersStream() {
+    Query<Map<String, dynamic>> query = FirebaseFirestore.instance.collection('users');
+
+    // Apply role filter only if one or more roles are selected.
+    // Note: Ensure that the string here exactly matches the format stored in Firebase.
+    if (selectedRoles.isNotEmpty) {
+      query = query.where('role', whereIn: selectedRoles);
+    }
+
+    // Order by either creation date or name.
+    query = query.orderBy(sortBy, descending: sortBy == 'created_at');
+
+    return query.snapshots();
+  }
+
   Widget buildUserCard(Map<String, dynamic> userData, String docId) {
-    // For expanding/collapsing, similar to verifyApplications card
-    bool isExpanded = _expandedStates[docId] ?? false;
     return Card(
       color: Colors.grey[850],
       elevation: 4,
@@ -43,52 +50,22 @@ class _ManageStaffsScreenState extends State<ManageStaffsScreen> {
             ),
           );
         },
-        child: Column(
-          children: [
-            ListTile(
-              leading: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        _expandedStates[docId] = !isExpanded;
-                      });
-                    },
-                    child: Icon(
-                      isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                      color: Colors.white,
-                    ),
-                  ),
-                  SizedBox(width: 8),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(5),
-                    child: (userData['photoUrl'] ?? "").toString().isNotEmpty
-                        ? Image.network(
-                      userData['photoUrl'],
-                      width: 30,
-                      height: 30,
-                      fit: BoxFit.cover,
-                    )
-                        : Container(
-                      width: 30,
-                      height: 30,
-                      color: Colors.grey.shade800,
-                    ),
-                  ),
-                ],
-              ),
-              title: Text(
-                userData['name'] ?? 'Unknown',
-                style: TextStyle(color: Colors.white),
-              ),
-              subtitle: Text(
-                userData['email'] ?? 'No Email',
-                style: TextStyle(color: Colors.grey),
-              ),
-            ),
-            // Optionally add expanded details here if needed
-          ],
+        child: ListTile(
+          leading: ClipRRect(
+            borderRadius: BorderRadius.circular(5),
+            child: (userData['photoUrl'] ?? '').toString().isNotEmpty
+                ? Image.network(
+              userData['photoUrl'],
+              width: 30,
+              height: 30,
+              fit: BoxFit.cover,
+            )
+                : Container(width: 30, height: 30, color: Colors.grey.shade800),
+          ),
+          title: Text(userData['name'] ?? 'Unknown',
+              style: TextStyle(color: Colors.white)),
+          subtitle: Text(userData['email'] ?? 'No Email',
+              style: TextStyle(color: Colors.grey)),
         ),
       ),
     );
@@ -98,92 +75,155 @@ class _ManageStaffsScreenState extends State<ManageStaffsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Color(0xFF303030),
+      appBar: AppBar(
+        backgroundColor: Color(0xFF303030),
+        elevation: 0,
+        title: Text("Manage Staffs", style: TextStyle(color: Color(0xFFFDB515))),
+      ),
       body: Column(
         children: [
-          // Top Header and Search Fields (UI similar to verifyApplications.dart)
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.symmetric(vertical: 15, horizontal: 16),
+          SizedBox(height: 10),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12.0),
             child: Column(
               children: [
-                SizedBox(height: 50.0),
-                Text(
-                  "Manage Staffs",
-                  style: TextStyle(
-                    color: Color(0xFFFDB515),
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                SizedBox(height: 15.0),
-                Text(
-                  "List of users (non-admin) available for management.",
-                  style: TextStyle(
-                    color: Color(0xFFAA820C),
-                    fontSize: 14,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 6.0),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 160,
-                  height: 40,
-                  child: TextField(
-                    controller: searchController,
-                    onChanged: (value) {
-                      setState(() {
-                        searchQuery = value.toLowerCase();
-                      });
-                    },
-                    decoration: InputDecoration(
-                      prefixIcon: Icon(Icons.search_rounded, size: 25, color: Colors.white),
-                      hintText: "Search Staff",
-                      hintStyle: TextStyle(fontSize: 14),
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                      contentPadding: EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                Text("Track users you’ve registered or managed.",
+                    style: TextStyle(color: Color(0xFFAA820C), fontSize: 13)),
+                SizedBox(height: 15),
+                Row(
+                  children: [
+                    // 🔍 Search
+                    Expanded(
+                      flex: 3,
+                      child: TextField(
+                        controller: searchController,
+                        onChanged: (value) {
+                          setState(() => searchQuery = value.toLowerCase());
+                        },
+                        decoration: InputDecoration(
+                          prefixIcon: Icon(Icons.search_rounded,
+                              size: 25, color: Color(0xFFFDB515)),
+                          hintText: "Search User",
+                          hintStyle: TextStyle(fontSize: 14),
+                          filled: true,
+                          fillColor: Colors.white,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          contentPadding: EdgeInsets.symmetric(
+                              vertical: 10, horizontal: 12),
+                        ),
+                        style: TextStyle(fontSize: 14),
+                      ),
                     ),
-                    style: TextStyle(fontSize: 14),
-                  ),
+
+                    SizedBox(width: 8),
+
+                    // 🧩 Filter by Role (Multi-select)
+                    Expanded(
+                      flex: 2,
+                      child: PopupMenuButton<String>(
+                        onSelected: (role) {
+                          setState(() {
+                            if (selectedRoles.contains(role)) {
+                              selectedRoles.remove(role);
+                            } else {
+                              selectedRoles.add(role);
+                            }
+                          });
+                        },
+                        itemBuilder: (context) => ['admin', 'staff', 'asnaf']
+                            .map((role) => CheckedPopupMenuItem(
+                          value: role,
+                          checked: selectedRoles.contains(role),
+                          child: Text(role[0].toUpperCase() + role.substring(1)),
+                        ))
+                            .toList(),
+                        child: Container(
+                          height: 40,
+                          padding: EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.filter_list, color: Colors.black),
+                              SizedBox(width: 6),
+                              Text("Filter", style: TextStyle(color: Colors.black)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    SizedBox(width: 8),
+
+                    // 📅 Sort by dropdown
+                    Expanded(
+                      flex: 2,
+                      child: DropdownButtonHideUnderline(
+                        child: Container(
+                          padding: EdgeInsets.symmetric(horizontal: 12),
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: DropdownButton<String>(
+                            value: sortBy,
+                            icon: Icon(Icons.expand_more, color: Colors.black),
+                            style: TextStyle(color: Colors.black),
+                            items: [
+                              DropdownMenuItem(
+                                value: 'created_at',
+                                child: Text('Date'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'name',
+                                child: Text('Name'),
+                              ),
+                            ],
+                            onChanged: (value) {
+                              setState(() => sortBy = value!);
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                // Additional dropdowns can be added if needed for sorting or filtering
               ],
             ),
           ),
-          Divider(
-            thickness: 1,
-            color: Colors.white,
-            indent: 10,
-            endIndent: 10,
-          ),
+
+          Divider(thickness: 1, color: Colors.white, indent: 10, endIndent: 10),
+
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: _usersStream,
+              stream: getUsersStream(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting)
                   return Center(child: CircularProgressIndicator());
+
+                if (snapshot.hasError) {
+                  return Center(
+                      child: Text("Error: ${snapshot.error}",
+                          style: TextStyle(color: Colors.white)));
+                }
+
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty)
                   return Center(
-                      child: Text("No users found", style: TextStyle(color: Colors.white, fontSize: 16)));
+                    child: Text("No users found.",
+                        style: TextStyle(color: Colors.white)),
+                  );
 
-                // Filter users based on search query if needed
+                // Client-side filtering for search query on name.
                 var users = snapshot.data!.docs.where((doc) {
                   Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
                   return data['name'] != null &&
                       data['name'].toString().toLowerCase().contains(searchQuery);
                 }).toList();
-                print("Documents: ${snapshot.data!.docs.length}");
-                for (var doc in snapshot.data!.docs) {
-                  print(doc.data());
-                }
 
                 return ListView.builder(
                   itemCount: users.length,
@@ -194,7 +234,6 @@ class _ManageStaffsScreenState extends State<ManageStaffsScreen> {
                   },
                 );
               },
-
             ),
           ),
         ],

@@ -69,7 +69,6 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
               ],
             ),
           ),
-
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 6.0),
             child: Row(
@@ -109,8 +108,10 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
                       hintStyle: TextStyle(fontSize: 14),
                       filled: true,
                       fillColor: Colors.white,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                      contentPadding: EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                      contentPadding: EdgeInsets.symmetric(
+                          vertical: 10, horizontal: 12),
                     ),
                     style: TextStyle(fontSize: 14),
                   ),
@@ -124,8 +125,10 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
                     decoration: InputDecoration(
                       filled: true,
                       fillColor: Colors.white,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                      contentPadding: EdgeInsets.symmetric(vertical: 2, horizontal: 10),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                      contentPadding:
+                      EdgeInsets.symmetric(vertical: 2, horizontal: 10),
                     ),
                     dropdownColor: Colors.white,
                     icon: Align(
@@ -143,7 +146,8 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
                       return DropdownMenuItem<String>(
                         value: value,
                         child: Center(
-                          child: Text(value, style: TextStyle(color: Colors.black)),
+                          child:
+                          Text(value, style: TextStyle(color: Colors.black)),
                         ),
                       );
                     }).toList(),
@@ -158,8 +162,10 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
                     decoration: InputDecoration(
                       filled: true,
                       fillColor: Colors.white,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                      contentPadding: EdgeInsets.symmetric(vertical: 2, horizontal: 12),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                      contentPadding:
+                      EdgeInsets.symmetric(vertical: 2, horizontal: 12),
                     ),
                     dropdownColor: Colors.white,
                     icon: Align(
@@ -177,7 +183,8 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
                       return DropdownMenuItem<String>(
                         value: value,
                         child: Center(
-                          child: Text(value, style: TextStyle(color: Colors.black)),
+                          child:
+                          Text(value, style: TextStyle(color: Colors.black)),
                         ),
                       );
                     }).toList(),
@@ -211,11 +218,11 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
                   return {
                     'fullname': appData['fullname'] ?? 'Unknown',
                     'date': appData['date'] ?? '',
-                    'submitted_by': appData['submitted_by'] ?? 'Unknown',
+                    'submittedBy': appData['submittedBy'] ?? 'Unknown',
                     'statusApplication': appData['statusApplication'] ?? 'Pending',
                     'applicationCode': appData.containsKey('applicationCode')
                         ? appData['applicationCode']
-                        : "No Code", // Fetch applicationCode from Firestore
+                        : "No Code",
                     'id': doc.id,
                     'userId': appData['userId'] ?? '',
                   };
@@ -227,13 +234,17 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
                     var app = applications[index];
                     bool isExpanded = _expandedStates[index] ?? false;
                     String formattedDate = app['date'] != ''
-                        ? DateFormat("dd MMM yyyy").format(DateTime.parse(app['date']))
+                        ? DateFormat("dd MMM yyyy")
+                        .format(DateTime.parse(app['date']))
                         : 'No date provided';
                     String userId = app['userId'] ?? '';
                     String uniqueCode = app['applicationCode']; // Use applicationCode directly
 
                     return FutureBuilder<DocumentSnapshot>(
-                      future: FirebaseFirestore.instance.collection('users').doc(userId).get(),
+                      future: FirebaseFirestore.instance
+                          .collection('users')
+                          .doc(userId)
+                          .get(),
                       builder: (context, userSnapshot) {
                         String photoUrl = "";
                         if (userSnapshot.connectionState == ConnectionState.done &&
@@ -260,12 +271,14 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
     );
   }
 
-  // Function to build the application card
+  // Function to build the application card with the submitted_by value on top
+  // of statusApplication. The date and application code remain unchanged.
   Widget buildApplicationCard(Map<String, dynamic> app, String formattedDate, String uniqueCode, String photoUrl) {
     bool isExpanded = _expandedStates[app['id']] ?? false;
 
-    // Fetch the correct 'statusApplication' field from Firestore
-    String statusApplication = app['statusApplication'] ?? 'Pending'; // Default to 'Pending' if field is missing
+    String statusApplication = app['statusApplication'] ?? 'Pending';
+    // Note we use 'submitted_by' as stored in Firestore
+    String submittedBy = app['submittedBy'] ?? 'Unknown';
 
     return Card(
       color: Colors.grey[850],
@@ -343,17 +356,25 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
                 ],
               ),
               trailing: Column(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  SizedBox(height: 4),
+                  // Display the submitted_by value on top
                   Text(
-                    statusApplication,  // Corrected to use 'statusApplication'
+                    submittedBy,
+                    style: TextStyle(color: Colors.white, fontSize: 12),
+                  ),
+                  SizedBox(height: 4),
+                  // Then display the statusApplication value below it
+                  Text(
+                    statusApplication,
                     style: TextStyle(
                       color: statusApplication == "Pending"
                           ? Colors.orange
                           : statusApplication == "Approve"
                           ? Colors.green
                           : Colors.red,
+                      fontSize: 14,
                     ),
                   ),
                 ],
@@ -364,5 +385,4 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
       ),
     );
   }
-
 }

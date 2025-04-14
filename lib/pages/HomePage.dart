@@ -28,7 +28,8 @@ class _HomePageState extends State<HomePage> {
   Future<void> _getUserRole() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      final doc =
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
       if (doc.exists) {
         setState(() {
           userRole = doc.data()?['role'] ?? 'asnaf';
@@ -38,7 +39,8 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _fetchSections() async {
-    QuerySnapshot snapshot = await FirebaseFirestore.instance.collection("event").get();
+    QuerySnapshot snapshot =
+    await FirebaseFirestore.instance.collection("event").get();
 
     for (var doc in snapshot.docs) {
       String section = doc["sectionEvent"] ?? "Upcoming Activities"; // Default to "Upcoming Activities"
@@ -68,36 +70,11 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Widget _buildUpcomingActivities() {
-    sectionEvents["Upcoming Activities"]?.sort((a, b) {
-      Timestamp aTimestamp = a["updatedAt"];
-      Timestamp bTimestamp = b["updatedAt"];
-      return bTimestamp.compareTo(aTimestamp); // Descending order
-    });
-    return Container(
-      margin: EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-      padding: EdgeInsets.symmetric(horizontal: 15),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          stops: [0.16, 0.38, 0.58, 0.88],
-          colors: [
-            Color(0xFFF9F295),
-            Color(0xFFE0AA3E),
-            Color(0xFFF9F295),
-            Color(0xFFB88A44),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(12),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final _widgetOptions = <Widget>[
-      SingleChildScrollView(  // Wrap the entire content in SingleChildScrollView for scrolling
+      SingleChildScrollView(
+        // Wrap the content in SingleChildScrollView for scrolling
         child: Column(
           children: [
             Container(
@@ -152,11 +129,8 @@ class _HomePageState extends State<HomePage> {
                       ],
                     ),
                   ),
-                  userRole == null
-                      ? CircularProgressIndicator()
-                      : _getDashboard(),
+                  userRole == null ? CircularProgressIndicator() : _getDashboard(),
                   UserPoints(),
-                  _buildUpcomingActivities(),
                   Container(
                     margin: EdgeInsets.symmetric(horizontal: 15, vertical: 1),
                     padding: EdgeInsets.symmetric(horizontal: 15),
@@ -188,12 +162,13 @@ class _HomePageState extends State<HomePage> {
                             ),
                           ),
                         ),
-                        // Fetch Events from Firestore and display horizontally
+                        // Display the event list horizontally
                         Container(
-                          height: 200,  // Height of the container for the event list
+                          height: 200,
                           child: ListView.builder(
                             scrollDirection: Axis.horizontal,
-                            itemCount: sectionEvents["Upcoming Activities"]!.length,
+                            // Changed here as well:
+                            itemCount: sectionEvents["Upcoming Activities"]?.length ?? 0,
                             itemBuilder: (context, index) {
                               var event = sectionEvents["Upcoming Activities"]![index];
                               return Padding(
@@ -214,10 +189,9 @@ class _HomePageState extends State<HomePage> {
                                         ),
                                       ),
                                       SizedBox(height: 4),
-
-                                      // Event Name (fixed height space for alignment)
+                                      // Event Name
                                       SizedBox(
-                                        height: 36, // enough for 2 lines of text
+                                        height: 36,
                                         child: Text(
                                           event["eventName"] ?? "Unknown",
                                           style: TextStyle(
@@ -229,10 +203,8 @@ class _HomePageState extends State<HomePage> {
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                       ),
-
-                                      SizedBox(height: 8), // space before bottom section
-
-                                      // Points and Date (will always be same vertical position)
+                                      SizedBox(height: 8),
+                                      // Points and Date
                                       Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
@@ -266,17 +238,14 @@ class _HomePageState extends State<HomePage> {
                                       ),
                                     ],
                                   ),
-                                )
-
+                                ),
                               );
                             },
                           ),
                         ),
                         ...sectionEvents.entries
                             .where((entry) => entry.key != "Upcoming Activities")
-                            .map(
-                              (entry) => _buildSectionRow(entry.key, entry.value),
-                        ), // Add other event sections below "Upcoming Activities"
+                            .map((entry) => _buildSectionRow(entry.key, entry.value)),
                       ],
                     ),
                   ),
@@ -297,16 +266,15 @@ class _HomePageState extends State<HomePage> {
         selectedIndex: _selectedIndex,
         onItemTapped: _onItemTapped,
       ),
-      body: _widgetOptions.elementAt(_selectedIndex), // Display the selected page content
+      body: _widgetOptions.elementAt(_selectedIndex),
     );
   }
 
   Widget _buildSectionRow(String sectionName, List<DocumentSnapshot> events) {
-
     events.sort((a, b) {
       Timestamp aTimestamp = a["updatedAt"];
       Timestamp bTimestamp = b["updatedAt"];
-      return bTimestamp.compareTo(aTimestamp); // Descending order
+      return bTimestamp.compareTo(aTimestamp);
     });
 
     return Padding(
@@ -320,92 +288,86 @@ class _HomePageState extends State<HomePage> {
             style: TextStyle(fontSize: 25, fontWeight: FontWeight.bold, color: Colors.black),
           ),
           Container(
-            height: 250,  // Height of the container for the event list
+            height: 250,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               itemCount: events.length,
-                itemBuilder: (context, index) {
-                  var event = events[index];
-                  return Padding(
-                    padding: const EdgeInsets.all(10.0),
-                    child: Container(
-                      width: 160,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Event Image
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.network(
-                              event["bannerUrl"] ?? '',
-                              height: 100,
-                              width: double.infinity,
-                              fit: BoxFit.cover,
-                            ),
+              itemBuilder: (context, index) {
+                var event = events[index];
+                return Padding(
+                  padding: const EdgeInsets.all(10.0),
+                  child: Container(
+                    width: 160,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Event Image
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            event["bannerUrl"] ?? '',
+                            height: 100,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
                           ),
-                          SizedBox(height: 4),
-
-                          // Event Name (fixed height space for alignment)
-                          SizedBox(
-                            height: 36, // enough for 2 lines of text
-                            child: Text(
-                              event["eventName"] ?? "Unknown",
+                        ),
+                        SizedBox(height: 4),
+                        // Event Name
+                        SizedBox(
+                          height: 36,
+                          child: Text(
+                            event["eventName"] ?? "Unknown",
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: Colors.black,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        // Points and Date
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Get ${event["points"] ?? "0"} pts",
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
-                                fontSize: 14,
+                                fontSize: 13,
                                 color: Colors.black,
                               ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
                             ),
-                          ),
-
-                          SizedBox(height: 8), // space before bottom section
-
-                          // Points and Date (will always be same vertical position)
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                "Get ${event["points"] ?? "0"} pts",
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
-                                  color: Colors.black,
-                                ),
-                              ),
-                              SizedBox(height: 4),
-                              Row(
-                                children: [
-                                  Icon(Icons.calendar_today, color: Colors.red, size: 14),
-                                  SizedBox(width: 4),
-                                  Expanded(
-                                    child: Text(
-                                      event["eventEndDate"] ?? "",
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w500,
-                                        color: Colors.black87,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
+                            SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Icon(Icons.calendar_today, color: Colors.red, size: 14),
+                                SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    event["eventEndDate"] ?? "",
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.black87,
                                     ),
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    )
-
-                  );
-                }
-
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
             ),
           ),
         ],
       ),
     );
   }
-
 }

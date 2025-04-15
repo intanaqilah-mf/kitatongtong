@@ -40,24 +40,28 @@ class _ScreeningApplicantsState extends State<ScreeningApplicants> {
     }
 
     try {
-      // Update the application status in Firestore
-      await FirebaseFirestore.instance.collection('applications').doc(widget.documentId).update({
+      // Update the application in Firestore with the new statusReward field.
+      await FirebaseFirestore.instance
+          .collection('applications')
+          .doc(widget.documentId)
+          .update({
         'statusApplication': finalStatus,
         'reasonStatus': reasonController.text,
+        'statusReward': 'Pending',
       });
 
-      // Show a success message
+      // Show a success message.
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Application status updated successfully!")),
       );
 
-      // Navigate to VerifyReviewScreen after submitting
+      // Navigate to VerifyReviewScreen after submitting.
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => VerifyReviewScreen()),
       );
     } catch (e) {
-      print("Error: $e"); // Debugging line to check for errors
+      print("Error: $e"); // Debug output in case of error.
     }
   }
 

@@ -38,6 +38,7 @@ class _VoucherIssuanceState extends State<VoucherIssuance> {
         'rewardType': selectedRewardType,
         'eligibilityDetails': selectedEligibility,
         'reward': finalRewardValue,
+        'statusReward': 'Issued',
       });
 
       // Show success message

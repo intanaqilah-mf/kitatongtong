@@ -41,6 +41,7 @@ class _IssueRewardScreenState extends State<IssueReward> {
       ),
       body: Column(
         children: [
+          // Header Section
           Container(
             width: double.infinity,
             padding: EdgeInsets.symmetric(vertical: 15, horizontal: 16),
@@ -67,6 +68,7 @@ class _IssueRewardScreenState extends State<IssueReward> {
               ],
             ),
           ),
+          // Search and Filter Section
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 6.0),
             child: Row(
@@ -125,8 +127,8 @@ class _IssueRewardScreenState extends State<IssueReward> {
                       fillColor: Colors.white,
                       border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10)),
-                      contentPadding: EdgeInsets.symmetric(
-                          vertical: 2, horizontal: 10),
+                      contentPadding:
+                      EdgeInsets.symmetric(vertical: 2, horizontal: 10),
                     ),
                     dropdownColor: Colors.white,
                     icon: Align(
@@ -162,8 +164,8 @@ class _IssueRewardScreenState extends State<IssueReward> {
                       fillColor: Colors.white,
                       border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10)),
-                      contentPadding: EdgeInsets.symmetric(
-                          vertical: 2, horizontal: 12),
+                      contentPadding:
+                      EdgeInsets.symmetric(vertical: 2, horizontal: 12),
                     ),
                     dropdownColor: Colors.white,
                     icon: Align(
@@ -197,6 +199,7 @@ class _IssueRewardScreenState extends State<IssueReward> {
             indent: 10,
             endIndent: 10,
           ),
+          // List of Applications Section
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: _applicationsStream,
@@ -211,26 +214,31 @@ class _IssueRewardScreenState extends State<IssueReward> {
                   );
                 }
 
+                // Map each document to an application object while including statusReward.
                 var applications = snapshot.data!.docs.map((doc) {
                   var appData = doc.data() as Map<String, dynamic>;
                   return {
                     'fullname': appData['fullname'] ?? 'Unknown',
                     'date': appData['date'] ?? '',
-                    // Use the exact key "submittedBy" as stored in Firestore
                     'submittedBy': appData['submittedBy'] ?? 'Unknown',
+                    // Keep the statusApplication for filtering.
                     'statusApplication': appData['statusApplication'] ?? 'Pending',
+                    // Use statusReward for display.
+                    'statusReward': appData['statusReward'] ?? 'Pending',
                     'applicationCode': appData['applicationCode'] ?? '',
                     'id': doc.id,
                     'userId': appData['userId'] ?? '',
                   };
-                }).toList();
+                }).where((app) => app['statusApplication'] == "Approve")
+                    .toList();
 
                 return ListView.builder(
                   itemCount: applications.length,
                   itemBuilder: (context, index) {
                     var app = applications[index];
                     String formattedDate = app['date'] != ''
-                        ? DateFormat("dd MMM yyyy").format(DateTime.parse(app['date']))
+                        ? DateFormat("dd MMM yyyy")
+                        .format(DateTime.parse(app['date']))
                         : 'No date provided';
                     String userId = app['userId'] ?? '';
                     String uniqueCode = app['applicationCode'] ?? 'N/A';
@@ -245,10 +253,12 @@ class _IssueRewardScreenState extends State<IssueReward> {
                         if (userSnapshot.connectionState == ConnectionState.done &&
                             userSnapshot.hasData &&
                             userSnapshot.data!.exists) {
-                          var userData = userSnapshot.data!.data() as Map<String, dynamic>;
+                          var userData = userSnapshot.data!.data()
+                          as Map<String, dynamic>;
                           photoUrl = userData['photoUrl'] ?? "";
                         }
-                        return buildApplicationCard(app, formattedDate, uniqueCode, photoUrl);
+                        return buildApplicationCard(
+                            app, formattedDate, uniqueCode, photoUrl);
                       },
                     );
                   },
@@ -265,10 +275,12 @@ class _IssueRewardScreenState extends State<IssueReward> {
     );
   }
 
-  // Build the application card with submittedBy above statusApplication
-  Widget buildApplicationCard(Map<String, dynamic> app, String formattedDate, String uniqueCode, String photoUrl) {
+  // Build the application card showing the submittedBy and the reward status.
+  Widget buildApplicationCard(Map<String, dynamic> app, String formattedDate,
+      String uniqueCode, String photoUrl) {
     bool isExpanded = _expandedStates[app['id']] ?? false;
-    String statusApplication = app['statusApplication'] ?? 'Pending';
+    // Use statusReward for display instead of statusApplication.
+    String statusReward = app['statusReward'] ?? 'Pending';
     String submittedBy = app['submittedBy'] ?? 'Unknown';
 
     return Card(
@@ -297,11 +309,14 @@ class _IssueRewardScreenState extends State<IssueReward> {
                   GestureDetector(
                     onTap: () {
                       setState(() {
-                        _expandedStates[app['id']] = !isExpanded;
+                        _expandedStates[app['id']] =
+                        !isExpanded;
                       });
                     },
                     child: Icon(
-                      isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                      isExpanded
+                          ? Icons.keyboard_arrow_up
+                          : Icons.keyboard_arrow_down,
                       color: Colors.white,
                     ),
                   ),
@@ -348,21 +363,22 @@ class _IssueRewardScreenState extends State<IssueReward> {
               ),
               trailing: Column(
                 mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.end,
+                crossAxisAlignment:
+                CrossAxisAlignment.end,
                 children: [
-                  // Display submittedBy on top
                   Text(
                     submittedBy,
-                    style: TextStyle(color: Colors.white, fontSize: 12),
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12),
                   ),
                   SizedBox(height: 4),
-                  // Then display statusApplication below it
                   Text(
-                    statusApplication,
+                    statusReward,
                     style: TextStyle(
-                      color: statusApplication == "Pending"
+                      color: statusReward.toLowerCase() == "pending"
                           ? Colors.orange
-                          : statusApplication == "Approve"
+                          : statusReward.toLowerCase() == "issued"
                           ? Colors.green
                           : Colors.red,
                       fontSize: 14,

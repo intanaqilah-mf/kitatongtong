@@ -27,18 +27,45 @@ class _VoucherIssuanceState extends State<VoucherIssuance> {
       _selectedIndex = index;
     });
   }
+
+  Future<DocumentSnapshot> fetchApplicationData(String documentId) async {
+    return await FirebaseFirestore.instance.collection('applications').doc(documentId).get();
+  }
+
+  Future<DocumentSnapshot> fetchUserData(String userId) async {
+    return await FirebaseFirestore.instance.collection('users').doc(userId).get();
+  }
+
   void submitRewardDetails() async {
     try {
       // Determine the correct reward value based on reward type
       String finalRewardValue = selectedRewardType == "Points"
-          ? pointsController.text // User input for points
-          : selectedRewardAmount; // Dropdown value for RM
+          ? pointsController.text
+          : selectedRewardAmount;
 
+      // Update the application document with reward details
       await FirebaseFirestore.instance.collection('applications').doc(widget.documentId).update({
         'rewardType': selectedRewardType,
         'eligibilityDetails': selectedEligibility,
         'reward': finalRewardValue,
         'statusReward': 'Issued',
+      });
+
+      // Fetch application data to retrieve the user ID
+      DocumentSnapshot applicationSnapshot = await FirebaseFirestore.instance
+          .collection('applications')
+          .doc(widget.documentId)
+          .get();
+      var appData = applicationSnapshot.data() as Map<String, dynamic>;
+      String userId = appData['userId'];
+
+      // Update the user's document with voucherReceived information
+      await FirebaseFirestore.instance.collection('users').doc(userId).update({
+        'voucherReceived': {
+          'voucherGranted': finalRewardValue,
+          'eligibility': selectedEligibility,
+          'rewardType': selectedRewardType,
+        }
       });
 
       // Show success message
@@ -50,21 +77,12 @@ class _VoucherIssuanceState extends State<VoucherIssuance> {
         context,
         MaterialPageRoute(builder: (context) => ReviewIssueReward()),
       );
-
     } catch (e) {
       print("Error: $e");
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Failed to update reward details.")),
       );
     }
-  }
-
-  Future<DocumentSnapshot> fetchApplicationData(String documentId) async {
-    return await FirebaseFirestore.instance.collection('applications').doc(documentId).get();
-  }
-
-  Future<DocumentSnapshot> fetchUserData(String userId) async {
-    return await FirebaseFirestore.instance.collection('users').doc(userId).get();
   }
 
   @override
@@ -78,6 +96,7 @@ class _VoucherIssuanceState extends State<VoucherIssuance> {
       body: SingleChildScrollView(
         child: Column(
           children: [
+            // Header Section
             Container(
               width: double.infinity,
               padding: EdgeInsets.symmetric(vertical: 15, horizontal: 16),
@@ -121,6 +140,7 @@ class _VoucherIssuanceState extends State<VoucherIssuance> {
                 ],
               ),
             ),
+            // Main Data Section
             FutureBuilder<DocumentSnapshot>(
               future: fetchApplicationData(widget.documentId),
               builder: (context, snapshot) {
@@ -144,6 +164,7 @@ class _VoucherIssuanceState extends State<VoucherIssuance> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Application info container
                       Container(
                         width: double.infinity,
                         padding: EdgeInsets.all(16),
@@ -215,6 +236,7 @@ class _VoucherIssuanceState extends State<VoucherIssuance> {
 
                       SizedBox(height: 20),
 
+                      // Reward Type Dropdown
                       Text("Reward Type", style: TextStyle(color: Colors.white, fontSize: 16)),
                       SizedBox(height: 5),
                       Container(
@@ -240,6 +262,7 @@ class _VoucherIssuanceState extends State<VoucherIssuance> {
                       ),
 
                       SizedBox(height: 15),
+                      // Eligibility Dropdown
                       Text("Eligibility Details", style: TextStyle(color: Colors.white, fontSize: 16)),
                       SizedBox(height: 5),
                       Container(
@@ -265,48 +288,48 @@ class _VoucherIssuanceState extends State<VoucherIssuance> {
                       ),
 
                       SizedBox(height: 15),
-
-                      // Reward Amount or Points Input
+                      // Reward Amount (or Points) Input
                       Text(
-  selectedRewardType == "Points" ? "Reward (Points)" : "Reward Amount (RM)",
-  style: TextStyle(color: Colors.white, fontSize: 16),
-),
-SizedBox(height: 5),
-Container(
-  decoration: BoxDecoration(
-    color: Colors.white,
-    borderRadius: BorderRadius.circular(8),
-  ),
-  child: selectedRewardType == "Points"
-      ? TextField(
-          controller: pointsController,
-          keyboardType: TextInputType.number,
-          decoration: InputDecoration(
-            border: InputBorder.none,
-            contentPadding: EdgeInsets.all(10),
-            hintText: "Enter points",
-          ),
-        )
-      : DropdownButtonFormField<String>(
-          value: selectedRewardAmount,
-          decoration: InputDecoration(
-            border: InputBorder.none,
-            contentPadding: EdgeInsets.all(10),
-          ),
-          items: ["RM10", "RM20", "RM50"].map((String value) {
-            return DropdownMenuItem<String>(
-              value: value,
-              child: Text(value),
-            );
-          }).toList(),
-          onChanged: (newValue) {
-            setState(() {
-              selectedRewardAmount = newValue!;
-            });
-          },
-        ),
-),
+                        selectedRewardType == "Points" ? "Reward (Points)" : "Reward Amount (RM)",
+                        style: TextStyle(color: Colors.white, fontSize: 16),
+                      ),
+                      SizedBox(height: 5),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: selectedRewardType == "Points"
+                            ? TextField(
+                          controller: pointsController,
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            border: InputBorder.none,
+                            contentPadding: EdgeInsets.all(10),
+                            hintText: "Enter points",
+                          ),
+                        )
+                            : DropdownButtonFormField<String>(
+                          value: selectedRewardAmount,
+                          decoration: InputDecoration(
+                            border: InputBorder.none,
+                            contentPadding: EdgeInsets.all(10),
+                          ),
+                          items: ["RM10", "RM20", "RM50"].map((String value) {
+                            return DropdownMenuItem<String>(
+                              value: value,
+                              child: Text(value),
+                            );
+                          }).toList(),
+                          onChanged: (newValue) {
+                            setState(() {
+                              selectedRewardAmount = newValue!;
+                            });
+                          },
+                        ),
+                      ),
                       SizedBox(height: 20),
+                      // Submit Button
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
@@ -314,14 +337,13 @@ Container(
                             backgroundColor: Color(0xFFFDB515),
                             padding: EdgeInsets.symmetric(vertical: 12),
                           ),
-                          onPressed: submitRewardDetails, // Calls function to store data
+                          onPressed: submitRewardDetails,
                           child: Text(
                             "Submit",
                             style: TextStyle(color: Colors.black, fontSize: 16),
                           ),
                         ),
                       ),
-
                     ],
                   ),
                 );

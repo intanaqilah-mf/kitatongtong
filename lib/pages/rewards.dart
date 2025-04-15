@@ -19,6 +19,19 @@ class _RewardsState extends State<Rewards> {
   String validityMessage = "Valid for 1 month";
   List<Map<String, dynamic>> eligibleVouchers = [];
   List<Map<String, dynamic>> eventList = [];
+  String getAdminVoucherBanner(String voucherGranted) {
+    if (voucherGranted == "RM10") {
+      return "https://firebasestorage.googleapis.com/v0/b/kita-tongtong.firebasestorage.app/o/voucherBanner%2F100_points_RM10.png?alt=media";
+    } else if (voucherGranted == "RM20") {
+      return "https://firebasestorage.googleapis.com/v0/b/kita-tongtong.firebasestorage.app/o/voucherBanner%2F200_points_RM20.png?alt=media";
+    } else if (voucherGranted == "RM30") {
+      return "https://firebasestorage.googleapis.com/v0/b/kita-tongtong.firebasestorage.app/o/voucherBanner%2F300_points_RM30.png?alt=media";
+    } else if (voucherGranted == "RM40") {
+      return "https://firebasestorage.googleapis.com/v0/b/kita-tongtong.firebasestorage.app/o/voucherBanner%2F400_points_RM40.png?alt=media";
+    }
+    return "";
+  }
+
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -290,124 +303,270 @@ class _RewardsState extends State<Rewards> {
     fetchUserData();
   }
   Widget buildRewardsListSection() {
-    return FutureBuilder<Map<String, dynamic>?>(
-      future: fetchBestVoucherForTotalValuePoints(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) {
+      return Container(
+        alignment: Alignment.center,
+        padding: EdgeInsets.symmetric(vertical: 20),
+        child: Text("No user found."),
+      );
+    }
+    return FutureBuilder<DocumentSnapshot>(
+      future: _firestore.collection('users').doc(uid).get(),
+      builder: (context, userSnapshot) {
+        if (userSnapshot.connectionState == ConnectionState.waiting) {
           return Center(child: CircularProgressIndicator());
         }
-        if (!snapshot.hasData || snapshot.data == null) {
+        if (!userSnapshot.hasData || userSnapshot.data == null) {
           return Container(
             alignment: Alignment.center,
             padding: EdgeInsets.symmetric(vertical: 20),
-            child: Text(
-              "No active vouchers found.",
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+            child: Text("No user data found."),
           );
         }
+        final userData = userSnapshot.data!.data() as Map<String, dynamic>;
+        Map<String, dynamic>? adminVoucher;
+        if (userData.containsKey('voucherReceived')) {
+          if (userData['voucherReceived'] is Map) {
+            adminVoucher = userData['voucherReceived'] as Map<String, dynamic>;
+          } else if (userData['voucherReceived'] is List &&
+              (userData['voucherReceived'] as List).isNotEmpty) {
+            adminVoucher = (userData['voucherReceived'] as List)[0] as Map<String, dynamic>;
+          }
+        }
 
-        final bestVoucher = snapshot.data!;
-        final bannerUrl = bestVoucher['bannerVoucher'] ?? '';
-        // parse points & valuePoints carefully in case they are strings
-        final thresholdPoints = int.tryParse(bestVoucher['points'].toString()) ?? 0;
-        final rmValue = int.tryParse(bestVoucher['valuePoints'].toString()) ?? 0;
+        return FutureBuilder<Map<String, dynamic>?>(
+          future: fetchBestVoucherForTotalValuePoints(),
+          builder: (context, voucherSnapshot) {
+            if (voucherSnapshot.connectionState == ConnectionState.waiting) {
+              return Center(child: CircularProgressIndicator());
+            }
 
-        return Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                stops: [0.16, 0.38, 0.58, 0.88],
-                colors: [
-                  Color(0xFFF9F295),
-                  Color(0xFFE0AA3E),
-                  Color(0xFFF9F295),
-                  Color(0xFFB88A44),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            padding: EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "This is your Rewards!",
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
-                  ),
-                ),
-                SizedBox(height: 10),
-                Container(
-                  width: double.infinity,
-                  child: GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => PackageKasihPage(rmValue: rmValue)),
-                      );
-                    },
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Show the banner
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: Image.network(
-                          bannerUrl,
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                          height: 110,
-                        ),
-                      ),
-                      // Show the threshold points and the RM value
-                      Container(
-                        width: double.infinity,
-                        padding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.only(
-                            bottomLeft: Radius.circular(10),
-                            bottomRight: Radius.circular(10),
-                          ),
-                        ),
-                        child: Column(
-                          children: [
-                          Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text("Redeem with", style: TextStyle(color: Color(0xFFA67C00), fontWeight: FontWeight.bold, fontSize: 13)),
-                                Text("Rewards", style: TextStyle(color: Color(0xFFA67C00), fontWeight: FontWeight.bold, fontSize: 13)),
-                              ],
-                            ),
-                            SizedBox(height: 4),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text("$thresholdPoints pts", style: TextStyle(color: Colors.black, fontWeight: FontWeight.w600, fontSize: 13)),
-                                Text("RM$rmValue", style: TextStyle(color: Colors.black, fontWeight: FontWeight.w600, fontSize: 13)),
-                              ],
-                            ),
-                          ],
-                        ),
-                        ])
-                      ),
+            Widget bestVoucherWidget = Container();
+            if (voucherSnapshot.hasData && voucherSnapshot.data != null) {
+              bestVoucherWidget = buildVoucherWidget(voucherSnapshot.data!);
+            }
+            Widget adminVoucherWidget = Container();
+            if (adminVoucher != null && adminVoucher.containsKey('voucherGranted')) {
+              adminVoucherWidget = buildAdminVoucherWidget(adminVoucher);
+            }
+
+            return Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    stops: [0.16, 0.38, 0.58, 0.88],
+                    colors: [
+                      Color(0xFFF9F295),
+                      Color(0xFFE0AA3E),
+                      Color(0xFFF9F295),
+                      Color(0xFFB88A44),
                     ],
-                  ),),
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "This is your Rewards!",
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black),
+                    ),
+                    SizedBox(height: 10),
+                    // Directly include admin voucher if available.
+                    if (adminVoucher != null && adminVoucher.containsKey('voucherGranted')) ...[
+                      adminVoucherWidget,
+                      SizedBox(height: 10),
+                    ],
+                    bestVoucherWidget,
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget buildVoucherWidget(Map<String, dynamic> voucher) {
+    String bannerUrl = voucher['bannerVoucher'] ?? "";
+    int thresholdPoints = int.tryParse(voucher['points'].toString()) ?? 0;
+    int rmValue = int.tryParse(voucher['valuePoints'].toString()) ?? 0;
+    String title = "$thresholdPoints pts";
+    String subtitle = "RM$rmValue";
+    return Container(
+      width: double.infinity,
+      margin: EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: Image.network(
+              bannerUrl,
+              width: double.infinity,
+              height: 110,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return Container(
+                  width: double.infinity,
+                  height: 110,
+                  color: Colors.grey,
+                  child: Center(child: Icon(Icons.error, color: Colors.white)),
+                );
+              },
+            ),
+          ),
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(10),
+                  bottomRight: Radius.circular(10)),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text("Redeem with",
+                        style: TextStyle(
+                            color: Color(0xFFA67C00),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13)),
+                    Text("Rewards",
+                        style: TextStyle(
+                            color: Color(0xFFA67C00),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13)),
+                  ],
+                ),
+                SizedBox(height: 4),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(title,
+                        style: TextStyle(
+                            color: Colors.black,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13)),
+                    Text(subtitle,
+                        style: TextStyle(
+                            color: Colors.black,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13)),
+                  ],
                 ),
               ],
             ),
           ),
-        );
-      },
+        ],
+      ),
+    );
+  }
+
+  Widget buildAdminVoucherWidget(Map<String, dynamic> voucher) {
+    String voucherGranted = voucher['voucherGranted']?.toString() ?? "";
+    String bannerUrl = getAdminVoucherBanner(voucherGranted);
+    String title = voucherGranted;
+    String subtitle = "${voucher['rewardType']}\n${voucher['eligibility']}";
+
+    return Container(
+      width: double.infinity,
+      margin: EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Use the URL from your storage bucket; if empty, show fallback.
+          bannerUrl.isNotEmpty
+              ? ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: Image.network(
+              bannerUrl,
+              width: double.infinity,
+              height: 110,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return Container(
+                  width: double.infinity,
+                  height: 110,
+                  color: Colors.grey,
+                  child: Center(
+                    child: Text("Image Error", style: TextStyle(color: Colors.white)),
+                  ),
+                );
+              },
+            ),
+          )
+              : Container(
+            width: double.infinity,
+            height: 110,
+            decoration: BoxDecoration(
+              color: Colors.grey,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Center(
+              child: Text("Admin Issued Reward", style: TextStyle(color: Colors.white)),
+            ),
+          ),
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(10),
+                bottomRight: Radius.circular(10),
+              ),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text("Redeem with",
+                        style: TextStyle(
+                            color: Color(0xFFA67C00),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13)),
+                    Text("Rewards",
+                        style: TextStyle(
+                            color: Color(0xFFA67C00),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13)),
+                  ],
+                ),
+                SizedBox(height: 4),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(title,
+                        style: TextStyle(
+                            color: Colors.black,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13)),
+                    Text(subtitle,
+                        style: TextStyle(
+                            color: Colors.black,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 

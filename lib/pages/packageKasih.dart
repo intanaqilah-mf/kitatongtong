@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
+import 'package:projects/pages/successRedeem.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:math';
 import 'package:projects/pages/packageRedeem.dart';
 
 class PackageKasihPage extends StatefulWidget {
   final int rmValue;
-  PackageKasihPage({required this.rmValue});
+  final Map<String, dynamic>? voucherReceived;
+  PackageKasihPage({required this.rmValue, this.voucherReceived});
   @override
-  _PackageKasihPageState createState() =>
-      _PackageKasihPageState();
+  _PackageKasihPageState createState() => _PackageKasihPageState();
 }
 
 class _PackageKasihPageState extends State<PackageKasihPage> {
@@ -19,13 +22,21 @@ class _PackageKasihPageState extends State<PackageKasihPage> {
     });
   }
 
+  // Helper function to generate a pickup code.
+  String generatePickupCode(int length) {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    final rand = Random.secure();
+    return List.generate(length, (_) => chars[rand.nextInt(chars.length)]).join();
+  }
+
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Color(0xFF303030),
       body: Column(
         children: [
-          // Custom header replacing AppBar
+          // Custom header replacing AppBar.
           Container(
             width: double.infinity,
             padding: EdgeInsets.fromLTRB(16, 80, 16, 15),
@@ -53,14 +64,12 @@ class _PackageKasihPageState extends State<PackageKasihPage> {
             ),
           ),
 
-          // List of packages from Firestore
+          // List of packages from Firestore.
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection("package_kasih")
-                    .snapshots(),
+                stream: FirebaseFirestore.instance.collection("package_kasih").snapshots(),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return Center(child: CircularProgressIndicator());
@@ -81,12 +90,8 @@ class _PackageKasihPageState extends State<PackageKasihPage> {
                   }).toList();
 
                   docs.sort((a, b) {
-                    int valueA = int.tryParse(
-                        (a['value'] as String).replaceAll("RM ", "")) ??
-                        0;
-                    int valueB = int.tryParse(
-                        (b['value'] as String).replaceAll("RM ", "")) ??
-                        0;
+                    int valueA = int.tryParse((a['value'] as String).replaceAll("RM ", "")) ?? 0;
+                    int valueB = int.tryParse((b['value'] as String).replaceAll("RM ", "")) ?? 0;
                     return valueA.compareTo(valueB);
                   });
 
@@ -98,9 +103,7 @@ class _PackageKasihPageState extends State<PackageKasihPage> {
                       final bannerUrl = data['bannerUrl'] ?? '';
                       final value = data['value'] ?? 'RM 0';
                       final items = data['items'] ?? [];
-                      final label =
-                      String.fromCharCode(65 + index);
-
+                      final label = String.fromCharCode(65 + index);
                       return GestureDetector(
                         onTap: () {
                           Navigator.push(
@@ -187,13 +190,14 @@ class _PackageKasihPageState extends State<PackageKasihPage> {
                           ),
                         ),
                       );
-
                     },
                   );
                 },
               ),
             ),
           ),
+
+
         ],
       ),
       bottomNavigationBar: BottomNavBar(

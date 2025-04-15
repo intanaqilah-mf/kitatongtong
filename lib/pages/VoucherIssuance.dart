@@ -59,13 +59,17 @@ class _VoucherIssuanceState extends State<VoucherIssuance> {
       var appData = applicationSnapshot.data() as Map<String, dynamic>;
       String userId = appData['userId'];
 
-      // Update the user's document with voucherReceived information
+      // Generate a unique id for the admin voucher (if needed)
+      final String adminVoucherId = "admin_${DateTime.now().millisecondsSinceEpoch}";
+
       await FirebaseFirestore.instance.collection('users').doc(userId).update({
-        'voucherReceived': {
+        'voucherReceived': FieldValue.arrayUnion([{
           'voucherGranted': finalRewardValue,
           'eligibility': selectedEligibility,
           'rewardType': selectedRewardType,
-        }
+          'voucherId': adminVoucherId, // assign a unique voucher id
+          'redeemedAt': Timestamp.now() // mark the issuance time
+        }])
       });
 
       // Show success message

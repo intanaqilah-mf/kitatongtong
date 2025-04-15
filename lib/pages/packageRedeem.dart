@@ -11,6 +11,7 @@ class PackageRedeemPage extends StatefulWidget {
   final int rmValue;
   final int validityDays;
   final List<dynamic> items;
+  final Map<String, dynamic>? voucherReceived;
 
   const PackageRedeemPage({
     required this.bannerUrl,
@@ -18,6 +19,7 @@ class PackageRedeemPage extends StatefulWidget {
     required this.rmValue,
     required this.validityDays,
     required this.items,
+    this.voucherReceived,
   });
 
   @override
@@ -37,6 +39,66 @@ class _PackageRedeemPageState extends State<PackageRedeemPage> {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     final rand = Random.secure();
     return List.generate(length, (_) => chars[rand.nextInt(chars.length)]).join();
+  }
+
+  Future<void> redeemVoucher() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final now = Timestamp.now();
+    final pickupCode = generatePickupCode(8);
+
+    // Retrieve the user's document
+    final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+    final userData = userDoc.data();
+    final userName = userData?['name'] ?? 'Unknown';
+    final totalValuePoints = userData?['totalValuePoints'] ?? 0;
+    final updatedPoints = totalValuePoints - widget.rmValue;
+
+    // Prepare the redeemed item list if needed.
+    final itemList = [];
+
+    // Create the redeemedKasih record.
+    await FirebaseFirestore.instance.collection('redeemedKasih').add({
+      'userId': user.uid,
+      'userName': userName,
+      'valueRedeemed': widget.rmValue,
+      'pickupCode': pickupCode,
+      'itemRedeemed': itemList,
+      'pickedUp': 'no',
+      'processedOrder': 'no',
+      'redeemedAt': now,
+    });
+
+    // Update the total value points.
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .update({'totalValuePoints': updatedPoints});
+
+    // Remove the voucher from the user's voucherReceived array.
+    if (widget.voucherReceived != null && widget.voucherReceived!.containsKey('voucherId')) {
+      final targetVoucherId = widget.voucherReceived!['voucherId'];
+      DocumentReference userRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
+      DocumentSnapshot userSnap = await userRef.get();
+      if (userSnap.exists) {
+        final data = userSnap.data() as Map<String, dynamic>;
+        // Assume voucherReceived is stored as a List.
+        List<dynamic> vouchers = data['voucherReceived'] is List
+            ? List<dynamic>.from(data['voucherReceived'])
+            : [];
+        vouchers.removeWhere((voucher) {
+          return (voucher is Map && voucher['voucherId'] == targetVoucherId);
+        });
+        await userRef.update({'voucherReceived': vouchers});
+      }
+    }
+
+    // Navigate to the Successredeem screen.
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => Successredeem()),
+    );
   }
 
   @override
@@ -168,54 +230,11 @@ class _PackageRedeemPageState extends State<PackageRedeemPage> {
                     ),
                     SizedBox(height: 20),
 
-                    // Redeem button
+                    // Redeem button in PackageRedeem.dart
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: () async {
-                          final user = FirebaseAuth.instance.currentUser;
-                          final pickupCode = generatePickupCode(8);
-                          if (user == null) return;
-
-                          final userDoc = await FirebaseFirestore.instance
-                              .collection('users')
-                              .doc(user.uid)
-                              .get();
-
-                          final userData = userDoc.data();
-                          final userName = userData?['name'] ?? 'Unknown';
-                          final totalValuePoints = userData?['totalValuePoints'] ?? 0;
-                          final updatedPoints = totalValuePoints - widget.rmValue;
-
-                          final itemList = widget.items.map((item) {
-                            return {
-                              'name': item['name'],
-                              'number': item['number'],
-                              'unit': item['unit'],
-                            };
-                          }).toList();
-
-                          await FirebaseFirestore.instance.collection('redeemedKasih').add({
-                            'userId': user.uid,
-                            'userName': userName,
-                            'valueRedeemed': widget.rmValue,
-                            'pickupCode': pickupCode,
-                            'itemRedeemed': itemList,
-                            'pickedUp': 'no',
-                            'processedOrder': 'no',
-                            'redeemedAt': Timestamp.now(),
-                          });
-
-                          await FirebaseFirestore.instance
-                              .collection('users')
-                              .doc(user.uid)
-                              .update({'totalValuePoints': updatedPoints});
-
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(builder: (context) => Successredeem()),
-                          );
-                        },
+                        onPressed: redeemVoucher,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Color(0xFFFDB515),
                           padding: EdgeInsets.symmetric(vertical: 14),
@@ -233,7 +252,6 @@ class _PackageRedeemPageState extends State<PackageRedeemPage> {
                         ),
                       ),
                     ),
-
                   ],
                 ),
               ),

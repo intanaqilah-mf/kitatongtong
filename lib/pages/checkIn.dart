@@ -22,6 +22,7 @@ class _checkInState extends State<checkIn> {
   String? currentUserEmail;
   String? _role;
   String? _staffName;
+  String? _participantDocId; // New variable to store the participant's document ID
 
   void _onItemTapped(int index) {
     setState(() {
@@ -52,42 +53,52 @@ class _checkInState extends State<checkIn> {
         if (_role == 'staff') {
           _participantNameController.text = '';
           _participantNumberController.text = '';
+          _participantDocId = null;
         }
       });
     } else {
       _clearForm();
     }
   }
+
   void _fetchAsnafDetails(String nric) async {
     final trimmed = nric.trim();
 
     if (trimmed.isEmpty) {
       _participantNameController.clear();
       _participantNumberController.clear();
+      setState(() {
+        _participantDocId = null;
+      });
       return;
     }
 
-    final userDoc = await FirebaseFirestore.instance
+    final userQuery = await FirebaseFirestore.instance
         .collection('users')
         .where('nric', isEqualTo: trimmed)
         .limit(1)
         .get();
 
-    if (userDoc.docs.isNotEmpty) {
-      final userData = userDoc.docs.first.data();
+    if (userQuery.docs.isNotEmpty) {
+      final userData = userQuery.docs.first.data();
       setState(() {
         _participantNameController.text = userData['name'] ?? '';
         _participantNumberController.text = userData['phone'] ?? '';
+        _participantDocId = userQuery.docs.first.id; // Store the doc ID when found
       });
     } else {
       _participantNameController.clear();
       _participantNumberController.clear();
+      setState(() {
+        _participantDocId = null;
+      });
     }
   }
 
   void _initUserDetails() async {
     final userId = FirebaseAuth.instance.currentUser!.uid;
-    final userDoc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
+    final userDoc =
+    await FirebaseFirestore.instance.collection('users').doc(userId).get();
 
     if (userDoc.exists) {
       final userData = userDoc.data()!;
@@ -98,7 +109,6 @@ class _checkInState extends State<checkIn> {
         if (_role == 'asnaf') {
           _participantNameController.text = userData['name'] ?? '';
           _participantNumberController.text = userData['phone'] ?? '';
-          currentUserEmail = userData['email'];
         }
       });
     }
@@ -113,6 +123,7 @@ class _checkInState extends State<checkIn> {
         _participantNameController.clear();
         _participantNumberController.clear();
         _nricController.clear();
+        _participantDocId = null;
       }
     });
   }
@@ -149,13 +160,19 @@ class _checkInState extends State<checkIn> {
                 textAlign: TextAlign.center,
               ),
               SizedBox(height: 20),
-
-              buildTextField("Enter Attendance Code", "attendanceCode", _attendanceCodeController, isReadOnly: false, onChanged: (value) => _fetchEventDetails(value)),
-              buildTextField("Event", "eventName", _eventNameController, isReadOnly: true),
+              buildTextField("Enter Attendance Code", "attendanceCode",
+                  _attendanceCodeController,
+                  isReadOnly: false,
+                  onChanged: (value) => _fetchEventDetails(value)),
+              buildTextField(
+                  "Event", "eventName", _eventNameController,
+                  isReadOnly: true),
               if (_role == 'staff')
-                buildTextField("Enter Asnaf NRIC", "nric", _nricController, isReadOnly: false, onChanged: _fetchAsnafDetails),
-              buildTextField("Participant's Name", "name", _participantNameController, isReadOnly: true),
-
+                buildTextField("Enter Asnaf NRIC", "nric", _nricController,
+                    isReadOnly: false, onChanged: _fetchAsnafDetails),
+              buildTextField("Participant's Name", "name",
+                  _participantNameController,
+                  isReadOnly: true),
               Padding(
                 padding: EdgeInsets.symmetric(vertical: 8),
                 child: Column(
@@ -163,18 +180,27 @@ class _checkInState extends State<checkIn> {
                   children: [
                     Text(
                       "Participant’s Number",
-                      style: TextStyle(color: Color(0xFFFDB515), fontSize: 14, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                          color: Color(0xFFFDB515),
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold),
                     ),
                     SizedBox(height: 4),
                     Container(
-                      decoration: BoxDecoration(color: Color(0xFFFDB515), borderRadius: BorderRadius.circular(8)),
+                      decoration: BoxDecoration(
+                          color: Color(0xFFFDB515),
+                          borderRadius: BorderRadius.circular(8)),
                       child: Row(
                         children: [
                           Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                            padding:
+                            const EdgeInsets.symmetric(horizontal: 8.0),
                             child: Text(
                               "+60",
-                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black),
+                              style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black),
                             ),
                           ),
                           Container(
@@ -203,88 +229,106 @@ class _checkInState extends State<checkIn> {
                   ],
                 ),
               ),
-
-              buildTextField("Points per attendance", "points", _pointsController, isReadOnly: true),
+              buildTextField("Points per attendance", "points", _pointsController,
+                  isReadOnly: true),
               SizedBox(height: 20),
-
               ElevatedButton(
-                  onPressed: () async {
-                    try {
-                      final userId = FirebaseAuth.instance.currentUser!.uid;
-                      final userDoc = await FirebaseFirestore.instance.collection("users").doc(userId).get();
-                      final role = userDoc.data()?['role'] ?? 'asnaf';
-                      final name = userDoc.data()?['name'] ?? '';
-                      final pointsToAdd = int.tryParse(_pointsController.text) ?? 0;
+                onPressed: () async {
+                  try {
+                    final userId =
+                        FirebaseAuth.instance.currentUser!.uid;
+                    final userDoc = await FirebaseFirestore.instance
+                        .collection("users")
+                        .doc(userId)
+                        .get();
+                    final role = userDoc.data()?['role'] ?? 'asnaf';
+                    final name = userDoc.data()?['name'] ?? '';
+                    final pointsToAdd =
+                        int.tryParse(_pointsController.text) ?? 0;
 
-                      final submittedBy = role == 'staff'
-                          ? {
-                        "uid": userId,
-                        "name": name,
-                        "role": role,
-                      }
-                          : "system";
-
-                      // ✅ Fetch event date before storing
-                      final eventQuery = await FirebaseFirestore.instance
-                          .collection('event')
-                          .where('attendanceCode', isEqualTo: _attendanceCodeController.text.trim())
-                          .limit(1)
-                          .get();
-
-                      final eventDate = eventQuery.docs.isNotEmpty
-                          ? eventQuery.docs.first.data()['eventDate']
-                          : "Unknown";
-
-                      // ✅ Now you can store eventDate properly
-                      await FirebaseFirestore.instance.collection("checkIn_list").add({
-                        "attendanceCode": _attendanceCodeController.text,
-                        "eventName": _eventNameController.text,
-                        "points": pointsToAdd,
-                        "participantName": _participantNameController.text,
-                        "participantNumber": _participantNumberController.text,
-                        "checkedInAt": Timestamp.now(),
-                        "eventDate": eventDate,
-                        "submittedBy": submittedBy,
-                      });
-
-                      // ✅ Update participant points
-                      final participantDoc = await FirebaseFirestore.instance
-                          .collection("users")
-                          .where("phone", isEqualTo: _participantNumberController.text)
-                          .limit(1)
-                          .get();
-
-                      if (participantDoc.docs.isNotEmpty) {
-                        final participantId = participantDoc.docs.first.id;
-                        final participantPoints = participantDoc.docs.first.data()['points'] ?? 0;
-
-                        await FirebaseFirestore.instance
-                            .collection("users")
-                            .doc(participantId)
-                            .update({'points': participantPoints + pointsToAdd});
-                      }
-
-                      Navigator.pushAndRemoveUntil(
-                        context,
-                        MaterialPageRoute(builder: (context) => successCheckIn()),
-                            (route) => false,
-                      );
-
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text("Check-in successful!")),
-                      );
-                    } catch (e) {
-                      print("Error storing check-in: $e");
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text("Failed to check in. Please try again.")),
-                      );
+                    final submittedBy = role == 'staff'
+                        ? {
+                      "uid": userId,
+                      "name": name,
+                      "role": role,
                     }
-                  },
-                  style: ElevatedButton.styleFrom(
+                        : "system";
+
+                    // Fetch event date before storing
+                    final eventQuery = await FirebaseFirestore.instance
+                        .collection('event')
+                        .where('attendanceCode',
+                        isEqualTo:
+                        _attendanceCodeController.text.trim())
+                        .limit(1)
+                        .get();
+
+                    final eventDate = eventQuery.docs.isNotEmpty
+                        ? eventQuery.docs.first.data()['eventDate']
+                        : "Unknown";
+
+                    // Store the check-in details
+                    await FirebaseFirestore.instance
+                        .collection("checkIn_list")
+                        .add({
+                      "attendanceCode": _attendanceCodeController.text,
+                      "eventName": _eventNameController.text,
+                      "points": pointsToAdd,
+                      "participantName": _participantNameController.text,
+                      "participantNumber": _participantNumberController.text,
+                      "checkedInAt": Timestamp.now(),
+                      "eventDate": eventDate,
+                      "submittedBy": submittedBy,
+                    });
+
+                    // Update participant points using the exact document ID.
+                    // For staff, if a participant was looked up via NRIC, use that document.
+                    // Otherwise (as asnaf) use the current user's UID.
+                    String participantId;
+                    if (role == 'staff' && _participantDocId != null) {
+                      participantId = _participantDocId!;
+                    } else {
+                      participantId = FirebaseAuth.instance.currentUser!.uid;
+                    }
+                    final participantSnapshot = await FirebaseFirestore.instance
+                        .collection("users")
+                        .doc(participantId)
+                        .get();
+                    final participantPoints =
+                        participantSnapshot.data()?['points'] ?? 0;
+                    await FirebaseFirestore.instance
+                        .collection("users")
+                        .doc(participantId)
+                        .update(
+                        {'points': participantPoints + pointsToAdd});
+
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => successCheckIn()),
+                          (route) => false,
+                    );
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text("Check-in successful!")),
+                    );
+                  } catch (e) {
+                    print("Error storing check-in: $e");
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                          content: Text(
+                              "Failed to check in. Please try again.")),
+                    );
+                  }
+                },
+                style: ElevatedButton.styleFrom(
                   backgroundColor: Color(0xFFFDB515),
-                  padding: EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+                  padding:
+                  EdgeInsets.symmetric(vertical: 12, horizontal: 24),
                 ),
-                child: Center(child: Text("Submit", style: TextStyle(fontSize: 16, color: Colors.white))),
+                child: Center(
+                    child: Text("Submit",
+                        style: TextStyle(fontSize: 16, color: Colors.white))),
               ),
             ],
           ),
@@ -297,7 +341,9 @@ class _checkInState extends State<checkIn> {
     );
   }
 
-  Widget buildTextField(String label, String key, TextEditingController controller, {bool isReadOnly = false, Function(String)? onChanged}) {
+  Widget buildTextField(String label, String key,
+      TextEditingController controller,
+      {bool isReadOnly = false, Function(String)? onChanged}) {
     return Padding(
       padding: EdgeInsets.symmetric(vertical: 8),
       child: Column(
@@ -305,11 +351,16 @@ class _checkInState extends State<checkIn> {
         children: [
           Text(
             label,
-            style: TextStyle(color: Color(0xFFFDB515), fontSize: 14, fontWeight: FontWeight.bold),
+            style: TextStyle(
+                color: Color(0xFFFDB515),
+                fontSize: 14,
+                fontWeight: FontWeight.bold),
           ),
           SizedBox(height: 4),
           Container(
-            decoration: BoxDecoration(color: Color(0xFFFDB515), borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(
+                color: Color(0xFFFDB515),
+                borderRadius: BorderRadius.circular(8)),
             child: TextField(
               controller: controller,
               readOnly: isReadOnly,

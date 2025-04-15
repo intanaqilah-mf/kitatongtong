@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:projects/pages/HomePage.dart';
-import 'package:projects/pages/ProfilePage.dart'; // Import your Profile page
-import 'package:cloud_firestore/cloud_firestore.dart'; // Add Firestore import
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:projects/pages/ProfilePage.dart';
 import 'package:projects/pages/stockItem.dart';
 import 'package:projects/pages/redemptionStatus.dart';
 import 'package:projects/pages/orderProcessed.dart';
+import 'package:projects/pages/rewards.dart'; // Import rewards.dart
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class BottomNavBar extends StatefulWidget {
-  final int selectedIndex; // Selected index passed from the parent
-  final Function(int) onItemTapped; // Function to handle taps passed from the parent
+  final int selectedIndex;
+  final Function(int) onItemTapped;
 
   const BottomNavBar({
     required this.selectedIndex,
@@ -21,26 +23,28 @@ class BottomNavBar extends StatefulWidget {
 }
 
 class _BottomNavBarState extends State<BottomNavBar> {
-  String role = ''; // Initialize role as an empty string
+  String role = '';
 
   @override
   void initState() {
     super.initState();
-    _fetchUserRole(); // Fetch user role when the widget is initialized
+    _fetchUserRole();
   }
 
-  // Fetch the user's role from Firestore
   Future<void> _fetchUserRole() async {
     try {
       User? user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        String userId = user.uid; // Get user ID from Firebase Auth
-        DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
+        String userId = user.uid;
+        DocumentSnapshot userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId)
+            .get();
 
         if (userDoc.exists) {
           setState(() {
-            role = userDoc['role'] ?? 'other'; // Default to 'other' if role is not found
-            print('Role fetched: $role');  // Debug output
+            role = userDoc['role'] ?? 'other';
+            print('Role fetched: $role');
           });
         } else {
           print('User document does not exist');
@@ -55,7 +59,7 @@ class _BottomNavBarState extends State<BottomNavBar> {
 
   @override
   Widget build(BuildContext context) {
-    print('Role in build method: $role'); // Debug output
+    print('Role in build method: $role');
     return BottomNavigationBar(
       backgroundColor: Color(0xFF3F3F3F),
       selectedItemColor: Colors.yellow,
@@ -66,7 +70,7 @@ class _BottomNavBarState extends State<BottomNavBar> {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (context) => HomePage(), // Navigate to HomePage
+              builder: (context) => HomePage(),
             ),
           );
         } else if (index == 1) {
@@ -85,19 +89,27 @@ class _BottomNavBarState extends State<BottomNavBar> {
               ),
             );
           }
-        }
-        else if (index == 2) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => StockItem(), // Navigate to ProfilePage
-            ),
-          );
+        } else if (index == 2) {
+          if (role == 'asnaf') {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => Rewards(),
+              ),
+            );
+          } else if (role == 'staff' || role == 'admin') {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => StockItem(),
+              ),
+            );
+          }
         } else if (index == 4) {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (context) => ProfilePage(), // Navigate to ProfilePage
+              builder: (context) => ProfilePage(),
             ),
           );
         }

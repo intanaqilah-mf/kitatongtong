@@ -76,21 +76,26 @@ class _PackageRedeemPageState extends State<PackageRedeemPage> {
         .doc(user.uid)
         .update({'totalValuePoints': updatedPoints});
 
-    // Remove the voucher from the user's voucherReceived array.
-    if (widget.voucherReceived != null && widget.voucherReceived!.containsKey('voucherId')) {
-      final targetVoucherId = widget.voucherReceived!['voucherId'];
-      DocumentReference userRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
-      DocumentSnapshot userSnap = await userRef.get();
-      if (userSnap.exists) {
-        final data = userSnap.data() as Map<String, dynamic>;
-        // Assume voucherReceived is stored as a List.
-        List<dynamic> vouchers = data['voucherReceived'] is List
-            ? List<dynamic>.from(data['voucherReceived'])
-            : [];
-        vouchers.removeWhere((voucher) {
-          return (voucher is Map && voucher['voucherId'] == targetVoucherId);
-        });
-        await userRef.update({'voucherReceived': vouchers});
+    if (widget.voucherReceived != null) {
+      if (widget.voucherReceived!.containsKey('voucherId')) {
+        // Remove claimed voucher from the user's voucherReceived array.
+        final targetVoucherId = widget.voucherReceived!['voucherId'];
+        DocumentReference userRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
+        DocumentSnapshot userSnap = await userRef.get();
+        if (userSnap.exists) {
+          final data = userSnap.data() as Map<String, dynamic>;
+          List<dynamic> vouchers = data['voucherReceived'] is List
+              ? List<dynamic>.from(data['voucherReceived'])
+              : [];
+          vouchers.removeWhere((voucher) {
+            return (voucher is Map && voucher['voucherId'] == targetVoucherId);
+          });
+          await userRef.update({'voucherReceived': vouchers});
+        }
+      } else if (widget.voucherReceived!.containsKey('docId')) {
+        // Remove admin voucher from the applications collection.
+        final docId = widget.voucherReceived!['docId'];
+        await FirebaseFirestore.instance.collection('applications').doc(docId).delete();
       }
     }
 

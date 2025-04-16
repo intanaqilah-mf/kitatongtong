@@ -359,10 +359,11 @@ class _RewardsState extends State<Rewards> {
             }
             List<Map<String, dynamic>> adminVoucherList = [];
             if (appSnapshot.hasData && appSnapshot.data!.docs.isNotEmpty) {
-              // Map all matching documents.
-              adminVoucherList = appSnapshot.data!.docs
-                  .map((doc) => doc.data() as Map<String, dynamic>)
-                  .toList();
+              adminVoucherList = appSnapshot.data!.docs.map((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                data['docId'] = doc.id;
+                return data;
+              }).toList();
             }
             // Transform each admin voucher document into a format that buildAdminVoucherWidget expects.
             List<Map<String, dynamic>> adminVouchers = adminVoucherList
@@ -370,12 +371,9 @@ class _RewardsState extends State<Rewards> {
                 .map((doc) {
               return {
                 'voucherGranted': doc['reward'], // e.g. "RM10", "RM20", etc.
-                'rewardType': doc.containsKey('rewardType')
-                    ? doc['rewardType']
-                    : doc['reward'],
-                'eligibility': doc.containsKey('eligibility')
-                    ? doc['eligibility']
-                    : "Asnaf Application",
+                'rewardType': doc.containsKey('rewardType') ? doc['rewardType'] : doc['reward'],
+                'eligibility': doc.containsKey('eligibility') ? doc['eligibility'] : "Asnaf Application",
+                'docId': doc['docId'], // <-- preserve the document id
               };
             }).toList();
 
@@ -697,7 +695,10 @@ class _RewardsState extends State<Rewards> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => PackageKasihPage(rmValue: rmValue),
+            builder: (context) => PackageKasihPage(
+              rmValue: rmValue,
+              voucherReceived: voucher,  // now contains docId and admin voucher details
+            ),
           ),
         );
       },

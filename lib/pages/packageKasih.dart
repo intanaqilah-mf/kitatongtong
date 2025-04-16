@@ -115,6 +115,7 @@ class _PackageKasihPageState extends State<PackageKasihPage> {
                                 rmValue: int.tryParse(value.replaceAll("RM ", "")) ?? 0,
                                 validityDays: 30,
                                 items: items,
+                                voucherReceived: widget.voucherReceived,
                               ),
                             ),
                           );

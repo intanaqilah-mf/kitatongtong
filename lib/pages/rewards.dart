@@ -316,6 +316,7 @@ class _RewardsState extends State<Rewards> {
         child: Text("No user found."),
       );
     }
+
     return FutureBuilder<DocumentSnapshot>(
       future: _firestore.collection('users').doc(uid).get(),
       builder: (context, userSnapshot) {
@@ -332,7 +333,7 @@ class _RewardsState extends State<Rewards> {
 
         final userData = userSnapshot.data!.data() as Map<String, dynamic>;
 
-        // Get user's vouchers from the "users" document and filter claimed ones.
+        // Get the user's vouchers from the document.
         List<dynamic> userVouchers = [];
         if (userData.containsKey('voucherReceived')) {
           if (userData['voucherReceived'] is List) {
@@ -341,13 +342,11 @@ class _RewardsState extends State<Rewards> {
             userVouchers = [userData['voucherReceived']];
           }
         }
-        // Claimed vouchers are those that do NOT include a voucherGranted field.
+        // Claimed vouchers: only those that do NOT have a voucherGranted field.
         final claimedVouchers = userVouchers.where((v) {
           return !(v is Map && v.containsKey('voucherGranted'));
         }).toList();
 
-        // Now fetch the admin voucher from the applications collection.
-        // We query the applications for documents where userId equals uid and statusReward equals "Issued".
         return FutureBuilder<QuerySnapshot>(
           future: _firestore
               .collection('applications')
@@ -358,20 +357,27 @@ class _RewardsState extends State<Rewards> {
             if (appSnapshot.connectionState == ConnectionState.waiting) {
               return Center(child: CircularProgressIndicator());
             }
-            Map<String, dynamic>? adminVoucherData;
+            List<Map<String, dynamic>> adminVoucherList = [];
             if (appSnapshot.hasData && appSnapshot.data!.docs.isNotEmpty) {
-              // For simplicity, take the first matching document.
-              adminVoucherData = appSnapshot.data!.docs.first.data() as Map<String, dynamic>;
+              // Map all matching documents.
+              adminVoucherList = appSnapshot.data!.docs
+                  .map((doc) => doc.data() as Map<String, dynamic>)
+                  .toList();
             }
-            // Prepare an admin voucher map in the same format expected by buildAdminVoucherWidget.
-            Map<String, dynamic>? adminVoucher;
-            if (adminVoucherData != null && adminVoucherData.containsKey('reward')) {
-              adminVoucher = {
-                'voucherGranted': adminVoucherData['reward'], // e.g. "RM10", "RM20", etc.
-                'rewardType': adminVoucherData['rewardType'] ?? adminVoucherData['reward'],
-                'eligibility': adminVoucherData['eligibility'] ?? "Asnaf Application",
+            // Transform each admin voucher document into a format that buildAdminVoucherWidget expects.
+            List<Map<String, dynamic>> adminVouchers = adminVoucherList
+                .where((doc) => doc.containsKey('reward'))
+                .map((doc) {
+              return {
+                'voucherGranted': doc['reward'], // e.g. "RM10", "RM20", etc.
+                'rewardType': doc.containsKey('rewardType')
+                    ? doc['rewardType']
+                    : doc['reward'],
+                'eligibility': doc.containsKey('eligibility')
+                    ? doc['eligibility']
+                    : "Asnaf Application",
               };
-            }
+            }).toList();
 
             return Padding(
               padding: EdgeInsets.all(16.0),
@@ -394,7 +400,7 @@ class _RewardsState extends State<Rewards> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Section 1: This is your Rewards! (admin voucher from applications)
+                    // Section 1: Admin-issued vouchers fetched from the applications collection.
                     Text(
                       "This is your Rewards!",
                       style: TextStyle(
@@ -404,11 +410,21 @@ class _RewardsState extends State<Rewards> {
                       ),
                     ),
                     SizedBox(height: 10),
-                    if (adminVoucher != null &&
-                        adminVoucher.containsKey('voucherGranted'))
-                      buildAdminVoucherWidget(adminVoucher),
+                    if (adminVouchers.isNotEmpty)
+                    // Display admin vouchers in a column.
+                      Column(
+                        children: adminVouchers.map((voucher) {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: buildAdminVoucherWidget(voucher),
+                          );
+                        }).toList(),
+                      )
+                    else
+                      Text("No admin-issued rewards available.",
+                          style: TextStyle(color: Colors.black)),
                     SizedBox(height: 20),
-                    // Section 2: My Claimed Vouchers (only from user vouchers not having voucherGranted)
+                    // Section 2: Claimed vouchers from the user's voucherReceived field (which do not have voucherGranted).
                     Text(
                       "My Claimed Vouchers",
                       style: TextStyle(

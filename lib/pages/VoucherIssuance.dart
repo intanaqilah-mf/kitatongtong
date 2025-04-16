@@ -38,41 +38,50 @@ class _VoucherIssuanceState extends State<VoucherIssuance> {
 
   void submitRewardDetails() async {
     try {
-      // Determine the correct reward value based on reward type
+      // Determine the correct reward value based on reward type.
       String finalRewardValue = selectedRewardType == "Points"
           ? pointsController.text
           : selectedRewardAmount;
 
-      // Update the application document with reward details
-      await FirebaseFirestore.instance.collection('applications').doc(widget.documentId).update({
+      // Update the application document with reward details.
+      await FirebaseFirestore.instance
+          .collection('applications')
+          .doc(widget.documentId)
+          .update({
         'rewardType': selectedRewardType,
         'eligibilityDetails': selectedEligibility,
         'reward': finalRewardValue,
         'statusReward': 'Issued',
       });
 
-      // Fetch application data to retrieve the user ID
-      DocumentSnapshot applicationSnapshot = await FirebaseFirestore.instance
-          .collection('applications')
-          .doc(widget.documentId)
-          .get();
+      print("Application document ${widget.documentId} updated successfully.");
+
+      // Fetch application data to retrieve the user ID.
+      DocumentSnapshot applicationSnapshot =
+      await FirebaseFirestore.instance.collection('applications').doc(widget.documentId).get();
+      if (!applicationSnapshot.exists) {
+        print("Application document not found for ID: ${widget.documentId}");
+        throw Exception("Application document not found.");
+      }
       var appData = applicationSnapshot.data() as Map<String, dynamic>;
       String userId = appData['userId'];
 
-      // Generate a unique id for the admin voucher (if needed)
+      // Generate a unique id for the admin voucher.
       final String adminVoucherId = "admin_${DateTime.now().millisecondsSinceEpoch}";
 
+      // Update the user's voucherReceived field with the admin voucher.
       await FirebaseFirestore.instance.collection('users').doc(userId).update({
         'voucherReceived': FieldValue.arrayUnion([{
           'voucherGranted': finalRewardValue,
           'eligibility': selectedEligibility,
           'rewardType': selectedRewardType,
-          'voucherId': adminVoucherId, // assign a unique voucher id
-          'redeemedAt': Timestamp.now() // mark the issuance time
+          'voucherId': adminVoucherId,
+          'redeemedAt': Timestamp.now()
         }])
       });
 
-      // Show success message
+      print("User $userId voucherReceived field updated.");
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Reward details updated successfully!")),
       );
@@ -82,12 +91,13 @@ class _VoucherIssuanceState extends State<VoucherIssuance> {
         MaterialPageRoute(builder: (context) => ReviewIssueReward()),
       );
     } catch (e) {
-      print("Error: $e");
+      print("Error updating reward details: $e");
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Failed to update reward details.")),
       );
     }
   }
+
 
   @override
   Widget build(BuildContext context) {

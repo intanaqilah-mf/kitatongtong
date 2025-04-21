@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:projects/pages/applyAid.dart';
-import 'package:projects/pages/applicationStatus.dart';
+import 'package:projects/pages/applications.dart';
 import 'package:projects/pages/rewards.dart';
 import 'package:projects/pages/helpAsnaf.dart';
 
@@ -39,7 +39,7 @@ class AsnafDashboard extends StatelessWidget {
                     } else if (i == 3) {
                     Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => ApplicationStatusPage()),
+                    MaterialPageRoute(builder: (context) => ApplicationsScreen()),
                     );
                     }
                     else if (i == 4) {

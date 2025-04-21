@@ -99,10 +99,9 @@ class _PackageRedeemPageState extends State<PackageRedeemPage> {
       }
     }
 
-    // Navigate to the Successredeem screen.
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (context) => Successredeem()),
+      MaterialPageRoute(builder: (context) => SuccessRedeem()),
     );
   }
 

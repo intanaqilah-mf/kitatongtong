@@ -4,7 +4,8 @@ import 'package:projects/pages/ProfilePage.dart';
 import 'package:projects/pages/stockItem.dart';
 import 'package:projects/pages/redemptionStatus.dart';
 import 'package:projects/pages/orderProcessed.dart';
-import 'package:projects/pages/rewards.dart'; // Import rewards.dart
+import 'package:projects/pages/rewards.dart';
+import 'package:projects/pages/trackOrder.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -78,7 +79,7 @@ class _BottomNavBarState extends State<BottomNavBar> {
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
-                builder: (context) => Redemptionstatus(),
+                builder: (context) => TrackOrderScreen(),
               ),
             );
           } else if (role == 'staff' || role == 'admin') {

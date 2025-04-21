@@ -1,83 +1,65 @@
+// lib/pages/applicationStatus.dart
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
 import '../pages/HomePage.dart';
 
 class ApplicationStatusPage extends StatefulWidget {
+  final String documentId;
+  const ApplicationStatusPage({Key? key, required this.documentId})
+      : super(key: key);
+
   @override
   _ApplicationStatusPageState createState() => _ApplicationStatusPageState();
 }
 
 class _ApplicationStatusPageState extends State<ApplicationStatusPage> {
-  String? _applicationCode;
   int _selectedIndex = 0;
 
   void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _fetchApplicationCode(); // Fetch the applicationCode when the page loads
-  }
-
-  Future<void> _fetchApplicationCode() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    var snapshot = await FirebaseFirestore.instance
-        .collection('applications')
-        .where('userId', isEqualTo: user.uid)
-        .limit(1)
-        .get();
-
-    if (snapshot.docs.isNotEmpty) {
-      setState(() {
-        _applicationCode = snapshot.docs.first.data()['applicationCode'] ?? "UNKNOWN";
-      });
-    } else {
-      setState(() {
-        _applicationCode = "UNKNOWN";
-      });
-    }
+    setState(() => _selectedIndex = index);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _applicationCode == null
-          ? Center(child: CircularProgressIndicator()) // Show loading until we fetch applicationCode
-          : StreamBuilder<QuerySnapshot>(
+      body: StreamBuilder<DocumentSnapshot>(
         stream: FirebaseFirestore.instance
             .collection('applications')
-            .where('applicationCode', isEqualTo: _applicationCode) // Now _applicationCode is valid
-            .limit(1)
+            .doc(widget.documentId)
             .snapshots(),
         builder: (context, snapshot) {
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return Center(child: Text("No application found.", style: TextStyle(color: Colors.red)));
-          }
+          if (snapshot.connectionState == ConnectionState.waiting)
+            return Center(child: CircularProgressIndicator());
+          if (!snapshot.hasData || !snapshot.data!.exists)
+            return Center(
+              child: Text(
+                "No application found.",
+                style: TextStyle(color: Colors.red),
+              ),
+            );
 
-          var data = snapshot.data!.docs.first;
-          Map<String, dynamic> applicationData = data.data() as Map<String, dynamic>;
+          final data = snapshot.data!.data()! as Map<String, dynamic>;
+          final fullName = data['fullname'] ?? "Unknown";
+          final appCode = data['applicationCode'] ?? "N/A";
+          final statusApplication = data['statusApplication'] ?? "Submitted";
+          final statusReward = data['statusReward'] as String?;
 
-          String fullName = applicationData['fullname'] ?? "Unknown";
-          String appCode = applicationData['applicationCode'] ?? "N/A";
-          String statusApplication = applicationData['statusApplication'] ?? "Submitted";
-          bool hasReward = applicationData.containsKey('reward') && applicationData['reward'] != null;
+          // colors for each stage
+          final color1 = _getStatusColor(stage: 1, statusApp: statusApplication, statusReward: statusReward);
+          final color2 = _getStatusColor(stage: 2, statusApp: statusApplication, statusReward: statusReward);
+          final color3 = _getStatusColor(stage: 3, statusApp: statusApplication, statusReward: statusReward);
 
           return Column(
             children: [
+              // Header
               Container(
                 width: double.infinity,
                 padding: EdgeInsets.symmetric(vertical: 25, horizontal: 16),
                 child: Column(
                   children: [
-                    SizedBox(height: 50), // Moves title lower
+                    SizedBox(height: 50),
                     Text(
                       "Application Status",
                       style: TextStyle(
@@ -85,17 +67,13 @@ class _ApplicationStatusPageState extends State<ApplicationStatusPage> {
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
                       ),
-                      textAlign: TextAlign.center,
                     ),
                     SizedBox(height: 20),
-
-                    // Row for Application Code & Full Name
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Expanded(
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
                               Text(
                                 "Application Code",
@@ -107,7 +85,7 @@ class _ApplicationStatusPageState extends State<ApplicationStatusPage> {
                               ),
                               SizedBox(height: 4),
                               Text(
-                                appCode,
+                                "#$appCode",
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 16,
@@ -117,10 +95,8 @@ class _ApplicationStatusPageState extends State<ApplicationStatusPage> {
                             ],
                           ),
                         ),
-
                         Expanded(
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
                               Text(
                                 "Full Name",
@@ -144,64 +120,89 @@ class _ApplicationStatusPageState extends State<ApplicationStatusPage> {
                         ),
                       ],
                     ),
-                    SizedBox(height: 15), // Space before divider
+                    SizedBox(height: 15),
                     Container(
                       width: double.infinity,
-                      height: 2, // Divider thickness
+                      height: 2,
                       decoration: BoxDecoration(
-                        color: Color(0xFF303030), // Divider color
+                        color: Color(0xFF303030),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black54, // Inner shadow effect
+                            color: Colors.black54,
                             blurRadius: 4,
                             spreadRadius: 1,
-                            offset: Offset(0, 2), // Adjust shadow for depth
+                            offset: Offset(0, 2),
                           ),
                         ],
                       ),
                     ),
-                    SizedBox(height: 50), // Adds spacing after header
+                    SizedBox(height: 50),
                   ],
                 ),
               ),
 
+              // Stage 1: Submitted (connector always green)
               statusTile(
-                  "Application Submitted",
-                  "We received your application.",
-                  "assets/applicationStatus1.png",
-                  getStatusColor(1, statusApplication, hasReward),
-                  true),
+                title: "Application Submitted",
+                subtitle: "We received your application.",
+                iconPath: "assets/applicationStatus1.png",
+                circleColor: color1,
+                showLine: true,
+                lineColor: color1, // CONNECTOR to next ALWAYS green
+              ),
+
+              // Stage 2: Completed
               statusTile(
-                  "Under Review",
-                  "Admin is reviewing your application.",
-                  "assets/applicationStatus2.png",
-                  getStatusColor(2, statusApplication, hasReward),
-                  true),
+                title: "Completed",
+                subtitle: statusApplication == "Disapprove"
+                    ? "Your application was rejected."
+                    : "Your application has been accepted.",
+                iconPath: "assets/applicationStatus3.png",
+                circleColor: color2,
+                showLine: true,
+                lineColor: color3, // CONNECTOR follows reward status
+              ),
+
+              // Stage 3: Rewards Issued
               statusTile(
-                  "Completed",
-                  "Your application has been accepted.",
-                  "assets/applicationStatus3.png",
-                  getStatusColor(3, statusApplication, hasReward),
-                  false),
+                title: "Rewards Issued",
+                subtitle: statusReward == "Issued"
+                    ? "Your reward has been issued."
+                    : "Pending reward issuance.",
+                iconPath: "assets/reward.png",
+                circleColor: color3,
+                showLine: false,
+              ),
+
               SizedBox(height: 100),
-              ElevatedButton(
-                onPressed: () async {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => HomePage()),
-                  );
+
+              // OK button full-width
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => HomePage()),
+                    );
                   },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFFFDB515),
-                  padding: EdgeInsets.symmetric(vertical: 12, horizontal: 18),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Color(0xFFFDB515),
+                    minimumSize: Size(double.infinity, 48),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: Text(
+                    "OK",
+                    style: TextStyle(fontSize: 16, color: Colors.white),
+                  ),
                 ),
-                child: Center(child: Text("OK", style: TextStyle(fontSize: 16, color: Colors.white))),
               ),
             ],
           );
         },
       ),
-
       bottomNavigationBar: BottomNavBar(
         selectedIndex: _selectedIndex,
         onItemTapped: _onItemTapped,
@@ -209,20 +210,38 @@ class _ApplicationStatusPageState extends State<ApplicationStatusPage> {
     );
   }
 
-  Color getStatusColor(int stage, String statusApplication, bool hasReward) {
-    if (stage == 1) return Colors.green; // Always green for submitted
-    if (stage == 2) {
-      if (statusApplication == "Pending") return Colors.grey;
-      if (statusApplication == "Rejected") return Colors.red;
-      if (statusApplication == "Approve") return Colors.green;
+  Color _getStatusColor({
+    required int stage,
+    required String statusApp,
+    required String? statusReward,
+  }) {
+    if (stage == 1) {
+      return Colors.green;
     }
-    if (stage == 3) {
-      return hasReward ? Colors.green : Colors.grey;
+    if (stage == 2) {
+      if (statusApp == "Disapprove") return Colors.red;
+      if (statusApp == "Approve" || statusApp == "Approved") return Colors.green;
+      return Colors.grey;
+    }
+    // stage == 3
+    if (statusApp == "Disapprove") {
+      return Colors.red;
+    }
+    if (statusReward == "Issued") {
+      return Colors.green;
     }
     return Colors.grey;
   }
 
-  Widget statusTile(String title, String subtitle, String iconPath, Color timelineColor, bool showLine) {
+  Widget statusTile({
+    required String title,
+    required String subtitle,
+    required String iconPath,
+    required Color circleColor,
+    required bool showLine,
+    Color? lineColor,
+  }) {
+    final connectorColor = lineColor ?? circleColor;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 0.0),
       child: Row(
@@ -234,15 +253,15 @@ class _ApplicationStatusPageState extends State<ApplicationStatusPage> {
                 width: 65,
                 height: 30,
                 decoration: BoxDecoration(
-                  color: timelineColor, // Colored based on status
+                  color: circleColor,
                   shape: BoxShape.circle,
                 ),
               ),
               if (showLine)
                 Container(
-                  width: 5, // Thicker timeline line
-                  height: 90, // Adjust height to match icon center
-                  color: timelineColor,
+                  width: 5,
+                  height: 90,
+                  color: connectorColor,
                 ),
             ],
           ),
@@ -256,9 +275,9 @@ class _ApplicationStatusPageState extends State<ApplicationStatusPage> {
                 Text(
                   title,
                   style: TextStyle(
-                    fontWeight: FontWeight.bold,
                     color: Color(0xFFFDB515),
                     fontSize: 16,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
                 SizedBox(height: 10),
@@ -273,6 +292,4 @@ class _ApplicationStatusPageState extends State<ApplicationStatusPage> {
       ),
     );
   }
-
-
 }

@@ -11,5 +11,35 @@
         "*.local"
       ]
     }
-  ]
+  ],
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "kita-tongtong",
+          "appId": "1:531192957050:android:61f91401a0a6098a9593c3",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "kita-tongtong",
+          "configurations": {
+            "android": "1:531192957050:android:61f91401a0a6098a9593c3",
+            "ios": "1:531192957050:ios:63bb97d597d43b1b9593c3",
+            "web": "1:531192957050:web:9305e4a224c50ad39593c3"
+          }
+        }
+      }
+    }
+  },
+  "hosting": {
+    "site": "kita-tongtong-8cda4",
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ]
+  }
 }

@@ -83,8 +83,16 @@ class _ApplyAidState extends State<ApplyAid> {
         data['submittedBy'] = ''; // Default value if role is not defined
       }
 
-      // Upload to Firestore
       await FirebaseFirestore.instance.collection("applications").add(data);
+      await FirebaseFirestore.instance.collection("notifications").add({
+        'recipientRole':    'Admin',
+        'applicantId':      userId,
+        'applicantName':    fullnameController.text,
+        'applicationCode':  applicationCode,
+        'createdAt':        now,
+      });
+      print("🔔 Notification sent for $applicationCode to Admin at $now");
+
 
       Navigator.push(
         context,

@@ -6,7 +6,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:projects/pages/email_service.dart';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
-import 'package:url_launcher/url_launcher.dart';
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:projects/pages/PaymentWebview.dart';
@@ -410,7 +409,15 @@ class _PayPackageState extends State<PayPackage> {
                   };
 
                   await FirebaseFirestore.instance.collection('donation').add(donationData);
-                  print("Donation data added: $donationData");
+                  final now = DateTime.now();
+                  await FirebaseFirestore.instance
+                      .collection('notifications')
+                      .add({
+                    'date': now.toIso8601String(),
+                    'role': 'Admin',
+                    'message':
+                    'Donor ${nameController.text} donated RM ${widget.overallAmount}',
+                  });
 
                   if (wantsTaxExemption) {
                     try {

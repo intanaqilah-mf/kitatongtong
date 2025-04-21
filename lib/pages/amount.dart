@@ -464,9 +464,6 @@ class _AmountPageState extends State<AmountPage> {
               height: 45,
               child: ElevatedButton(
                 onPressed: () async {
-                  print("Donate Now pressed");
-
-                  // Get raw amount (RM)
                   final rawAmount = selectedAmount == 'Other'
                       ? otherAmountController.text
                       : selectedAmount;
@@ -486,7 +483,14 @@ class _AmountPageState extends State<AmountPage> {
                   };
 
                   await FirebaseFirestore.instance.collection('donation').add(donationData);
-                  print("Donation data added: $donationData");
+                  final now = DateTime.now();
+                  await FirebaseFirestore.instance
+                      .collection('notifications')
+                      .add({
+                    'createdAt': FieldValue.serverTimestamp(),        // ← normalized timestamp
+                    'recipientRole': 'Admin',                         // ← same key as applyAid
+                    'message': 'Donor ${nameController.text} donated RM $rawAmount',
+                  });
 
                   if (wantsTaxExemption) {
                     try {

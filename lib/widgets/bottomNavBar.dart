@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:projects/pages/HomePage.dart';
 import 'package:projects/pages/ProfilePage.dart';
 import 'package:projects/pages/stockItem.dart';
-import 'package:projects/pages/redemptionStatus.dart';
+import 'package:projects/pages/notifications.dart';
 import 'package:projects/pages/orderProcessed.dart';
 import 'package:projects/pages/rewards.dart';
 import 'package:projects/pages/trackOrder.dart';
@@ -106,6 +106,13 @@ class _BottomNavBarState extends State<BottomNavBar> {
               ),
             );
           }
+        } else if (index == 3) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => NotificationsScreen(),
+            ),
+          );
         } else if (index == 4) {
           Navigator.pushReplacement(
             context,

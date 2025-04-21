@@ -54,6 +54,7 @@ dependencies:
   flutter_dotenv: ^5.2.1
   uni_links3: ^0.5.3
   webview_flutter: ^4.10.0
+  firebase_messaging: ^15.2.5
 
 dev_dependencies:
   flutter_test:

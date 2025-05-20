@@ -6,6 +6,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:projects/widgets/bottomNavBar.dart';
+import 'package:projects/services/price_service.dart';
 
 class StockItem extends StatefulWidget {
   @override
@@ -103,6 +104,19 @@ class _StockItemState extends State<StockItem> {
         }
       }
     }
+  }
+  Future<double> fetchExpectedTotalRemote(
+      List<Map<String, dynamic>> items) async {
+    final resp = await http.post(
+      Uri.parse("https://us-central1-kita-tongtong.cloudfunctions.net/getPackagePrice"),
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode({"items": items}),
+    );
+    final body = jsonDecode(resp.body);
+    if (resp.statusCode != 200) {
+      throw Exception(body["error"] ?? "Price lookup failed");
+    }
+    return (body["expectedTotal"] as num).toDouble();
   }
 
   void _showAddVoucherForm() {
@@ -608,13 +622,50 @@ class _StockItemState extends State<StockItem> {
                       ElevatedButton(
                         onPressed: () async {
                           try {
+                            // 1) Parse the selected total you want the package to be worth:
+                            final selectedValueDouble = double.parse(
+                                selectedValue.replaceAll('RM', '').trim()
+                            );
+                            final expectedTotal = await fetchExpectedTotalRemote(detailedPackageItems);
+
+                            // configure your threshold (e.g. ±20%)
+                            final threshold = expectedTotal * 0.20;
+                            final diff      = expectedTotal - selectedValueDouble;
+
+                            if (diff.abs() > threshold) {
+                              // show warning and abort
+                              await showDialog(
+                                context: context,
+                                builder: (_) => AlertDialog(
+                                  title: Text('📊 Price Validation Warning'),
+                                  content: Text(
+                                      'You set RM${selectedValueDouble.toStringAsFixed(2)},\n'
+                                          'current market total is RM${expectedTotal.toStringAsFixed(2)}.\n'
+                                          'Difference RM${diff.abs().toStringAsFixed(2)} exceeds 20%.'
+                                  ),
+                                  actions: [ TextButton(
+                                      onPressed: () => Navigator.pop(context),
+                                      child: Text('OK')
+                                  )],
+                                ),
+                              );
+                              return;  // don’t submit
+                            }
+                            final funcResp = await http.post(
+                              Uri.parse("https://us-central1-kita-tongtong.cloudfunctions.net/generatePackageKasihImage"),
+                              headers: {"Content-Type":"application/json"},
+                              body: jsonEncode({
+                                "items": detailedPackageItems.map((i)=>{"name": i["name"]}).toList(),
+                              }),
+                            );
+                            if (funcResp.statusCode != 200) {
+                              throw Exception("Image function failed: ${funcResp.body}");
+                            }
                             final response = await http.post(
                               Uri.parse("https://us-central1-kita-tongtong.cloudfunctions.net/generatePackageKasihImage"),
                               headers: {"Content-Type": "application/json"},
                               body: jsonEncode({
-                                "items": detailedPackageItems.map((item) => {
-                                  "name": item["name"],
-                                }).toList(),
+                                "items": detailedPackageItems.map((i) => {"name": i["name"]}).toList(),
                               }),
                             );
 
@@ -635,7 +686,19 @@ class _StockItemState extends State<StockItem> {
                               // Optional: show dialog or snackBar
                             }
                           } catch (e) {
-                            print("❌ Error calling Cloud Function: $e");
+                            await showDialog(
+                              context: context,
+                              builder: (_) => AlertDialog(
+                                title: Text('Error'),
+                                content: Text(e.toString()),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    child: Text('Close'),
+                                  ),
+                                ],
+                              ),
+                            );
                           }
                         },
 

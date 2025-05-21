@@ -38,6 +38,7 @@ class _EventPageState extends State<EventPage> {
   Map<String, String> formData = {};
   int _selectedIndex = 0;
   String? _editingDocId;
+  double _pointsValue = 10.0;
 
   void _onItemTapped(int index) {
     setState(() {
@@ -58,6 +59,7 @@ class _EventPageState extends State<EventPage> {
       _organiserNameController.clear();
       _organiserNumberController.clear();
       _locationController.clear();
+      _pointsValue = 10.0;
       formData.clear(); // Clear all form data
       _uploadedImageUrl = null;
       selectedSection = 'Upcoming Activities'; // Reset dropdown
@@ -444,7 +446,44 @@ class _EventPageState extends State<EventPage> {
             // Event form fields
             buildTextField("Enter Attendance Code", "attendanceCode", _attendanceCodeController),
             buildTextField("Event Name", "eventName", _eventNameController),
-            buildTextField("Points per attendance", "points", _pointsController),
+            Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Points per attendance",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFF1D789),
+                    ),
+                  ),
+                  SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      activeTrackColor: Color(0xFFF1D789),
+                      inactiveTrackColor: Color(0xFFF1D789),
+                      thumbColor: Color(0xFFEFBF04),
+                      overlayColor: Color(0xFFEFBF04).withOpacity(0.3),
+                      trackHeight: 4.0,
+                    ),
+                    child: Slider(
+                      value: _pointsValue,
+                      min: 10,
+                      max: 100,
+                      divisions: 9, // steps of 10
+                      label: "${_pointsValue.round()} pts",
+                      onChanged: (value) {
+                        setState(() {
+                          _pointsValue = value;
+                          formData["points"] = value.round().toString();
+                        });
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
             buildTextField("Organiser’s name", "organiserName", _organiserNameController),
 
             // Organiser's Number field

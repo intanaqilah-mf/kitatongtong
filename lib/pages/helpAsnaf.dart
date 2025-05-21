@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
 import 'package:projects/pages/amount.dart';
 import 'package:projects/pages/package.dart';
+import 'package:projects/pages/food_item_bank.dart';
 
 class HelpAsnaf extends StatefulWidget {
   @override
@@ -139,6 +140,59 @@ class _HelpAsnafState extends State<HelpAsnaf> {
                           const SizedBox(height: 12),
                           const Text(
                             'Choose from a list of pre-set package vouchers that you’re willing to sponsor. These packages provide essential items to Asnaf',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.black,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => FoodItemBank()));
+                    },
+                    child: Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          stops: [0.16, 0.38, 0.58, 0.88],
+                          colors: [
+                            Color(0xFFF9F295),
+                            Color(0xFFE0AA3E),
+                            Color(0xFFF9F295),
+                            Color(0xFFB88A44),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        children: [
+                          const Padding(
+                            padding: EdgeInsets.only(bottom: 8.0),
+                            child: Text(
+                              'Food/Item Bank',
+                              style: TextStyle(
+                                color: Color(0xFFA67C00),
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                          Image.asset(
+                            'assets/itemBank.png',
+                            height: 100,
+                          ),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Donate any food or item you have to MADAD centre. It will be distributed to Asnaf.',
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               color: Colors.black,

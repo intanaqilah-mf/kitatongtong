@@ -7,6 +7,9 @@ import 'package:projects/widgets/bottomNavBar.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:qr_flutter/qr_flutter.dart' as qr;
+import 'package:intl/intl.dart';
 
 File? _selectedImage;
 String? _uploadedImageUrl;
@@ -39,6 +42,10 @@ class _EventPageState extends State<EventPage> {
   int _selectedIndex = 0;
   String? _editingDocId;
   double _pointsValue = 10.0;
+  bool _isTodayBetween(DateTime start, DateTime end) {
+    final today = DateTime.now();
+    return !today.isBefore(start) && !today.isAfter(end);
+  }
 
   void _onItemTapped(int index) {
     setState(() {
@@ -308,23 +315,34 @@ class _EventPageState extends State<EventPage> {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection("event").snapshots(),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (snapshot.connectionState == ConnectionState.waiting)
           return Center(child: CircularProgressIndicator());
-        }
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty)
           return Center(
             child: Text(
               "No Events Available",
               style: TextStyle(color: Colors.white),
             ),
           );
-        }
 
         return ListView(
           padding: EdgeInsets.all(16),
           children: snapshot.data!.docs.map((doc) {
-            Map<String, dynamic> event = doc.data() as Map<String, dynamic>;
-            String docId = doc.id; // Capture the document ID
+            final event = doc.data() as Map<String, dynamic>;
+            final docId = doc.id;
+
+            // ── NEW: parse your saved strings into DateTimes ──
+            final fmt = DateFormat('dd MMM yyyy');
+            DateTime? startDate, endDate;
+            try {
+              startDate = fmt.parse(event['eventDate'] ?? '');
+              endDate   = fmt.parse(event['eventEndDate'] ?? '');
+            } catch (_) {}
+            final now = DateTime.now();
+            final isOngoing = startDate != null
+                && endDate   != null
+                && !now.isBefore(startDate)
+                && !now.isAfter(endDate);
 
             return GestureDetector(
               onTap: () {
@@ -333,87 +351,113 @@ class _EventPageState extends State<EventPage> {
                   _populateForm(event, docId);
                 });
               },
-              child: Padding(
-                padding: EdgeInsets.only(bottom: 12),
-                child: Container(
-                  padding: EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      stops: [0.16, 0.38, 0.58, 0.88],
-                      colors: [
-                        Color(0xFFF9F295),
-                        Color(0xFFE0AA3E),
-                        Color(0xFFF9F295),
-                        Color(0xFFB88A44),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (event["bannerUrl"] != null && event["bannerUrl"].isNotEmpty)
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(2),
-                          child: Image.network(
-                            event["bannerUrl"],
-                            height: 120,
-                            width: double.infinity,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                      SizedBox(height: 8),
-
-                      Center(
-                        child: Text(
-                          event["eventName"] ?? "No Name",
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black,
-                            height: 1.50,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                      SizedBox(height: 6),
-
-                      Text(
-                        "Event Name: ${event["eventName"] ?? "Unknown"}",
-                        style: TextStyle(color: Colors.black),
-                      ),
-                      Text(
-                        "Points per attendance: ${event["points"] ?? "0"}",
-                        style: TextStyle(color: Colors.black),
-                      ),
-                      Text(
-                        "Organiser's name: ${event["organiserName"] ?? "Unknown"}",
-                        style: TextStyle(color: Colors.black),
-                      ),
-                      Text(
-                        "Organiser’s Number: ${event["organiserNumber"] ?? "N/A"}",
-                        style: TextStyle(color: Colors.black),
-                      ),
-                      Text(
-                        "Location: ${event["location"] ?? "Unknown"}",
-                        style: TextStyle(color: Colors.black),
-                      ),
-                      Text(
-                        "Event Start Date: ${event["eventDate"] ?? "Unknown"}",
-                        style: TextStyle(color: Colors.black),
-                      ),
-                      Text(
-                        "Event End Date: ${event["eventEndDate"] ?? "Unknown"}",
-                        style: TextStyle(color: Colors.black),
-                      ),
-                      Text(
-                        "Attendance Code: ${event["attendanceCode"] ?? "N/A"}",
-                        style: TextStyle(color: Colors.black),
-                      ),
+              child: Container(
+                margin: EdgeInsets.only(bottom: 12),
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end:   Alignment.bottomRight,
+                    stops: [0.16, 0.38, 0.58, 0.88],
+                    colors: [
+                      Color(0xFFF9F295),
+                      Color(0xFFE0AA3E),
+                      Color(0xFFF9F295),
+                      Color(0xFFB88A44),
                     ],
                   ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (event["bannerUrl"] != null && event["bannerUrl"].isNotEmpty)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(2),
+                        child: Image.network(
+                          event["bannerUrl"],
+                          height: 120,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    SizedBox(height: 8),
+                    Center(
+                      child: Text(
+                        event["eventName"] ?? "No Name",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black,
+                          height: 1.5,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    SizedBox(height: 6),
+                    Text(
+                      "Event Name: ${event["eventName"] ?? "Unknown"}",
+                      style: TextStyle(color: Colors.black),
+                    ),
+                    Text(
+                      "Points per attendance: ${event["points"] ?? "0"}",
+                      style: TextStyle(color: Colors.black),
+                    ),
+                    Text(
+                      "Organiser's name: ${event["organiserName"] ?? "Unknown"}",
+                      style: TextStyle(color: Colors.black),
+                    ),
+                    Text(
+                      "Organiser’s Number: ${event["organiserNumber"] ?? "N/A"}",
+                      style: TextStyle(color: Colors.black),
+                    ),
+                    Text(
+                      "Location: ${event["location"] ?? "Unknown"}",
+                      style: TextStyle(color: Colors.black),
+                    ),
+
+                    // ── NEW: only show when today ∈ [startDate, endDate] ──
+                    if (isOngoing) SizedBox(height: 8),
+                    if (isOngoing)
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Color(0xFFFDB515),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        onPressed: () {
+                          showDialog(
+                            context: context,
+                            builder: (_) => AlertDialog(
+                              title: Text('Event QR Code'),
+                              // --- START OF CHANGE ---
+                              content: SizedBox( // Wrap QrImageView with SizedBox
+                                width: 200.0,
+                                height: 200.0,
+                                child: qr.QrImageView(
+                                  data: event['attendanceCode'] ?? '',
+                                  version: qr.QrVersions.auto,
+                                  size: 200.0,
+                                ),
+                              ),
+                              // --- END OF CHANGE ---
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: Text('Close'),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                        icon: Icon(Icons.qr_code, color: Colors.white),
+                        label: Text(
+                          'Generate QR Code',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             );
@@ -422,6 +466,7 @@ class _EventPageState extends State<EventPage> {
       },
     );
   }
+
 
   Widget buildCreateEventForm() {
     return Padding(

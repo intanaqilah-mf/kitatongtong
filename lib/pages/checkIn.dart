@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:projects/pages/successCheckIn.dart';
+import 'package:flutter_barcode_scanner/flutter_barcode_scanner.dart';
 
 final TextEditingController _attendanceCodeController = TextEditingController();
 final TextEditingController _eventNameController = TextEditingController();
@@ -60,6 +61,34 @@ class _checkInState extends State<checkIn> {
       _clearForm();
     }
   }
+  Future<void> _scanQRCode() async {
+    try {
+      final qrCode = await FlutterBarcodeScanner.scanBarcode(
+          '#ff6666', // Color for the scanner bar
+          'Cancel',   // Text for the cancel button
+          true,       // Show flash icon
+          ScanMode.QR // Scan mode
+      );
+
+      if (!mounted) return;
+
+      if (qrCode != '-1' && qrCode.isNotEmpty) { // '-1' is returned if the scan is cancelled
+        _attendanceCodeController.text = qrCode;
+        _fetchEventDetails(qrCode); // Fetch event details with the scanned code
+      } else {
+        // Handle case where scan was cancelled or returned no data
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("QR scan cancelled or failed.")),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error scanning QR code: $e")),
+      );
+      print("Error scanning QR: $e");
+    }
+  }
+
 
   void _fetchAsnafDetails(String nric) async {
     final trimmed = nric.trim();
@@ -160,10 +189,56 @@ class _checkInState extends State<checkIn> {
                 textAlign: TextAlign.center,
               ),
               SizedBox(height: 20),
-              buildTextField("Enter Attendance Code", "attendanceCode",
-                  _attendanceCodeController,
-                  isReadOnly: false,
-                  onChanged: (value) => _fetchEventDetails(value)),
+              Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Enter Attendance Code or Scan QR",
+                      style: TextStyle(
+                          color: Color(0xFFFDB515),
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold),
+                    ),
+                    SizedBox(height: 4),
+                    Container(
+                      decoration: BoxDecoration(
+                          color: Color(0xFFFDB515),
+                          borderRadius: BorderRadius.circular(8)),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _attendanceCodeController,
+                              onChanged: (value) {
+                                // You might want to add a debounce here if fetching on every keystroke
+                                if (value.isNotEmpty) {
+                                  _fetchEventDetails(value);
+                                } else {
+                                  _clearForm(); // Clear related fields if code is erased
+                                }
+                              },
+                              style: TextStyle(color: Colors.black),
+                              decoration: InputDecoration(
+                                border: InputBorder.none,
+                                contentPadding: EdgeInsets.all(12),
+                                hintText: "Enter code manually",
+                                hintStyle: TextStyle(color: Colors.black54),
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            icon: Icon(Icons.qr_code_scanner, color: Colors.black),
+                            onPressed: _scanQRCode,
+                            tooltip: 'Scan QR Code',
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               buildTextField(
                   "Event", "eventName", _eventNameController,
                   isReadOnly: true),
@@ -340,6 +415,7 @@ class _checkInState extends State<checkIn> {
       ),
     );
   }
+
 
   Widget buildTextField(String label, String key,
       TextEditingController controller,

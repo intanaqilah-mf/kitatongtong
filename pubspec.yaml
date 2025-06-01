@@ -52,14 +52,12 @@ dependencies:
   path_provider: ^2.1.5
   flutter_stripe: ^11.4.0
   flutter_dotenv: ^5.2.1
-  uni_links3: ^0.5.3
   webview_flutter: ^4.10.0
   firebase_messaging: ^15.2.5
   http_parser: ^4.1.2
   html: ^0.15.6
   mobile_scanner: ^6.0.10
   qr_flutter: ^4.1.0
-  flutter_barcode_scanner: ^2.0.0
 
 dev_dependencies:
   flutter_test:

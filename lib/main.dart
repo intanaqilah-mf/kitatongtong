@@ -4,7 +4,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:uni_links3/uni_links.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
@@ -47,7 +46,6 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     _initFCM();
-    _listenDeepLinks();
   }
 
   void _initFCM() async {
@@ -82,22 +80,6 @@ class _MyAppState extends State<MyApp> {
         .collection('fcmTokens')
         .doc(token);
     await ref.set({'createdAt': FieldValue.serverTimestamp()});
-  }
-
-  void _listenDeepLinks() {
-    if (kIsWeb) return;
-    _deepLinkSub = uriLinkStream.listen((Uri? uri) {
-      if (uri != null && uri.scheme == 'myapp' && uri.host == 'payment-result') {
-        final status = uri.queryParameters['status'];
-        if (status == 'success') {
-          Navigator.pushNamed(context, '/successPay');
-        } else if (status == 'fail') {
-          Navigator.pushNamed(context, '/failPay');
-        }
-      }
-    }, onError: (err) {
-      print('Deep link error: $err');
-    });
   }
 
   @override

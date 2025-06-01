@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:projects/pages/successCheckIn.dart';
-import 'package:flutter_barcode_scanner/flutter_barcode_scanner.dart';
+import 'package:projects/pages/qr_scanner_page.dart';
 
 final TextEditingController _attendanceCodeController = TextEditingController();
 final TextEditingController _eventNameController = TextEditingController();
@@ -61,34 +61,34 @@ class _checkInState extends State<checkIn> {
       _clearForm();
     }
   }
+
   Future<void> _scanQRCode() async {
     try {
-      final qrCode = await FlutterBarcodeScanner.scanBarcode(
-          '#ff6666', // Color for the scanner bar
-          'Cancel',   // Text for the cancel button
-          true,       // Show flash icon
-          ScanMode.QR // Scan mode
+      final String? qrCode = await Navigator.push<String>(
+        context,
+        MaterialPageRoute(builder: (context) => const QrScannerPage()),
       );
 
       if (!mounted) return;
 
-      if (qrCode != '-1' && qrCode.isNotEmpty) { // '-1' is returned if the scan is cancelled
+      if (qrCode != null && qrCode.isNotEmpty) {
         _attendanceCodeController.text = qrCode;
         _fetchEventDetails(qrCode); // Fetch event details with the scanned code
       } else {
-        // Handle case where scan was cancelled or returned no data
+        // This can happen if the user navigates back without scanning
+        // or if the scanner page pops with null.
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("QR scan cancelled or failed.")),
+          const SnackBar(content: Text("QR scan cancelled or no data found.")),
         );
       }
     } catch (e) {
+      // This catch block is for potential errors during navigation or if the scanner page itself has an unhandled error.
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error scanning QR code: $e")),
+        SnackBar(content: Text("Error opening QR scanner: $e")),
       );
-      print("Error scanning QR: $e");
+      print("Error opening QR scanner: $e");
     }
   }
-
 
   void _fetchAsnafDetails(String nric) async {
     final trimmed = nric.trim();

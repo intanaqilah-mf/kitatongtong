@@ -7,16 +7,16 @@ import 'package:projects/pages/email_service.dart';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+// flutter_dotenv import is no longer needed for these keys
 import 'package:projects/pages/PaymentWebview.dart';
+import 'package:projects/config/app_config.dart'; // Import AppConfig
 
-// Imports for platform-specific behavior
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
 import 'package:url_launcher/url_launcher.dart';
 
 class PayPackage extends StatefulWidget {
   final int totalQuantity;
-  final int overallAmount; // This is in RM (e.g., 10 for RM10)
+  final int overallAmount;
 
   const PayPackage({
     Key? key,
@@ -56,13 +56,15 @@ class _PayPackageState extends State<PayPackage> {
 
   Future<void> processPackagePaymentAndRedirect({
     required BuildContext context,
-    required Map<String, dynamic> donationData, // Keep for mobile's PaymentWebView
+    required Map<String, dynamic> donationData,
     required String name,
     required String email,
     required String phone,
     required String amountInCents,
   }) async {
-    final String webAppDomain = dotenv.env['WEB_APP_DOMAIN'] ?? 'http://localhost';
+    final String webAppDomain = AppConfig.getWebAppDomain();
+    final String toyyibpaySecretKey = AppConfig.getToyyibPaySecretKey();
+    final String toyyibpayCategoryCode = AppConfig.getToyyibPayCategoryCode();
     final String billExternalRef = 'TXN${DateTime.now().millisecondsSinceEpoch}';
 
     String billReturnUrl;
@@ -76,14 +78,32 @@ class _PayPackageState extends State<PayPackage> {
       billCallbackUrl = 'myapp://payment-result?status=fail';
     }
 
+    if (toyyibpaySecretKey.isEmpty || toyyibpayCategoryCode.isEmpty) {
+      print("ToyyibPay configuration (secret key or category code) is missing or empty from AppConfig.");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Payment configuration error. Please contact support.")),
+        );
+      }
+      return;
+    }
+
+    print("--- ToyyibPay Request Data (Package) ---");
+    print("userSecretKey (length): ${toyyibpaySecretKey.length > 0 ? toyyibpaySecretKey.substring(0,5)+"..." : "EMPTY"}");
+    print("categoryCode: $toyyibpayCategoryCode");
+    print("billReturnUrl: $billReturnUrl");
+    print("billCallbackUrl: $billCallbackUrl");
+    print("billAmount: $amountInCents");
+    print("--- End ToyyibPay Request Data ---");
+
     final response = await http.post(
       Uri.parse('https://toyyibpay.com/index.php/api/createBill'),
       body: {
-        'userSecretKey': dotenv.env['TOYYIBPAY_SECRET_KEY'],
-        'categoryCode': dotenv.env['TOYYIBPAY_CATEGORY_CODE'],
+        'userSecretKey': toyyibpaySecretKey,
+        'categoryCode': toyyibpayCategoryCode,
         'billName': 'Kita Tongtong Package Donation',
         'billDescription': 'Donation of ${widget.totalQuantity} package(s)',
-        'billPriceSetting': '0', // Fixed price from overallAmount
+        'billPriceSetting': '0',
         'billPayorInfo': '1',
         'billAmount': amountInCents,
         'billReturnUrl': billReturnUrl,
@@ -132,7 +152,7 @@ class _PayPackageState extends State<PayPackage> {
         }
       }
     } else {
-      print("ToyyibPay bill creation failed: ${response.body}");
+      print("ToyyibPay bill creation failed: Status ${response.statusCode} - Body: ${response.body}");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Failed to initiate payment.")),
@@ -454,10 +474,9 @@ class _PayPackageState extends State<PayPackage> {
                     'email': emailController.text.trim(),
                     'contact': contactController.text.trim(),
                     'timestamp': FieldValue.serverTimestamp(),
-                    'type': 'package' // Differentiate from amount-based donations
+                    'type': 'package'
                   };
 
-                  // Validate inputs
                   if (donationData['name'] == '' || donationData['email'] == '' || donationData['contact'] == '') {
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -479,16 +498,20 @@ class _PayPackageState extends State<PayPackage> {
 
                   if (wantsTaxExemption) {
                     try {
-                      final pdfBytes = await generatePdfBytes(
-                        name: nameController.text.trim(),
-                        email: emailController.text.trim(),
-                        amountRM: widget.overallAmount.toString(),
-                      );
-                      await sendTaxEmail(
-                        name: nameController.text.trim(),
-                        recipientEmail: emailController.text.trim(),
-                        pdfBytes: pdfBytes,
-                      );
+                      if (!kIsWeb) {
+                        final pdfBytes = await generatePdfBytes(
+                          name: nameController.text.trim(),
+                          email: emailController.text.trim(),
+                          amountRM: widget.overallAmount.toString(),
+                        );
+                        await sendTaxEmail(
+                          name: nameController.text.trim(),
+                          recipientEmail: emailController.text.trim(),
+                          pdfBytes: pdfBytes,
+                        );
+                      } else {
+                        print("Email sending via 'mailer' is not supported on web. PDF generation skipped for web in this path too.");
+                      }
                     } catch (e) {
                       print('Error sending tax email for package: $e');
                     }

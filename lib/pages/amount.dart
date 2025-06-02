@@ -6,10 +6,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:projects/pages/email_service.dart';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
-import 'package:url_launcher/url_launcher.dart';
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:projects/pages/PaymentWebview.dart';
+
+// Imports for platform-specific behavior
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:url_launcher/url_launcher.dart';
 
 class AmountPage extends StatefulWidget {
   const AmountPage({super.key});
@@ -22,7 +25,6 @@ class _AmountPageState extends State<AmountPage> {
   @override
   void initState() {
     super.initState();
-
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       FirebaseFirestore.instance.collection('users').doc(user.uid).get().then((doc) {
@@ -36,43 +38,28 @@ class _AmountPageState extends State<AmountPage> {
     }
   }
 
-  void generateAndSendPDF({required String name, required String email, required String amount}) async {
-    final pdf = pw.Document();
-    final now = DateTime.now();
-
-    pdf.addPage(
-      pw.Page(
-        build: (pw.Context context) => pw.Center(
-          child: pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Text("Tax Exemption Receipt", style: pw.TextStyle(fontSize: 24)),
-              pw.SizedBox(height: 20),
-              pw.Text("To: $name"),
-              pw.Text("Email: $email"),
-              pw.Text("Date: ${now.toLocal()}"),
-              pw.SizedBox(height: 20),
-              pw.Text("Thank you for your kind donation of RM $amount."),
-              pw.Text("This letter serves as official acknowledgment for tax exemption purposes."),
-              pw.SizedBox(height: 20),
-              pw.Text("Issued by: Your Organization"),
-            ],
-          ),
-        ),
-      ),
-    );
-
-    final bytes = await pdf.save();
-}
-
-  Future<void> redirectToToyyibPayWebView({
+  Future<void> processPaymentAndRedirect({
     required BuildContext context,
     required Map<String, dynamic> donationData,
     required String name,
     required String email,
     required String phone,
-    required String amount, // amount in "cents" (as a string, e.g. "1000")
+    required String amountInCents,
   }) async {
+    final String webAppDomain = dotenv.env['WEB_APP_DOMAIN'] ?? 'http://localhost';
+    final String billExternalRef = 'TXN${DateTime.now().millisecondsSinceEpoch}';
+
+    String billReturnUrl;
+    String billCallbackUrl;
+
+    if (kIsWeb) {
+      billReturnUrl = '$webAppDomain/payment-redirect';
+      billCallbackUrl = '$webAppDomain/payment-callback-server'; // Server-side verification
+    } else {
+      billReturnUrl = 'myapp://payment-result?status=success';
+      billCallbackUrl = 'myapp://payment-result?status=fail';
+    }
+
     final response = await http.post(
       Uri.parse('https://toyyibpay.com/index.php/api/createBill'),
       body: {
@@ -82,11 +69,10 @@ class _AmountPageState extends State<AmountPage> {
         'billDescription': 'Donation to Asnaf Program',
         'billPriceSetting': '1',
         'billPayorInfo': '1',
-        'billAmount': amount, // amount in cents
-        // Use your custom deep link URLs in both fields:
-        'billReturnUrl': 'myapp://payment-result?status=success',
-        'billCallbackUrl': 'myapp://payment-result?status=fail',
-        'billExternalReferenceNo': 'TXN${DateTime.now().millisecondsSinceEpoch}',
+        'billAmount': amountInCents,
+        'billReturnUrl': billReturnUrl,
+        'billCallbackUrl': billCallbackUrl,
+        'billExternalReferenceNo': billExternalRef,
         'billTo': name,
         'billEmail': email,
         'billPhone': phone,
@@ -97,21 +83,45 @@ class _AmountPageState extends State<AmountPage> {
     );
 
     if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      final billCode = data[0]['BillCode'];
-      final url = 'https://toyyibpay.com/$billCode';
-      // Instead of launching an external browser, navigate to our PaymentWebView
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => PaymentWebView(paymentUrl: url, donationData: donationData),
-        ),
-      );
+      final dynamic data = jsonDecode(response.body);
+      if (data is List && data.isNotEmpty && data[0]['BillCode'] != null) {
+        final billCode = data[0]['BillCode'];
+        final paymentGatewayUrl = 'https://toyyibpay.com/$billCode';
+
+        if (kIsWeb) {
+          if (!await launchUrl(Uri.parse(paymentGatewayUrl))) {
+            print("Could not launch $paymentGatewayUrl");
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("Could not open payment page.")),
+              );
+            }
+          }
+        } else {
+          if (mounted) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => PaymentWebView(paymentUrl: paymentGatewayUrl, donationData: donationData),
+              ),
+            );
+          }
+        }
+      } else {
+        print("ToyyibPay bill creation successful, but response format unexpected: ${response.body}");
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Payment initiation error. Please try again.")),
+          );
+        }
+      }
     } else {
       print("ToyyibPay bill creation failed: ${response.body}");
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Failed to initiate payment.")),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Failed to initiate payment.")),
+        );
+      }
     }
   }
 
@@ -121,7 +131,7 @@ class _AmountPageState extends State<AmountPage> {
       _selectedIndex = index;
     });
   }
-  final Map<String, dynamic> formData = {};
+
   final TextEditingController nameController = TextEditingController();
   final TextEditingController emailController = TextEditingController();
   final TextEditingController otherAmountController = TextEditingController();
@@ -141,34 +151,39 @@ class _AmountPageState extends State<AmountPage> {
       onTap: () {
         setState(() {
           selectedAmount = label;
+          if (isOther) {
+            // Optionally focus the text field
+          }
         });
       },
       child: Container(
-        height: 50,
+        height: 50, // Consistent height
+        width: 100, // Consistent width
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: isSelected ? const Color(0xFFFDB515) : const Color(0xFFFFCF40),
           borderRadius: BorderRadius.circular(10),
         ),
-        child: isOther && selectedAmount == 'Other'
+        child: isOther && isSelected // Show TextField only if 'Other' is selected
             ? Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8.0),
           child: TextField(
             controller: otherAmountController,
             keyboardType: TextInputType.number,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: Color(0xFFA67C00)),
+            autofocus: true, // Autofocus when 'Other' is selected
+            style: const TextStyle(color: Color(0xFFA67C00), fontWeight: FontWeight.bold, fontSize: 18),
             decoration: const InputDecoration(
               border: InputBorder.none,
-              hintText: 'Enter amount',
-              hintStyle: TextStyle(color: Color(0xFFA67C00)),
+              hintText: 'Amount',
+              hintStyle: TextStyle(color: Color(0xFFA67C00), fontWeight: FontWeight.normal),
             ),
           ),
         )
             : Text(
           label,
           style: TextStyle(
-            color: isSelected ? Colors.white : Color(0xFFA67C00),
+            color: isSelected ? Colors.white : const Color(0xFFA67C00),
             fontWeight: FontWeight.bold,
             fontSize: 18,
           ),
@@ -197,6 +212,8 @@ class _AmountPageState extends State<AmountPage> {
   Future<Uint8List> generatePdfBytes({required String name, required String email, required String amount}) async {
     final pdf = pw.Document();
     final now = DateTime.now();
+    final String formattedAmount = double.tryParse(amount)?.toStringAsFixed(2) ?? amount;
+
 
     pdf.addPage(
       pw.Page(
@@ -204,16 +221,19 @@ class _AmountPageState extends State<AmountPage> {
           child: pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Text("Tax Exemption Receipt", style: pw.TextStyle(fontSize: 24)),
+              pw.Text("Tax Exemption Receipt", style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold)),
               pw.SizedBox(height: 20),
               pw.Text("To: $name"),
               pw.Text("Email: $email"),
-              pw.Text("Date: ${now.toLocal()}"),
+              pw.Text("Date: ${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}"),
               pw.SizedBox(height: 20),
-              pw.Text("Thank you for your kind donation of RM $amount."),
+              pw.Text("Thank you for your kind donation of RM $formattedAmount."),
               pw.Text("This letter serves as official acknowledgment for tax exemption purposes."),
-              pw.SizedBox(height: 20),
-              pw.Text("Issued by: Your Organization"),
+              pw.SizedBox(height: 40),
+              pw.Text("Issued by: Kita Tongtong Organization"), // Replace with actual organization name
+              pw.SizedBox(height: 10),
+              pw.Text("Reg. No: XXXXXX-X"), // Replace with actual registration number
+              pw.Text("Address: 123 Charity Lane, Kuala Lumpur, Malaysia"), // Replace with actual address
             ],
           ),
         ),
@@ -222,12 +242,15 @@ class _AmountPageState extends State<AmountPage> {
     return pdf.save();
   }
 
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF1C1C1C),
       appBar: AppBar(
+        title: const Text('Donate by Amount', style: TextStyle(color: Color(0xFFFDB515))),
         backgroundColor: const Color(0xFF1C1C1C),
+        iconTheme: const IconThemeData(color: Color(0xFFFDB515)),
         elevation: 0,
       ),
       body: SingleChildScrollView(
@@ -248,15 +271,10 @@ class _AmountPageState extends State<AmountPage> {
               spacing: 12,
               runSpacing: 12,
               alignment: WrapAlignment.center,
-              children: ['10', '20', '30', '50', 'Other'].map((label) {
-                return SizedBox(
-                  width: 100, // adjust width here
-                  height: 60, // adjust height here
-                  child: buildAmountBox(label),
-                );
-              }).toList(),
+              children: ['10', '20', '30', '50', 'Other']
+                  .map((label) => buildAmountBox(label))
+                  .toList(),
             ),
-
             const SizedBox(height: 20),
             const Text(
               "Donor’s information",
@@ -311,7 +329,7 @@ class _AmountPageState extends State<AmountPage> {
                 ),
                 child: DropdownButton<String>(
                   value: selectedSalutation,
-                  hint: const Text("Select", style: TextStyle(color: Colors.black)),
+                  hint: const Text("Select", style: TextStyle(color: Colors.black54)),
                   isExpanded: true,
                   underline: Container(),
                   dropdownColor: const Color(0xFFFFCF40),
@@ -336,11 +354,13 @@ class _AmountPageState extends State<AmountPage> {
                   color: const Color(0xFFFFCF40),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child:  TextField(
+                child: TextField(
                   controller: nameController,
-                  decoration: InputDecoration(
+                  style: const TextStyle(color: Colors.black),
+                  decoration: const InputDecoration(
                     border: InputBorder.none,
                     hintText: 'Enter full name',
+                    hintStyle: TextStyle(color: Colors.black54),
                   ),
                 ),
               ),
@@ -354,10 +374,12 @@ class _AmountPageState extends State<AmountPage> {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: TextField(
-                  controller: emailController ,
-                  decoration: InputDecoration(
+                  controller: emailController,
+                  style: const TextStyle(color: Colors.black),
+                  decoration: const InputDecoration(
                     border: InputBorder.none,
                     hintText: 'Enter email',
+                    hintStyle: TextStyle(color: Colors.black54),
                   ),
                 ),
               ),
@@ -365,7 +387,7 @@ class _AmountPageState extends State<AmountPage> {
             buildFormInput(
               'Contact Number',
               Container(
-                height: 40,
+                height: 50, // Increased height for better tapability
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFCF40),
                   borderRadius: BorderRadius.circular(10),
@@ -373,25 +395,32 @@ class _AmountPageState extends State<AmountPage> {
                 child: Row(
                   children: [
                     const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 8.0),
+                      padding: EdgeInsets.symmetric(horizontal: 12.0), // Consistent padding
                       child: Text(
                         "+60",
                         style: TextStyle(
-                          fontSize: 14,
+                          fontSize: 16, // Slightly larger
                           fontWeight: FontWeight.bold,
                           color: Colors.black,
                         ),
                       ),
                     ),
-                    const VerticalDivider(color: Colors.black, thickness: 1),
+                    Container(
+                        height: 30, // Define height for the divider
+                        child: const VerticalDivider(color: Colors.black54, thickness: 1)
+                    ),
                     Expanded(
-                      child: TextField(
-                        controller: contactController,
-                        keyboardType: TextInputType.phone,
-                        decoration: const InputDecoration(
-                          border: InputBorder.none,
-                          contentPadding: EdgeInsets.all(8),
-                          hintText: "Enter your mobile number",
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 8.0, right: 12.0), // Padding for text field
+                        child: TextField(
+                          controller: contactController,
+                          keyboardType: TextInputType.phone,
+                          style: const TextStyle(color: Colors.black, fontSize: 16),
+                          decoration: const InputDecoration(
+                            border: InputBorder.none,
+                            hintText: "Enter mobile number",
+                            hintStyle: TextStyle(color: Colors.black54),
+                          ),
                         ),
                       ),
                     ),
@@ -415,7 +444,6 @@ class _AmountPageState extends State<AmountPage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Card box
                 Container(
                   width: 100,
                   padding: const EdgeInsets.all(8),
@@ -436,7 +464,6 @@ class _AmountPageState extends State<AmountPage> {
                   ),
                 ),
                 const SizedBox(width: 16),
-                // FPX box
                 Container(
                   width: 100,
                   padding: const EdgeInsets.all(8),
@@ -464,44 +491,64 @@ class _AmountPageState extends State<AmountPage> {
               height: 45,
               child: ElevatedButton(
                 onPressed: () async {
-                  final rawAmount = selectedAmount == 'Other'
-                      ? otherAmountController.text
-                      : selectedAmount;
+                  final String rawAmountString = selectedAmount == 'Other'
+                      ? otherAmountController.text.trim()
+                      : selectedAmount ?? "";
 
-                  if (rawAmount == null || rawAmount.isEmpty) return;
+                  if (rawAmountString.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Please select or enter an amount.')),
+                    );
+                    return;
+                  }
 
-                  // Multiply by 100 to convert to cents
-                  final int amountInCents = (double.parse(rawAmount) * 100).round();
+                  double? parsedAmount = double.tryParse(rawAmountString);
+                  if (parsedAmount == null || parsedAmount <= 0) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Please enter a valid amount.')),
+                    );
+                    return;
+                  }
+
+                  final int amountInCents = (parsedAmount * 100).round();
 
                   final donationData = {
-                    'amount': rawAmount,
-                    'designation': selectedSalutation,
-                    'name': nameController.text,
-                    'email': emailController.text,
-                    'contact': contactController.text,
+                    'amount': parsedAmount.toStringAsFixed(2), // Store as string "10.00"
+                    'designation': selectedSalutation ?? '',
+                    'name': nameController.text.trim(),
+                    'email': emailController.text.trim(),
+                    'contact': contactController.text.trim(),
                     'timestamp': FieldValue.serverTimestamp(),
                   };
 
+                  // Validate inputs
+                  if (donationData['name'] == '' || donationData['email'] == '' || donationData['contact'] == '') {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Please fill in all donor details.')),
+                    );
+                    return;
+                  }
+
                   await FirebaseFirestore.instance.collection('donation').add(donationData);
-                  final now = DateTime.now();
+
                   await FirebaseFirestore.instance
                       .collection('notifications')
                       .add({
-                    'createdAt': FieldValue.serverTimestamp(),        // ← normalized timestamp
-                    'recipientRole': 'Admin',                         // ← same key as applyAid
-                    'message': 'Donor ${nameController.text} donated RM $rawAmount',
+                    'createdAt': FieldValue.serverTimestamp(),
+                    'recipientRole': 'Admin',
+                    'message': 'Donor ${nameController.text.trim()} donated RM ${parsedAmount.toStringAsFixed(2)}',
                   });
 
                   if (wantsTaxExemption) {
                     try {
                       final pdfBytes = await generatePdfBytes(
-                        name: nameController.text,
-                        email: emailController.text,
-                        amount: rawAmount,
+                        name: nameController.text.trim(),
+                        email: emailController.text.trim(),
+                        amount: parsedAmount.toStringAsFixed(2),
                       );
                       await sendTaxEmail(
-                        name: nameController.text,
-                        recipientEmail: emailController.text,
+                        name: nameController.text.trim(),
+                        recipientEmail: emailController.text.trim(),
                         pdfBytes: pdfBytes,
                       );
                     } catch (e) {
@@ -509,20 +556,21 @@ class _AmountPageState extends State<AmountPage> {
                     }
                   }
 
-                  await redirectToToyyibPayWebView(
+                  await processPaymentAndRedirect(
                     context: context,
                     donationData: donationData,
-                    name: nameController.text,
-                    email: emailController.text,
-                    phone: contactController.text,
-                    amount: amountInCents.toString(),  // pass the amount in cents string
+                    name: nameController.text.trim(),
+                    email: emailController.text.trim(),
+                    phone: contactController.text.trim(),
+                    amountInCents: amountInCents.toString(),
                   );
 
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Donation submitted successfully!')),
-                  );
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Donation processing... Please follow payment instructions.')),
+                    );
+                  }
                 },
-
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFEFBF04),
                   shape: RoundedRectangleBorder(
@@ -537,7 +585,6 @@ class _AmountPageState extends State<AmountPage> {
                   ),
                 ),
               ),
-
             ),
             const SizedBox(height: 40),
           ],

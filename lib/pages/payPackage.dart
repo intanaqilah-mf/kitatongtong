@@ -10,9 +10,13 @@ import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:projects/pages/PaymentWebview.dart';
 
+// Imports for platform-specific behavior
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:url_launcher/url_launcher.dart';
+
 class PayPackage extends StatefulWidget {
   final int totalQuantity;
-  final int overallAmount;
+  final int overallAmount; // This is in RM (e.g., 10 for RM10)
 
   const PayPackage({
     Key? key,
@@ -25,25 +29,18 @@ class PayPackage extends StatefulWidget {
 }
 
 class _PayPackageState extends State<PayPackage> {
-  // Controllers for donor's information
   final TextEditingController nameController = TextEditingController();
   final TextEditingController emailController = TextEditingController();
   final TextEditingController contactController = TextEditingController();
 
-  // Variables for donor designation and tax exemption option
   String? selectedSalutation;
   bool wantsTaxExemption = false;
-
-  // Predefined list of salutations
   final List<String> salutations = ['Mr.', 'Ms.', 'Mrs.', 'Dr.', 'Prof.'];
-
   int _selectedIndex = 0;
 
   @override
   void initState() {
     super.initState();
-
-    // Pre-fill donor info if user is available, similar to amount.dart
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       FirebaseFirestore.instance.collection('users').doc(user.uid).get().then((doc) {
@@ -56,28 +53,42 @@ class _PayPackageState extends State<PayPackage> {
       });
     }
   }
-  Future<void> redirectToToyyibPayWebView({
+
+  Future<void> processPackagePaymentAndRedirect({
     required BuildContext context,
-    required Map<String, dynamic> donationData,
+    required Map<String, dynamic> donationData, // Keep for mobile's PaymentWebView
     required String name,
     required String email,
     required String phone,
-    required String amount, // amount in "cents" (as a string, e.g. "1000")
+    required String amountInCents,
   }) async {
+    final String webAppDomain = dotenv.env['WEB_APP_DOMAIN'] ?? 'http://localhost';
+    final String billExternalRef = 'TXN${DateTime.now().millisecondsSinceEpoch}';
+
+    String billReturnUrl;
+    String billCallbackUrl;
+
+    if (kIsWeb) {
+      billReturnUrl = '$webAppDomain/payment-redirect';
+      billCallbackUrl = '$webAppDomain/payment-callback-server';
+    } else {
+      billReturnUrl = 'myapp://payment-result?status=success';
+      billCallbackUrl = 'myapp://payment-result?status=fail';
+    }
+
     final response = await http.post(
       Uri.parse('https://toyyibpay.com/index.php/api/createBill'),
       body: {
         'userSecretKey': dotenv.env['TOYYIBPAY_SECRET_KEY'],
         'categoryCode': dotenv.env['TOYYIBPAY_CATEGORY_CODE'],
-        'billName': 'Kita Tongtong Donation',
-        'billDescription': 'Donation to Asnaf Program',
-        'billPriceSetting': '1',
+        'billName': 'Kita Tongtong Package Donation',
+        'billDescription': 'Donation of ${widget.totalQuantity} package(s)',
+        'billPriceSetting': '0', // Fixed price from overallAmount
         'billPayorInfo': '1',
-        'billAmount': amount, // amount in cents
-        // Use your custom deep link URLs in both fields:
-        'billReturnUrl': 'myapp://payment-result?status=success',
-        'billCallbackUrl': 'myapp://payment-result?status=fail',
-        'billExternalReferenceNo': 'TXN${DateTime.now().millisecondsSinceEpoch}',
+        'billAmount': amountInCents,
+        'billReturnUrl': billReturnUrl,
+        'billCallbackUrl': billCallbackUrl,
+        'billExternalReferenceNo': billExternalRef,
         'billTo': name,
         'billEmail': email,
         'billPhone': phone,
@@ -88,25 +99,49 @@ class _PayPackageState extends State<PayPackage> {
     );
 
     if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      final billCode = data[0]['BillCode'];
-      final url = 'https://toyyibpay.com/$billCode';
-      // Instead of launching an external browser, navigate to our PaymentWebView
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => PaymentWebView(paymentUrl: url, donationData: donationData),
-        ),
-      );
+      final dynamic data = jsonDecode(response.body);
+      if (data is List && data.isNotEmpty && data[0]['BillCode'] != null) {
+        final billCode = data[0]['BillCode'];
+        final paymentGatewayUrl = 'https://toyyibpay.com/$billCode';
+
+        if (kIsWeb) {
+          if (!await launchUrl(Uri.parse(paymentGatewayUrl))) {
+            print("Could not launch $paymentGatewayUrl");
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("Could not open payment page.")),
+              );
+            }
+          }
+        } else {
+          if (mounted) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => PaymentWebView(paymentUrl: paymentGatewayUrl, donationData: donationData),
+              ),
+            );
+          }
+        }
+      } else {
+        print("ToyyibPay bill creation successful, but response format unexpected: ${response.body}");
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Payment initiation error. Please try again.")),
+          );
+        }
+      }
     } else {
       print("ToyyibPay bill creation failed: ${response.body}");
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Failed to initiate payment.")),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Failed to initiate payment.")),
+        );
+      }
     }
   }
 
-  Future<Uint8List> generatePdfBytes({required String name, required String email, required String amount}) async {
+  Future<Uint8List> generatePdfBytes({required String name, required String email, required String amountRM}) async {
     final pdf = pw.Document();
     final now = DateTime.now();
 
@@ -116,16 +151,19 @@ class _PayPackageState extends State<PayPackage> {
           child: pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Text("Tax Exemption Receipt", style: pw.TextStyle(fontSize: 24)),
+              pw.Text("Tax Exemption Receipt", style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold)),
               pw.SizedBox(height: 20),
               pw.Text("To: $name"),
               pw.Text("Email: $email"),
-              pw.Text("Date: ${now.toLocal()}"),
+              pw.Text("Date: ${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}"),
               pw.SizedBox(height: 20),
-              pw.Text("Thank you for your kind donation of RM $amount."),
+              pw.Text("Thank you for your kind donation of RM $amountRM for ${widget.totalQuantity} package(s)."),
               pw.Text("This letter serves as official acknowledgment for tax exemption purposes."),
-              pw.SizedBox(height: 20),
-              pw.Text("Issued by: MADAD"),
+              pw.SizedBox(height: 40),
+              pw.Text("Issued by: Kita Tongtong Organization"),
+              pw.SizedBox(height: 10),
+              pw.Text("Reg. No: XXXXXX-X"),
+              pw.Text("Address: 123 Charity Lane, Kuala Lumpur, Malaysia"),
             ],
           ),
         ),
@@ -134,7 +172,6 @@ class _PayPackageState extends State<PayPackage> {
     return pdf.save();
   }
 
-  // Helper widget for a labeled input field
   Widget buildFormInput(String label, Widget inputField) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -155,30 +192,39 @@ class _PayPackageState extends State<PayPackage> {
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
-      // Navigation logic if needed.
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    // In this version, the overall donation amount is passed from PackagePage (widget.overallAmount)
-    // and no explicit amount selection UI is needed.
     return Scaffold(
       backgroundColor: const Color(0xFF1C1C1C),
       appBar: AppBar(
+        title: const Text('Donate Package', style: TextStyle(color: Color(0xFFFDB515))),
         backgroundColor: const Color(0xFF1C1C1C),
+        iconTheme: const IconThemeData(color: Color(0xFFFDB515)),
         elevation: 0,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            const Text(
-              'Help Asnaf by Package',
-              style: TextStyle(
+            Text(
+              'Help Asnaf by Package (${widget.totalQuantity} selected)',
+              style: const TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
                 color: Color(0xFFFDB515),
+              ),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Total Amount: RM ${widget.overallAmount}',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
               ),
               textAlign: TextAlign.center,
             ),
@@ -209,9 +255,7 @@ class _PayPackageState extends State<PayPackage> {
                       groupValue: wantsTaxExemption,
                       activeColor: const Color(0xFFFDB515),
                       onChanged: (value) {
-                        setState(() {
-                          wantsTaxExemption = true;
-                        });
+                        setState(() => wantsTaxExemption = true);
                       },
                     ),
                     const Text("Yes", style: TextStyle(color: Colors.white)),
@@ -220,9 +264,7 @@ class _PayPackageState extends State<PayPackage> {
                       groupValue: wantsTaxExemption,
                       activeColor: const Color(0xFFFDB515),
                       onChanged: (value) {
-                        setState(() {
-                          wantsTaxExemption = false;
-                        });
+                        setState(() => wantsTaxExemption = false);
                       },
                     ),
                     const Text("No", style: TextStyle(color: Colors.white)),
@@ -240,7 +282,7 @@ class _PayPackageState extends State<PayPackage> {
                 ),
                 child: DropdownButton<String>(
                   value: selectedSalutation,
-                  hint: const Text("Select", style: TextStyle(color: Colors.black)),
+                  hint: const Text("Select", style: TextStyle(color: Colors.black54)),
                   isExpanded: true,
                   underline: Container(),
                   dropdownColor: const Color(0xFFFFCF40),
@@ -252,9 +294,7 @@ class _PayPackageState extends State<PayPackage> {
                     );
                   }).toList(),
                   onChanged: (value) {
-                    setState(() {
-                      selectedSalutation = value;
-                    });
+                    setState(() => selectedSalutation = value);
                   },
                 ),
               ),
@@ -269,9 +309,11 @@ class _PayPackageState extends State<PayPackage> {
                 ),
                 child: TextField(
                   controller: nameController,
+                  style: const TextStyle(color: Colors.black),
                   decoration: const InputDecoration(
                     border: InputBorder.none,
                     hintText: 'Enter full name',
+                    hintStyle: TextStyle(color: Colors.black54),
                   ),
                 ),
               ),
@@ -286,9 +328,11 @@ class _PayPackageState extends State<PayPackage> {
                 ),
                 child: TextField(
                   controller: emailController,
+                  style: const TextStyle(color: Colors.black),
                   decoration: const InputDecoration(
                     border: InputBorder.none,
                     hintText: 'Enter email',
+                    hintStyle: TextStyle(color: Colors.black54),
                   ),
                 ),
               ),
@@ -296,7 +340,7 @@ class _PayPackageState extends State<PayPackage> {
             buildFormInput(
               'Contact Number',
               Container(
-                height: 40,
+                height: 50,
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFCF40),
                   borderRadius: BorderRadius.circular(10),
@@ -304,25 +348,32 @@ class _PayPackageState extends State<PayPackage> {
                 child: Row(
                   children: [
                     const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 8.0),
+                      padding: EdgeInsets.symmetric(horizontal: 12.0),
                       child: Text(
                         "+60",
                         style: TextStyle(
-                          fontSize: 14,
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
                           color: Colors.black,
                         ),
                       ),
                     ),
-                    const VerticalDivider(color: Colors.black, thickness: 1),
+                    Container(
+                        height: 30,
+                        child: const VerticalDivider(color: Colors.black54, thickness: 1)
+                    ),
                     Expanded(
-                      child: TextField(
-                        controller: contactController,
-                        keyboardType: TextInputType.phone,
-                        decoration: const InputDecoration(
-                          border: InputBorder.none,
-                          contentPadding: EdgeInsets.all(8),
-                          hintText: "Enter your mobile number",
+                      child: Padding(
+                        padding: const EdgeInsets.only(left:8.0, right: 12.0),
+                        child: TextField(
+                          controller: contactController,
+                          keyboardType: TextInputType.phone,
+                          style: const TextStyle(color: Colors.black, fontSize: 16),
+                          decoration: const InputDecoration(
+                            border: InputBorder.none,
+                            hintText: "Enter mobile number",
+                            hintStyle: TextStyle(color: Colors.black54),
+                          ),
                         ),
                       ),
                     ),
@@ -346,7 +397,6 @@ class _PayPackageState extends State<PayPackage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Card box
                 Container(
                   width: 100,
                   padding: const EdgeInsets.all(8),
@@ -367,7 +417,6 @@ class _PayPackageState extends State<PayPackage> {
                   ),
                 ),
                 const SizedBox(width: 16),
-                // FPX box
                 Container(
                   width: 100,
                   padding: const EdgeInsets.all(8),
@@ -395,60 +444,69 @@ class _PayPackageState extends State<PayPackage> {
               height: 45,
               child: ElevatedButton(
                 onPressed: () async {
-                  print("Donate Now pressed");
-
-                  final donationAmount = (widget.overallAmount * 100).toString();  // RM10 → "1000"
+                  final String amountInCents = (widget.overallAmount * 100).toString();
 
                   final donationData = {
-                    'amount': donationAmount,
-                    'designation': selectedSalutation,
-                    'name': nameController.text,
-                    'email': emailController.text,
-                    'contact': contactController.text,
+                    'amount': widget.overallAmount.toString(), // RM amount
+                    'totalQuantity': widget.totalQuantity,
+                    'designation': selectedSalutation ?? '',
+                    'name': nameController.text.trim(),
+                    'email': emailController.text.trim(),
+                    'contact': contactController.text.trim(),
                     'timestamp': FieldValue.serverTimestamp(),
+                    'type': 'package' // Differentiate from amount-based donations
                   };
 
+                  // Validate inputs
+                  if (donationData['name'] == '' || donationData['email'] == '' || donationData['contact'] == '') {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Please fill in all donor details.')),
+                      );
+                    }
+                    return;
+                  }
+
                   await FirebaseFirestore.instance.collection('donation').add(donationData);
-                  final now = DateTime.now();
+
                   await FirebaseFirestore.instance
                       .collection('notifications')
                       .add({
-                    'date': now.toIso8601String(),
-                    'role': 'Admin',
-                    'message':
-                    'Donor ${nameController.text} donated RM ${widget.overallAmount}',
+                    'createdAt': FieldValue.serverTimestamp(),
+                    'recipientRole': 'Admin',
+                    'message': 'Donor ${nameController.text.trim()} donated RM ${widget.overallAmount} via package.',
                   });
 
                   if (wantsTaxExemption) {
                     try {
                       final pdfBytes = await generatePdfBytes(
-                        name: nameController.text,
-                        email: emailController.text,
-                        amount: donationAmount,
+                        name: nameController.text.trim(),
+                        email: emailController.text.trim(),
+                        amountRM: widget.overallAmount.toString(),
                       );
-                      print("PDF generated, bytes length: ${pdfBytes.length}");
-
                       await sendTaxEmail(
-                        name: nameController.text,
-                        recipientEmail: emailController.text,
+                        name: nameController.text.trim(),
+                        recipientEmail: emailController.text.trim(),
                         pdfBytes: pdfBytes,
                       );
                     } catch (e) {
-                      print('Error sending tax email: $e');
+                      print('Error sending tax email for package: $e');
                     }
                   }
-                  await redirectToToyyibPayWebView(
+
+                  await processPackagePaymentAndRedirect(
                     context: context,
                     donationData: donationData,
-                    name: nameController.text,
-                    email: emailController.text,
-                    phone: contactController.text,
-                    amount: donationAmount,  // pass the amount in cents string
+                    name: nameController.text.trim(),
+                    email: emailController.text.trim(),
+                    phone: contactController.text.trim(),
+                    amountInCents: amountInCents,
                   );
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Donation submitted successfully!')),
-                  );
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Donation processing... Please follow payment instructions.')),
+                    );
+                  }
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFEFBF04),

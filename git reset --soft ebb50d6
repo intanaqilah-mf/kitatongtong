@@ -1,0 +1,117 @@
+[33mebb50d6[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mtesting[m[33m, [m[1;31morigin/testing[m[33m, [m[1;32mmaster[m[33m)[m payment in phone is better
+[33m2822e5b[m resolving payment
+[33mda2a982[m unstable but qr is good
+[33m70e3b2e[m resolving qr code UI
+[33m1849c7b[m adding pic logo
+[33m3e13342[m adding points slider
+[33mceb2c2b[m add food/item bank
+[33md08e941[m adding pic AI generator
+[33meec3c72[m adding pic AI generator
+[33ma7164df[m adding price validation func
+[33m9d01660[m[33m ([m[1;31morigin/master[m[33m)[m notification is stsill in testing mode
+[33m6dcef27[m adding stacked table for application status and track order
+[33m0f41fc0[m fixing the bugs in rewards page finally
+[33m859cf98[m resolving bugs for reward list
+[33m9606ed9[m most stable in rewards
+[33m3190e22[m resolving the rewards issue granted from admin
+[33mcf14b48[m resolve bugs of monitoring applications
+[33m527c256[m fixing bugs in rewards page of points
+[33meeb59f1[m adding submitted y column in the application card
+[33m3065d4c[m resolving bugs at home page
+[33mbf3114d[m resolving bugs for signed url
+[33m72dce73[m resolving bugs in displaying applicants card
+[33m45ea80b[m resolving filter issue
+[33me4e197a[m adding manage user screen
+[33mac0deb4[m Remove .env from repo and add to .gitignore
+[33mcf53f61[m Remove .env from repo and add to .gitignore
+[33md313b97[m adding payment gateway
+[33m34f70d9[m adding email logic
+[33m0378414[m adding pic AI generator
+[33m7b3a3a1[m adding donors module
+[33m4c5d213[m adding pic AI generator
+[33m9997678[m adding pic AI generator
+[33m76739bb[m adding pic AI generator
+[33m4885da1[m adding track order and process order
+[33m6834f82[m adding pic AI generator
+[33m4c8a1c5[m adding pic AI generator
+[33md0f8ba4[m adding pic AI generator
+[33mf880c77[m adding pic AI generator
+[33m9ae7db6[m adding pic AI generator
+[33md41a468[m adding pic AI generator
+[33m0c2a28b[m adding pic AI generator
+[33m1fa28c7[m adding pickup item
+[33m685b000[m adding pic AI generator
+[33m5906aaa[m adding package kasih to be redeemed page but beware, theres logical error at points voucher when change sliders
+[33mc3f28aa[m cukupla utk hrini
+[33m0d305b7[m redeeming cash voucher using covertible points
+[33md12f3c9[m Ignore functions/index.js
+[33m9dedd77[m Merge remote-tracking branch 'origin/master'
+[33m80af28f[m adding pic AI generator
+[33m76c5535[m adding pic AI generator
+[33m13f917e[m adding pic AI generator
+[33m17dc189[m adding assets
+[33m2d74781[m adding assets
+[33mcf9d190[m fixing the points voucher logic
+[33m7f75aa5[m adding stock item
+[33mcbe4875[m adding assets
+[33m1c3d96f[m adding assets
+[33m3d129c4[m adding assets
+[33mc7cf25e[m adding assets
+[33m7c799b2[m adding assets
+[33mc4f9f1a[m perfecting the statusApplication page
+[33m87210c0[m adding application status
+[33mfc45d7f[m adding assets
+[33mc1c95dc[m completing list event at homepage
+[33mb71d687[m correcting the event section
+[33m2698382[m adding list events at homepage
+[33m4bf092b[m perfecting event section
+[33md1f87d2[m adding banner
+[33m609b05f[m adding view list
+[33ma3839fd[m adding events page
+[33m7be7bb9[m perfecting the UI for stacked table
+[33mb53d923[m adding voucher issuance page
+[33mf6e199b[m adding button approve or disapprove and perfecting the verify application UI
+[33m02b2921[m passing arguments from verify application to screening apllicants
+[33mdb8347f[m adding screening applicants
+[33m606726b[m Correcting the UI of verify applications
+[33m1f7762d[m Delete migrateData.js
+[33md4d0fa7[m adding verify applications
+[33m6682ee8[m Updated .gitignore to exclude serviceAccountKey.json
+[33m32c647e[m correcting the cache
+[33mcf5bd44[m updating shared preference and firebase storage
+[33m944bfe2[m adding icon
+[33md5c7ff1[m refining RBAC
+[33m0b9fcca[m prob with rbac
+[33m68631bf[m fetch data from asnafInfo for saving the time in key-in the personal details
+[33m6eb2c25[m auto save profile for Asnaf
+[33mcffa0c8[m profile pic editable
+[33m26914f7[m editable rows in profil epage
+[33m7f6060c[m refine the oauth
+[33m5b6e162[m adding gmail oauth
+[33m546cff2[m add login page
+[33mb0f58d1[m add personal details page
+[33m30f907e[m add success page
+[33m7932885[m done for today
+[33m92515c5[m Adding firebase
+[33mc50d15f[m refine the UI
+[33m241bfc9[m Adding 5th page
+[33m4367905[m wrap file name
+[33mba16631[m refine file uploade
+[33m8b16d6e[m Add file path when uploading file
+[33mb69b7e6[m add logic reupload files
+[33m7f08d74[m add pdf viewer
+[33m40cac04[m add more
+[33mdc896fe[m arrow decrement
+[33m8cb0411[m Correcting the logic
+[33m7b61b4e[m trash.png
+[33mc233ba8[m add fourth page Asnaf form
+[33mb9b7993[m adding icon
+[33m116c4c3[m Adding upload file logic
+[33mddb3aab[m Adding flutter pick file pckg
+[33m54c4cb4[m add 3rd page without responsive button
+[33m8e09916[m upload pic
+[33me92b45d[m add 2 page of forms
+[33mf144e14[m Correcting the adjustment for Asnaf form page 1
+[33mb31de24[m Completing first page Asnaf form
+[33m518d4b0[m Adding progress bar 1st page
+[33m68a9182[m Adding navi bottom bar for Asnaf

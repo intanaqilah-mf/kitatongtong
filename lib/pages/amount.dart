@@ -47,70 +47,68 @@ class _AmountPageState extends State<AmountPage> {
     required String amountInCents,
   }) async {
     final String webAppDomain = AppConfig.getWebAppDomain();
-    final String toyyibpaySecretKey = AppConfig.getToyyibPaySecretKey();
-    final String toyyibpayCategoryCode = AppConfig.getToyyibPayCategoryCode();
+    // We keep the same variable names but pull in Billplz values:
+    final String toyyibpaySecretKey    = AppConfig.getBillPlzApiKey();
+    final String toyyibpayCategoryCode = AppConfig.getBillPlzCollectionId();
     final String billExternalRef = 'TXN${DateTime.now().millisecondsSinceEpoch}';
 
     String billReturnUrl;
     String billCallbackUrl;
 
     if (kIsWeb) {
-      billReturnUrl = '$webAppDomain/payment-redirect';
-      billCallbackUrl = '$webAppDomain/payment-callback-server';
+      billReturnUrl   = '$webAppDomain/payment-result?status=success&ref=$billExternalRef';
+      billCallbackUrl = '$webAppDomain/payment-callback?ref=$billExternalRef';
     } else {
-      billReturnUrl = 'myapp://payment-result?status=success';
-      billCallbackUrl = 'myapp://payment-result?status=fail';
+      billReturnUrl   = 'myapp://payment-result?status=success&ref=$billExternalRef';
+      billCallbackUrl = 'https://api.${webAppDomain.replaceFirst(RegExp(r'https?://'), '')}/payment-callback?ref=$billExternalRef';
     }
 
-    if (toyyibpaySecretKey.isEmpty || toyyibpayCategoryCode.isEmpty) {
-      print("ToyyibPay configuration (secret key or category code) is missing or empty from AppConfig.");
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Payment configuration error. Please contact support.")),
-        );
-      }
-      return;
-    }
-
-    print("--- ToyyibPay Request Data (Amount) ---");
-    print("userSecretKey (length): ${toyyibpaySecretKey.length > 0 ? toyyibpaySecretKey.substring(0,5)+"..." : "EMPTY"}");
-    print("categoryCode: $toyyibpayCategoryCode");
+    print("--- Begin Billplz Request Data ---");
+    print("API Key (length): ${toyyibpaySecretKey.isNotEmpty ? toyyibpaySecretKey.substring(0, 5) + "..." : "EMPTY"}");
+    print("Collection ID: $toyyibpayCategoryCode");
     print("billReturnUrl: $billReturnUrl");
     print("billCallbackUrl: $billCallbackUrl");
     print("billAmount: $amountInCents");
-    print("--- End ToyyibPay Request Data ---");
+    print("--- End Billplz Request Data ---");
+
+    // Build Basic Auth header (API key + colon, Base64-encoded)
+    final String basicAuth = 'Basic ' + base64Encode(utf8.encode('$toyyibpaySecretKey:'));
+
+    // Billplz “create bill” endpoint
+    final Uri url = Uri.parse(
+        'https://www.billplz.com/api/v3/collections/$toyyibpayCategoryCode/bills'
+    );
+
+    // Form-encoded fields for Billplz
+    final Map<String, String> formData = {
+      'collection_id': toyyibpayCategoryCode,
+      'name'         : name,
+      'email'        : email,
+      'amount'       : amountInCents,
+      'description'  : 'Donation to Asnaf Program',
+      'callback_url' : billCallbackUrl,
+      'redirect_url' : billReturnUrl,
+      'mobile'       : phone,
+      'reference_1_label': 'Ref',
+      'reference_1'      : billExternalRef,
+    };
 
     final response = await http.post(
-      Uri.parse('https://toyyibpay.com/index.php/api/createBill'),
-      body: {
-        'userSecretKey': toyyibpaySecretKey,
-        'categoryCode': toyyibpayCategoryCode,
-        'billName': 'Kita Tongtong Donation',
-        'billDescription': 'Donation to Asnaf Program',
-        'billPriceSetting': '1',
-        'billPayorInfo': '1',
-        'billAmount': amountInCents,
-        'billReturnUrl': billReturnUrl,
-        'billCallbackUrl': billCallbackUrl,
-        'billExternalReferenceNo': billExternalRef,
-        'billTo': name,
-        'billEmail': email,
-        'billPhone': phone,
-        'billSplitPayment': '0',
-        'billPaymentChannel': '0',
-        'billDisplayMerchant': '1'
+      url,
+      headers: {
+        'Authorization': basicAuth,
+        'Content-Type' : 'application/x-www-form-urlencoded',
       },
+      body: formData,
     );
 
     if (response.statusCode == 200) {
-      final dynamic data = jsonDecode(response.body);
-      if (data is List && data.isNotEmpty && data[0]['BillCode'] != null) {
-        final billCode = data[0]['BillCode'];
-        final paymentGatewayUrl = 'https://toyyibpay.com/$billCode';
+      final dynamic decoded = jsonDecode(response.body);
+      if (decoded != null && decoded['data'] != null && decoded['data']['url'] != null) {
+        final String paymentGatewayUrl = decoded['data']['url'];
 
         if (kIsWeb) {
           if (!await launchUrl(Uri.parse(paymentGatewayUrl))) {
-            print("Could not launch $paymentGatewayUrl");
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text("Could not open payment page.")),
@@ -122,21 +120,24 @@ class _AmountPageState extends State<AmountPage> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => PaymentWebView(paymentUrl: paymentGatewayUrl, donationData: donationData),
+                builder: (_) => PaymentWebView(
+                  paymentUrl: paymentGatewayUrl,
+                  donationData: donationData,
+                ),
               ),
             );
           }
         }
       } else {
-        print("ToyyibPay bill creation successful, but response format unexpected: ${response.body}");
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text("Payment initiation error. Please try again.")),
           );
         }
+        debugPrint("Billplz response missing 'data.url': ${response.body}");
       }
     } else {
-      print("ToyyibPay bill creation failed: Status ${response.statusCode} - Body: ${response.body}");
+      debugPrint("Billplz bill creation failed: Status ${response.statusCode} - Body: ${response.body}");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Failed to initiate payment.")),

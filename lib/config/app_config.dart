@@ -1,74 +1,72 @@
 // lib/config/app_config.dart
-import 'package:flutter/foundation.dart' show kReleaseMode;
+import 'package:flutter/foundation.dart' show kReleaseMode, kDebugMode;
 
 class AppConfig {
-  // These consts will be populated by --dart-define at build time.
-  // If a --dart-define flag is missing for a key, String.fromEnvironment returns an empty string.
   static const String _webAppDomain = String.fromEnvironment('WEB_APP_DOMAIN');
-  static const String _toyyibPaySecretKey = String.fromEnvironment('TOYYIBPAY_SECRET_KEY');
-  static const String _toyyibPayCategoryCode = String.fromEnvironment('TOYYIBPAY_CATEGORY_CODE');
+  static const String _billPlzApiKey        = String.fromEnvironment('BILLPLZ_API_KEY');
+  static const String _billPlzCollectionId  = String.fromEnvironment('BILLPLZ_COLLECTION_ID');
 
-  // SMTP Configuration (if you decide to use email sending)
   static const String _smtpHost = String.fromEnvironment('SMTP_HOST');
   static const String _smtpPortStr = String.fromEnvironment('SMTP_PORT');
   static const String _smtpUsername = String.fromEnvironment('SMTP_USERNAME');
   static const String _smtpPassword = String.fromEnvironment('SMTP_PASSWORD');
   static const String _senderEmail = String.fromEnvironment('SENDER_EMAIL');
 
-  // --- Getters with runtime checks ---
+  static String _getMandatoryKey(String value, String keyName, {String? debugFallback}) {
+    if (value.isNotEmpty) return value;
+
+    final message = "CRITICAL CONFIG ERROR: '$keyName' is not defined. Provide it via --dart-define.";
+    print(message);
+
+    if (kReleaseMode) {
+      throw Exception(message); // Fail hard in release
+    } else if (debugFallback != null) {
+      print("Using debug fallback for $keyName: $debugFallback");
+      return debugFallback;
+    } else {
+      // For keys that MUST have a value even in debug for core functionality to be testable
+      throw Exception("$message Provide a dev value via --dart-define or set a AppConfig debugFallback.");
+    }
+  }
+
   static String getWebAppDomain() {
-    if (_webAppDomain.isEmpty) {
-      final message = "CRITICAL: WEB_APP_DOMAIN is not defined via --dart-define.";
-      print(message);
-      if (kReleaseMode) throw Exception(message); // Fail hard in release
-      return "http://localhost:5000"; // Fallback for non-release local run only
-    }
-    return _webAppDomain;
+    // WEB_APP_DOMAIN is critical for web redirects.
+    return _getMandatoryKey(_webAppDomain, 'WEB_APP_DOMAIN', debugFallback: "http://localhost:5000");
   }
 
-  static String getToyyibPaySecretKey() {
-    if (_toyyibPaySecretKey.isEmpty) {
-      final message = "CRITICAL: TOYYIBPAY_SECRET_KEY is not defined via --dart-define.";
-      print(message);
-      if (kReleaseMode) throw Exception(message);
-      return ""; // Will cause API error
-    }
-    return _toyyibPaySecretKey;
+  static String getBillPlzApiKey() {
+    // These keys are critical. Forcing an exception in debug too if not set,
+    // as payment can't be tested without them.
+    return _getMandatoryKey(_billPlzApiKey, 'BILLPLZ_API_KEY');
   }
 
-  static String getToyyibPayCategoryCode() {
-    if (_toyyibPayCategoryCode.isEmpty) {
-      final message = "CRITICAL: TOYYIBPAY_CATEGORY_CODE is not defined via --dart-define.";
-      print(message);
-      if (kReleaseMode) throw Exception(message);
-      return ""; // Will cause API error
-    }
-    return _toyyibPayCategoryCode;
+  static String getBillPlzCollectionId() {
+    return _getMandatoryKey(_billPlzCollectionId, 'BILLPLZ_COLLECTION_ID');
   }
 
-  // SMTP Getters
+  // SMTP Getters - more lenient as email might be optional or handled differently
   static String getSmtpHost() {
-    if (_smtpHost.isEmpty && kReleaseMode) print("WARNING: SMTP_HOST not defined (email may fail).");
+    if (_smtpHost.isEmpty) print("INFO: SMTP_HOST not defined via --dart-define. Mobile email might fail.");
     return _smtpHost;
   }
 
   static int getSmtpPort() {
-    if (_smtpPortStr.isEmpty && kReleaseMode) print("WARNING: SMTP_PORT not defined (email may fail).");
-    return int.tryParse(_smtpPortStr) ?? 0; // Default to 0 or common port like 587 if preferred
+    if (_smtpPortStr.isEmpty) print("INFO: SMTP_PORT not defined via --dart-define. Mobile email might fail.");
+    return int.tryParse(_smtpPortStr) ?? (kDebugMode ? 587 : 0); // Common dev default or 0
   }
 
   static String getSmtpUsername() {
-    if (_smtpUsername.isEmpty && kReleaseMode) print("WARNING: SMTP_USERNAME not defined (email may fail).");
+    if (_smtpUsername.isEmpty) print("INFO: SMTP_USERNAME not defined via --dart-define. Mobile email might fail.");
     return _smtpUsername;
   }
 
   static String getSmtpPassword() {
-    if (_smtpPassword.isEmpty && kReleaseMode) print("WARNING: SMTP_PASSWORD not defined (email may fail).");
+    if (_smtpPassword.isEmpty) print("INFO: SMTP_PASSWORD not defined via --dart-define. Mobile email might fail.");
     return _smtpPassword;
   }
 
   static String getSenderEmail() {
-    if (_senderEmail.isEmpty && kReleaseMode) print("WARNING: SENDER_EMAIL not defined (email may fail).");
+    if (_senderEmail.isEmpty) print("INFO: SENDER_EMAIL not defined via --dart-define. Mobile email might fail.");
     return _senderEmail;
   }
 }

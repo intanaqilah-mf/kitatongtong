@@ -63,66 +63,62 @@ class _PayPackageState extends State<PayPackage> {
     required String amountInCents,
   }) async {
     final String webAppDomain = AppConfig.getWebAppDomain();
-    final String toyyibpaySecretKey = AppConfig.getToyyibPaySecretKey();
-    final String toyyibpayCategoryCode = AppConfig.getToyyibPayCategoryCode();
+    final String toyyibpaySecretKey    = AppConfig.getBillPlzApiKey();
+    final String toyyibpayCategoryCode = AppConfig.getBillPlzCollectionId();
     final String billExternalRef = 'TXN${DateTime.now().millisecondsSinceEpoch}';
 
     String billReturnUrl;
     String billCallbackUrl;
 
     if (kIsWeb) {
-      billReturnUrl = '$webAppDomain/payment-redirect';
+      billReturnUrl   = '$webAppDomain/payment-redirect';
       billCallbackUrl = '$webAppDomain/payment-callback-server';
     } else {
-      billReturnUrl = 'myapp://payment-result?status=success';
+      billReturnUrl   = 'myapp://payment-result?status=success';
       billCallbackUrl = 'myapp://payment-result?status=fail';
     }
 
-    if (toyyibpaySecretKey.isEmpty || toyyibpayCategoryCode.isEmpty) {
-      print("ToyyibPay configuration (secret key or category code) is missing or empty from AppConfig.");
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Payment configuration error. Please contact support.")),
-        );
-      }
-      return;
-    }
-
     print("--- ToyyibPay Request Data (Package) ---");
-    print("userSecretKey (length): ${toyyibpaySecretKey.length > 0 ? toyyibpaySecretKey.substring(0,5)+"..." : "EMPTY"}");
+    print("userSecretKey (length): ${toyyibpaySecretKey.isNotEmpty ? toyyibpaySecretKey.substring(0, 5) + '...' : 'EMPTY'}");
     print("categoryCode: $toyyibpayCategoryCode");
     print("billReturnUrl: $billReturnUrl");
     print("billCallbackUrl: $billCallbackUrl");
     print("billAmount: $amountInCents");
     print("--- End ToyyibPay Request Data ---");
 
+    // Build Basic Auth header (API key + colon, Base64-encoded)
+    final String basicAuth = 'Basic ' + base64Encode(utf8.encode('$toyyibpaySecretKey:'));
+
+    // Billplz “create bill” endpoint
+    final Uri url = Uri.parse('https://www.billplz.com/api/v3/collections/$toyyibpayCategoryCode/bills');
+
+    // Form-encoded fields for Billplz
+    final Map<String, String> formData = {
+      'collection_id' : toyyibpayCategoryCode,
+      'name'          : name,
+      'email'         : email,
+      'amount'        : amountInCents,
+      'description'   : 'Donation of ${widget.totalQuantity} package(s)',
+      'callback_url'  : billCallbackUrl,
+      'redirect_url'  : billReturnUrl,
+      'mobile'        : phone,
+      'reference_1_label': 'Ref',
+      'reference_1'      : billExternalRef,
+    };
+
     final response = await http.post(
-      Uri.parse('https://toyyibpay.com/index.php/api/createBill'),
-      body: {
-        'userSecretKey': toyyibpaySecretKey,
-        'categoryCode': toyyibpayCategoryCode,
-        'billName': 'Kita Tongtong Package Donation',
-        'billDescription': 'Donation of ${widget.totalQuantity} package(s)',
-        'billPriceSetting': '0',
-        'billPayorInfo': '1',
-        'billAmount': amountInCents,
-        'billReturnUrl': billReturnUrl,
-        'billCallbackUrl': billCallbackUrl,
-        'billExternalReferenceNo': billExternalRef,
-        'billTo': name,
-        'billEmail': email,
-        'billPhone': phone,
-        'billSplitPayment': '0',
-        'billPaymentChannel': '0',
-        'billDisplayMerchant': '1'
+      url,
+      headers: {
+        'Authorization': basicAuth,
+        'Content-Type' : 'application/x-www-form-urlencoded',
       },
+      body: formData,
     );
 
     if (response.statusCode == 200) {
       final dynamic data = jsonDecode(response.body);
-      if (data is List && data.isNotEmpty && data[0]['BillCode'] != null) {
-        final billCode = data[0]['BillCode'];
-        final paymentGatewayUrl = 'https://toyyibpay.com/$billCode';
+      if (data['data'] != null && data['data']['url'] != null) {
+        final String paymentGatewayUrl = data['data']['url'];
 
         if (kIsWeb) {
           if (!await launchUrl(Uri.parse(paymentGatewayUrl))) {
@@ -138,7 +134,10 @@ class _PayPackageState extends State<PayPackage> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => PaymentWebView(paymentUrl: paymentGatewayUrl, donationData: donationData),
+                builder: (_) => PaymentWebView(
+                  paymentUrl: paymentGatewayUrl,
+                  donationData: donationData,
+                ),
               ),
             );
           }
@@ -160,6 +159,7 @@ class _PayPackageState extends State<PayPackage> {
       }
     }
   }
+
 
   Future<Uint8List> generatePdfBytes({required String name, required String email, required String amountRM}) async {
     final pdf = pw.Document();

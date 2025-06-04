@@ -84,13 +84,11 @@ class _PayPackageState extends State<PayPackage> {
     print("billReturnUrl: $billReturnUrl");
     print("billCallbackUrl: $billCallbackUrl");
     print("billAmount: $amountInCents");
-    print("--- End Billplz Request Data ---");
+
+    print("--- End BillPlz Request Data ---");
 
     // Build Basic Auth header (API key + colon, Base64-encoded)
     final String basicAuth = 'Basic ' + base64Encode(utf8.encode('$billplzApiKey:'));
-
-    // Billplz “create bill” endpoint. "collection_id" is sent as form data
-    // rather than encoded in the URL path.
     final Uri url = Uri.parse('https://www.billplz.com/api/v3/bills');
 
     // Form-encoded fields for Billplz
@@ -144,7 +142,7 @@ class _PayPackageState extends State<PayPackage> {
           }
         }
       } else {
-        print("Billplz bill creation successful, but response format unexpected: ${response.body}");
+        print("Billplz  bill creation successful, but response format unexpected: ${response.body}");
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text("Payment initiation error. Please try again.")),
@@ -152,7 +150,7 @@ class _PayPackageState extends State<PayPackage> {
         }
       }
     } else {
-      print("Billplz bill creation failed: Status ${response.statusCode} - Body: ${response.body}");
+      print("Billplz  bill creation failed: Status ${response.statusCode} - Body: ${response.body}");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Failed to initiate payment.")),

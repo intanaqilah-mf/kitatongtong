@@ -47,9 +47,8 @@ class _AmountPageState extends State<AmountPage> {
     required String amountInCents,
   }) async {
     final String webAppDomain = AppConfig.getWebAppDomain();
-    // We keep the same variable names but pull in Billplz values:
-    final String toyyibpaySecretKey    = AppConfig.getBillPlzApiKey();
-    final String toyyibpayCategoryCode = AppConfig.getBillPlzCollectionId();
+    final String billplzApiKey       = AppConfig.getBillPlzApiKey();
+    final String billplzCollectionId = AppConfig.getBillPlzCollectionId();
     final String billExternalRef = 'TXN${DateTime.now().millisecondsSinceEpoch}';
 
     String billReturnUrl;
@@ -64,24 +63,24 @@ class _AmountPageState extends State<AmountPage> {
     }
 
     print("--- Begin Billplz Request Data ---");
-    print("API Key (length): ${toyyibpaySecretKey.isNotEmpty ? toyyibpaySecretKey.substring(0, 5) + "..." : "EMPTY"}");
-    print("Collection ID: $toyyibpayCategoryCode");
+    print("API Key (length): ${billplzApiKey.isNotEmpty ? billplzApiKey.substring(0, 5) + "..." : "EMPTY"}");
+    print("Collection ID: $billplzCollectionId");
     print("billReturnUrl: $billReturnUrl");
     print("billCallbackUrl: $billCallbackUrl");
     print("billAmount: $amountInCents");
     print("--- End Billplz Request Data ---");
 
     // Build Basic Auth header (API key + colon, Base64-encoded)
-    final String basicAuth = 'Basic ' + base64Encode(utf8.encode('$toyyibpaySecretKey:'));
+    final String basicAuth = 'Basic ' + base64Encode(utf8.encode('$billplzApiKey:'));
 
     // Billplz “create bill” endpoint
     final Uri url = Uri.parse(
-        'https://www.billplz.com/api/v3/collections/$toyyibpayCategoryCode/bills'
+        'https://www.billplz.com/api/v3/collections/$billplzCollectionId/bills'
     );
 
     // Form-encoded fields for Billplz
     final Map<String, String> formData = {
-      'collection_id': toyyibpayCategoryCode,
+      'collection_id': billplzCollectionId,
       'name'         : name,
       'email'        : email,
       'amount'       : amountInCents,

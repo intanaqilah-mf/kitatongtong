@@ -45,24 +45,21 @@ class _FailPayState extends State<FailPay> {
     bool isPending = false;
 
     if (receivedArguments != null) {
-      String toyyibPayStatus = receivedArguments!['status']?.toString() ?? ""; // From web redirect
+      String billplzPaid = receivedArguments!['billplz_paid']?.toString() ?? ""; // From web redirect
       String mobileStatus = receivedArguments!['status_from_deeplink']?.toString() ?? ""; // From mobile deeplink
 
       // Check for web redirect details
-      if (receivedArguments!['billcode'] != null) {
-        detailsMessage = "Bill Code: ${receivedArguments!['billcode']}\nReference No: ${receivedArguments!['refno'] ?? 'N/A'}";
-        if (toyyibPayStatus == '2') {
+      if (receivedArguments!['billplz_id'] != null) {
+        detailsMessage = "Bill ID: ${receivedArguments!['billplz_id']}";
+        if (billplzPaid.toLowerCase() != 'true') {
           mainTitle = "Payment Pending";
-          detailsMessage += "\n\nYour payment is currently pending. Please check with ToyyibPay or your bank for the status.";
+          detailsMessage += "\n\nYour payment is currently pending. Please check with Billplz or your bank for the status.";
           displayIcon = Icons.hourglass_empty_rounded;
           iconColor = Colors.orange;
           isPending = true;
-        } else if (toyyibPayStatus == '3') {
+        } else if (billplzPaid.toLowerCase() == 'false') {
           mainTitle = "Payment Failed";
           detailsMessage += "\n\nThe payment attempt was unsuccessful.";
-        } else if (toyyibPayStatus.isNotEmpty && toyyibPayStatus != '1') { // Other non-success web status
-          mainTitle = "Payment Not Successful";
-          detailsMessage += "\n\nThe payment was not successful.";
         }
       }
       // Check for mobile flow details (original donationData)

@@ -63,8 +63,8 @@ class _PayPackageState extends State<PayPackage> {
     required String amountInCents,
   }) async {
     final String webAppDomain = AppConfig.getWebAppDomain();
-    final String toyyibpaySecretKey    = AppConfig.getBillPlzApiKey();
-    final String toyyibpayCategoryCode = AppConfig.getBillPlzCollectionId();
+    final String billplzApiKey       = AppConfig.getBillPlzApiKey();
+    final String billplzCollectionId = AppConfig.getBillPlzCollectionId();
     final String billExternalRef = 'TXN${DateTime.now().millisecondsSinceEpoch}';
 
     String billReturnUrl;
@@ -78,23 +78,24 @@ class _PayPackageState extends State<PayPackage> {
       billCallbackUrl = 'myapp://payment-result?status=fail';
     }
 
-    print("--- ToyyibPay Request Data (Package) ---");
-    print("userSecretKey (length): ${toyyibpaySecretKey.isNotEmpty ? toyyibpaySecretKey.substring(0, 5) + '...' : 'EMPTY'}");
-    print("categoryCode: $toyyibpayCategoryCode");
+    print("--- Billplz Request Data (Package) ---");
+    print("userSecretKey (length): ${billplzApiKey.isNotEmpty ? billplzApiKey.substring(0, 5) + '...' : 'EMPTY'}");
+    print("categoryCode: $billplzCollectionId");
     print("billReturnUrl: $billReturnUrl");
     print("billCallbackUrl: $billCallbackUrl");
     print("billAmount: $amountInCents");
-    print("--- End ToyyibPay Request Data ---");
+    print("--- End Billplz Request Data ---");
 
     // Build Basic Auth header (API key + colon, Base64-encoded)
-    final String basicAuth = 'Basic ' + base64Encode(utf8.encode('$toyyibpaySecretKey:'));
+    final String basicAuth = 'Basic ' + base64Encode(utf8.encode('$billplzApiKey:'));
 
-    // Billplz “create bill” endpoint
-    final Uri url = Uri.parse('https://www.billplz.com/api/v3/collections/$toyyibpayCategoryCode/bills');
+    // Billplz “create bill” endpoint. "collection_id" is sent as form data
+    // rather than encoded in the URL path.
+    final Uri url = Uri.parse('https://www.billplz.com/api/v3/bills');
 
     // Form-encoded fields for Billplz
     final Map<String, String> formData = {
-      'collection_id' : toyyibpayCategoryCode,
+      'collection_id' : billplzCollectionId,
       'name'          : name,
       'email'         : email,
       'amount'        : amountInCents,
@@ -143,7 +144,7 @@ class _PayPackageState extends State<PayPackage> {
           }
         }
       } else {
-        print("ToyyibPay bill creation successful, but response format unexpected: ${response.body}");
+        print("Billplz bill creation successful, but response format unexpected: ${response.body}");
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text("Payment initiation error. Please try again.")),
@@ -151,7 +152,7 @@ class _PayPackageState extends State<PayPackage> {
         }
       }
     } else {
-      print("ToyyibPay bill creation failed: Status ${response.statusCode} - Body: ${response.body}");
+      print("Billplz bill creation failed: Status ${response.statusCode} - Body: ${response.body}");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Failed to initiate payment.")),

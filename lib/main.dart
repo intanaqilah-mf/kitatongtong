@@ -189,20 +189,19 @@ class _MyAppState extends State<MyApp> {
         print("[Web specific onGenerateRoute] settings.name: ${settings.name}, parsed routeUri: $routeUri");
 
         if (kIsWeb && routeUri != null && routeUri.path == '/payment-redirect') {
-          final billId     = routeUri.queryParameters['billplz[id]'];
-          final paid       = routeUri.queryParameters['billplz[paid]'];
-          final paidAt     = routeUri.queryParameters['billplz[paid_at]'];
-          final xSignature = routeUri.queryParameters['billplz[x_signature]'];
-          print('[Web] Payment redirect detected: billId=$billId, paid=$paid, paidAt=$paidAt');
-          Map<String, dynamic> paymentResultArgs = {
-            'billplz_id'       : billId,
-            'billplz_paid'     : paid,
-            'billplz_paid_at'  : paidAt,
-            'billplz_signature': xSignature,
-            'source'           : 'web_redirect'
+          final status = routeUri.queryParameters['status'];
+          final refno = routeUri.queryParameters['refno'];
+          final billcode = routeUri.queryParameters['billcode'];
+          print("[Web] Payment redirect detected: status=$status, refno=$refno, billcode=$billcode");
+
+          Map<String, dynamic> paymentResultArgs = { // Changed to Map<String, dynamic>
+            'status': status,
+            'refno': refno,
+            'billcode': billcode,
+            'source': 'web_redirect' // Useful for your Success/Fail pages
           };
 
-          if (paid == 'true') { // Billplz success
+          if (status == '1') {
             return MaterialPageRoute(
               builder: (_) => const SuccessPay(), // No 'arguments:' here
               settings: RouteSettings(arguments: paymentResultArgs), // Pass args via settings

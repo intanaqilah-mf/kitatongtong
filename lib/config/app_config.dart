@@ -3,8 +3,8 @@ import 'package:flutter/foundation.dart' show kReleaseMode, kDebugMode;
 
 class AppConfig {
   static const String _webAppDomain = String.fromEnvironment('WEB_APP_DOMAIN');
-  static const String _billPlzApiKey        = String.fromEnvironment('BILLPLZ_API_KEY');
-  static const String _billPlzCollectionId  = String.fromEnvironment('BILLPLZ_COLLECTION_ID');
+  static const String _toyyibpaySecretKey    = String.fromEnvironment('TOYYIB_PAY_SECRET_KEY');
+  static const String _toyyibpayCategoryCode = String.fromEnvironment('TOYYIB_PAY_CATEGORY_CODE');
 
   static const String _smtpHost = String.fromEnvironment('SMTP_HOST');
   static const String _smtpPortStr = String.fromEnvironment('SMTP_PORT');
@@ -34,14 +34,12 @@ class AppConfig {
     return _getMandatoryKey(_webAppDomain, 'WEB_APP_DOMAIN', debugFallback: "http://localhost:5000");
   }
 
-  static String getBillPlzApiKey() {
-    // These keys are critical. Forcing an exception in debug too if not set,
-    // as payment can't be tested without them.
-    return _getMandatoryKey(_billPlzApiKey, 'BILLPLZ_API_KEY');
+  static String getToyyibPaySecretKey() {
+    return _getMandatoryKey(_toyyibpaySecretKey, 'TOYYIB_PAY_SECRET_KEY');
   }
 
-  static String getBillPlzCollectionId() {
-    return _getMandatoryKey(_billPlzCollectionId, 'BILLPLZ_COLLECTION_ID');
+  static String getToyyibPayCategoryCode() {
+    return _getMandatoryKey(_toyyibpayCategoryCode, 'TOYYIB_PAY_CATEGORY_CODE');
   }
 
   // SMTP Getters - more lenient as email might be optional or handled differently

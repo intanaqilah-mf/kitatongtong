@@ -47,64 +47,70 @@ class _AmountPageState extends State<AmountPage> {
     required String amountInCents,
   }) async {
     final String webAppDomain = AppConfig.getWebAppDomain();
-    final String billplzApiKey       = AppConfig.getBillPlzApiKey();
-    final String billplzCollectionId = AppConfig.getBillPlzCollectionId();
+    final String toyyibpaySecretKey = AppConfig.getToyyibPaySecretKey();
+    final String toyyibpayCategoryCode = AppConfig.getToyyibPayCategoryCode();
     final String billExternalRef = 'TXN${DateTime.now().millisecondsSinceEpoch}';
 
     String billReturnUrl;
     String billCallbackUrl;
 
     if (kIsWeb) {
-      billReturnUrl   = '$webAppDomain/payment-result?status=success&ref=$billExternalRef';
-      billCallbackUrl = '$webAppDomain/payment-callback?ref=$billExternalRef';
+      billReturnUrl = '$webAppDomain/payment-redirect';
+      billCallbackUrl = '$webAppDomain/payment-callback-server';
     } else {
-      billReturnUrl   = 'myapp://payment-result?status=success&ref=$billExternalRef';
-      billCallbackUrl = 'https://api.${webAppDomain.replaceFirst(RegExp(r'https?://'), '')}/payment-callback?ref=$billExternalRef';
+      billReturnUrl = 'myapp://payment-result?status=success';
+      billCallbackUrl = 'myapp://payment-result?status=fail';
     }
 
-    print("--- Begin Billplz Request Data ---");
-    print("API Key (length): ${billplzApiKey.isNotEmpty ? billplzApiKey.substring(0, 5) + "..." : "EMPTY"}");
-    print("Collection ID: $billplzCollectionId");
+    if (toyyibpaySecretKey.isEmpty || toyyibpayCategoryCode.isEmpty) {
+      print("ToyyibPay configuration (secret key or category code) is missing or empty from AppConfig.");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Payment configuration error. Please contact support.")),
+        );
+      }
+      return;
+    }
+
+    print("--- ToyyibPay Request Data (Amount) ---");
+    print("userSecretKey (length): ${toyyibpaySecretKey.length > 0 ? toyyibpaySecretKey.substring(0,5)+"..." : "EMPTY"}");
+    print("categoryCode: $toyyibpayCategoryCode");
     print("billReturnUrl: $billReturnUrl");
     print("billCallbackUrl: $billCallbackUrl");
     print("billAmount: $amountInCents");
-    print("--- End Billplz Request Data ---");
-
-    // Build Basic Auth header (API key + colon, Base64-encoded)
-    final String basicAuth = 'Basic ' + base64Encode(utf8.encode('$billplzApiKey:'));
-
-    final Uri url = Uri.parse('https://www.billplz.com/api/v3/bills');
-
-    // Form-encoded fields for Billplz
-    final Map<String, String> formData = {
-      'collection_id': billplzCollectionId,
-      'name'         : name,
-      'email'        : email,
-      'amount'       : amountInCents,
-      'description'  : 'Donation to Asnaf Program',
-      'callback_url' : billCallbackUrl,
-      'redirect_url' : billReturnUrl,
-      'mobile'       : phone,
-      'reference_1_label': 'Ref',
-      'reference_1'      : billExternalRef,
-    };
+    print("--- End ToyyibPay Request Data ---");
 
     final response = await http.post(
-      url,
-      headers: {
-        'Authorization': basicAuth,
-        'Content-Type' : 'application/x-www-form-urlencoded',
+      Uri.parse('https://toyyibpay.com/index.php/api/createBill'),
+      body: {
+        'userSecretKey': toyyibpaySecretKey,
+        'categoryCode': toyyibpayCategoryCode,
+        'billName': 'Kita Tongtong Donation',
+        'billDescription': 'Donation to Asnaf Program',
+        'billPriceSetting': '1',
+        'billPayorInfo': '1',
+        'billAmount': amountInCents,
+        'billReturnUrl': billReturnUrl,
+        'billCallbackUrl': billCallbackUrl,
+        'billExternalReferenceNo': billExternalRef,
+        'billTo': name,
+        'billEmail': email,
+        'billPhone': phone,
+        'billSplitPayment': '0',
+        'billPaymentChannel': '0',
+        'billDisplayMerchant': '1'
       },
-      body: formData,
     );
 
     if (response.statusCode == 200) {
-      final dynamic decoded = jsonDecode(response.body);
-      if (decoded != null && decoded['data'] != null && decoded['data']['url'] != null) {
-        final String paymentGatewayUrl = decoded['data']['url'];
+      final dynamic data = jsonDecode(response.body);
+      if (data is List && data.isNotEmpty && data[0]['BillCode'] != null) {
+        final billCode = data[0]['BillCode'];
+        final paymentGatewayUrl = 'https://toyyibpay.com/$billCode';
 
         if (kIsWeb) {
           if (!await launchUrl(Uri.parse(paymentGatewayUrl))) {
+            print("Could not launch $paymentGatewayUrl");
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text("Could not open payment page.")),
@@ -116,24 +122,21 @@ class _AmountPageState extends State<AmountPage> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => PaymentWebView(
-                  paymentUrl: paymentGatewayUrl,
-                  donationData: donationData,
-                ),
+                builder: (_) => PaymentWebView(paymentUrl: paymentGatewayUrl, donationData: donationData),
               ),
             );
           }
         }
       } else {
+        print("ToyyibPay bill creation successful, but response format unexpected: ${response.body}");
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text("Payment initiation error. Please try again.")),
           );
         }
-        debugPrint("Billplz response missing 'data.url': ${response.body}");
       }
     } else {
-      debugPrint("Billplz bill creation failed: Status ${response.statusCode} - Body: ${response.body}");
+      print("ToyyibPay bill creation failed: Status ${response.statusCode} - Body: ${response.body}");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Failed to initiate payment.")),
@@ -556,24 +559,29 @@ class _AmountPageState extends State<AmountPage> {
                     'message': 'Donor ${nameController.text.trim()} donated RM ${parsedAmount.toStringAsFixed(2)}',
                   });
 
+                  // CORRECTED CODE for amount.dart / payPackage.dart:
                   if (wantsTaxExemption) {
                     try {
-                      if (!kIsWeb) {
-                        final pdfBytes = await generatePdfBytes(
-                          name: nameController.text.trim(),
-                          email: emailController.text.trim(),
-                          amount: parsedAmount.toStringAsFixed(2),
-                        );
-                        await sendTaxEmail(
-                          name: nameController.text.trim(),
-                          recipientEmail: emailController.text.trim(),
-                          pdfBytes: pdfBytes,
-                        );
-                      } else {
-                        print("Email sending via 'mailer' is not supported on web. PDF generation skipped for web in this path too.");
-                      }
+                      // Step 1: Generate PDF bytes (can be done on both platforms)
+                      final pdfBytes = await generatePdfBytes(
+                        name: nameController.text.trim(),
+                        email: emailController.text.trim(),
+                        // In amount.dart:
+                        amount: parsedAmount.toStringAsFixed(2),
+                        // In payPackage.dart, ensure you use the correct amount variable:
+                        // amountRM: widget.overallAmount.toString(),
+                      );
+
+                      // Step 2: Call sendTaxEmail. This function will now handle
+                      // calling the Cloud Function if kIsWeb is true,
+                      // or using SMTP if kIsWeb is false.
+                      await sendTaxEmail(
+                        name: nameController.text.trim(),
+                        recipientEmail: emailController.text.trim(),
+                        pdfBytes: pdfBytes,
+                      );
                     } catch (e) {
-                      print('Error during tax exemption email process: $e');
+                      print('Error during tax exemption process (PDF generation or email trigger): $e');
                     }
                   }
 

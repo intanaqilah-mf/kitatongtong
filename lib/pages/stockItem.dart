@@ -8,6 +8,8 @@ import 'dart:convert';
 import 'package:projects/widgets/bottomNavBar.dart';
 import 'package:projects/services/price_service.dart';
 
+import 'package:projects/services/search_service.dart';
+
 class StockItem extends StatefulWidget {
   @override
   _StockItemState createState() => _StockItemState();
@@ -28,6 +30,11 @@ class _StockItemState extends State<StockItem> {
   List<int> rmScalingOptions = [1, 2, 5, 10, 15, 20];
   int rmScalingIndex = 0;
   int _selectedIndex = 0;
+  List<Map<String, dynamic>> detailedPackageItems = [];
+  TextEditingController itemNameController = TextEditingController();
+  TextEditingController itemNumberController = TextEditingController();
+  String selectedUnit = "kg";
+  List<Map<String, dynamic>> itemSuggestions = [];
 
   void _onItemTapped(int index) {
     setState(() {
@@ -105,6 +112,15 @@ class _StockItemState extends State<StockItem> {
       }
     }
   }
+
+  @override
+  void dispose() {
+    itemNameController.dispose();
+    itemNumberController.dispose();
+    packageItemController.dispose();
+    super.dispose();
+  }
+
   Future<double> fetchExpectedTotalRemote(
       List<Map<String, dynamic>> items) async {
     final resp = await http.post(
@@ -526,16 +542,85 @@ class _StockItemState extends State<StockItem> {
                         children: [
                           Expanded(
                             flex: 4,
-                            child: TextField(
-                              controller: itemNameController,
-                              decoration: InputDecoration(
-                                filled: true,
-                                fillColor: Color(0xFFFFCF40),
-                                hintText: "Item name",
-                                border: OutlineInputBorder(),
-                              ),
+                            child: /// REPLACEMENT START
+                            Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // 1) A normal TextField that calls SearchService.searchItems on each change:
+                                TextField(
+                                  controller: itemNameController,
+                                  decoration: InputDecoration(
+                                    filled: true,
+                                    fillColor: Color(0xFFFFCF40),
+                                    hintText: "Item name",
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  onChanged: (pattern) async {
+                                    if (pattern.trim().isEmpty) {
+                                      setModalState(() {
+                                        itemSuggestions = [];
+                                      });
+                                      return;
+                                    }
+                                    try {
+                                      final results = await SearchService.searchItems(pattern);
+                                      setModalState(() {
+                                        itemSuggestions = results;
+                                      });
+                                    } catch (e) {
+                                      print("Error in searchItems: $e");
+                                      setModalState(() {
+                                        itemSuggestions = [];
+                                      });
+                                    }
+                                  },
+                                ),
+
+                                // 2) If there are any suggestions, show a small dropdown list:
+                                if (itemSuggestions.isNotEmpty)
+                                  Container(
+                                    // adjust maxHeight as needed (e.g. 200)
+                                    constraints: BoxConstraints(maxHeight: 200),
+                                    margin: const EdgeInsets.only(top: 4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      border: Border.all(color: Colors.grey),
+                                      borderRadius: BorderRadius.circular(8),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black26,
+                                          blurRadius: 4,
+                                          offset: Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: ListView.builder(
+                                      shrinkWrap: true,
+                                      itemCount: itemSuggestions.length,
+                                      itemBuilder: (context, index) {
+                                        final suggestion = itemSuggestions[index];
+                                        return ListTile(
+                                          title: Text(suggestion['item_name'] as String),
+                                          subtitle: Text(
+                                            "RM ${(suggestion['average_price'] as num).toStringAsFixed(2)}",
+                                          ),
+                                          onTap: () {
+                                            // When user taps a suggestion, fill the TextField and clear suggestions:
+                                            setModalState(() {
+                                              itemNameController.text = suggestion['item_name'] as String;
+                                              itemSuggestions = [];
+                                            });
+                                          },
+                                        );
+                                      },
+                                    ),
+                                  ),
+                              ],
                             ),
+                            /// REPLACEMENT END
+
                           ),
+
                           SizedBox(width: 8),
                           Expanded(
                             flex: 2,
@@ -619,94 +704,102 @@ class _StockItemState extends State<StockItem> {
                         ),
                       ),
                       SizedBox(height: 20),
-                      ElevatedButton(
-                        onPressed: () async {
-                          try {
-                            // 1) Parse the selected total you want the package to be worth:
-                            final selectedValueDouble = double.parse(
-                                selectedValue.replaceAll('RM', '').trim()
-                            );
-                            final expectedTotal = await fetchExpectedTotalRemote(detailedPackageItems);
-
-                            // configure your threshold (e.g. ±20%)
-                            final threshold = expectedTotal * 0.20;
-                            final diff      = expectedTotal - selectedValueDouble;
-
-                            if (diff.abs() > threshold) {
-                              // show warning and abort
-                              await showDialog(
-                                context: context,
-                                builder: (_) => AlertDialog(
-                                  title: Text('📊 Price Validation Warning'),
-                                  content: Text(
-                                      'You set RM${selectedValueDouble.toStringAsFixed(2)},\n'
-                                          'current market total is RM${expectedTotal.toStringAsFixed(2)}.\n'
-                                          'Difference RM${diff.abs().toStringAsFixed(2)} exceeds 20%.'
-                                  ),
-                                  actions: [ TextButton(
-                                      onPressed: () => Navigator.pop(context),
-                                      child: Text('OK')
-                                  )],
-                                ),
+                      Center(
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            if (detailedPackageItems.isEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                    content: Text(
+                                        'Please add at least one item to the package.')),
                               );
-                              return;  // don’t submit
+                              return;
                             }
-                            final funcResp = await http.post(
-                              Uri.parse("https://us-central1-kita-tongtong.cloudfunctions.net/generatePackageKasihImage"),
-                              headers: {"Content-Type":"application/json"},
-                              body: jsonEncode({
-                                "items": detailedPackageItems.map((i)=>{"name": i["name"]}).toList(),
-                              }),
-                            );
-                            if (funcResp.statusCode != 200) {
-                              throw Exception("Image function failed: ${funcResp.body}");
-                            }
-                            final response = await http.post(
-                              Uri.parse("https://us-central1-kita-tongtong.cloudfunctions.net/generatePackageKasihImage"),
-                              headers: {"Content-Type": "application/json"},
-                              body: jsonEncode({
-                                "items": detailedPackageItems.map((i) => {"name": i["name"]}).toList(),
-                              }),
-                            );
 
-                            if (response.statusCode == 200) {
-                              final imageUrl = jsonDecode(response.body)["image_url"];
+                            // 1) Calculate expected total from Cloud Function
+                            try {
+                              final expectedTotal =
+                              await fetchExpectedTotalRemote(detailedPackageItems);
 
-                              await FirebaseFirestore.instance.collection("package_kasih").add({
-                                "value": selectedValue,
-                                "items": detailedPackageItems,
-                                "bannerUrl": imageUrl,
+                              final selectedValueDouble = double.parse(
+                                  selectedValue.replaceAll('RM ', '').trim());
+
+                              final diff = selectedValueDouble - expectedTotal;
+                              final pctDiff = (diff.abs() / expectedTotal) * 100;
+
+                              if (pctDiff > 20.0) {
+                                // Show Warning Dialog
+                                await showDialog(
+                                  context: context,
+                                  builder: (_) => AlertDialog(
+                                    title: Text('📊 Price Validation Warning'),
+                                    content: Text(
+                                        'You set RM${selectedValueDouble.toStringAsFixed(2)},\n'
+                                            'current market total is RM${expectedTotal.toStringAsFixed(2)}.\n'
+                                            'Difference RM${diff.abs().toStringAsFixed(2)} exceeds 20%.'),
+                                    actions: [
+                                      TextButton(
+                                          onPressed: () => Navigator.pop(context),
+                                          child: Text('OK'))
+                                    ],
+                                  ),
+                                );
+                                return; // Abort
+                              }
+
+                              // 2) Generate Banner Image via Cloud Function (if needed)
+                              final funcResp = await http.post(
+                                Uri.parse(
+                                    "https://us-central1-kita-tongtong.cloudfunctions.net/generatePackageKasihImage"),
+                                headers: {"Content-Type": "application/json"},
+                                body: jsonEncode({
+                                  "items": detailedPackageItems
+                                      .map((i) => {"name": i["name"]})
+                                      .toList(),
+                                }),
+                              );
+                              if (funcResp.statusCode != 200) {
+                                throw Exception("Image function failed: ${funcResp.body}");
+                              }
+                              final bannerData = jsonDecode(funcResp.body);
+                              final bannerUrl = bannerData["image_url"] as String;
+
+                              // 3) Write to Firestore: package details, banner URL, etc.
+                              final packagesRef =
+                              FirebaseFirestore.instance.collection('package_kasih');
+                              await packagesRef.add({
+                                "value": selectedValueDouble,
+                                "items": detailedPackageItems
+                                    .map((i) => {
+                                  "name": i["name"],
+                                  "number": i["number"],
+                                  "unit": i["unit"]
+                                })
+                                    .toList(),
+                                "bannerUrl": bannerUrl,
                                 "createdAt": Timestamp.now(),
                               });
 
-                              print("✅ Package Kasih saved with generated banner!");
                               Navigator.pop(context);
-                            } else {
-                              print("❌ Failed to generate image: ${response.body}");
-                              // Optional: show dialog or snackBar
+                            } catch (e) {
+                              print("❌ ERROR in Submit PackageKasih: $e");
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                    content:
+                                    Text('Error submitting package: ${e.toString()}')),
+                              );
                             }
-                          } catch (e) {
-                            await showDialog(
-                              context: context,
-                              builder: (_) => AlertDialog(
-                                title: Text('Error'),
-                                content: Text(e.toString()),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(context),
-                                    child: Text('Close'),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }
-                        },
-
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Color(0xFFFDB515),
-                          padding: EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Color(0xFFFDB515),
+                            padding: EdgeInsets.symmetric(
+                                vertical: 12, horizontal: 24),
+                          ),
+                          child: Center(
+                              child: Text("Submit",
+                                  style: TextStyle(
+                                      fontSize: 16, color: Colors.black))),
                         ),
-                        child: Center(child: Text("Submit", style: TextStyle(fontSize: 16, color: Colors.black))),
                       ),
                     ],
                   ),
@@ -938,10 +1031,38 @@ class _StockItemState extends State<StockItem> {
 
                       final docs = snapshot.data!.docs;
                       docs.sort((a, b) {
-                        int valueA = int.tryParse((a['value'] as String).replaceAll("RM ", "")) ?? 0;
-                        int valueB = int.tryParse((b['value'] as String).replaceAll("RM ", "")) ?? 0;
-                        if (valueA != valueB) return valueA.compareTo(valueB);
-                        return a.reference.id.compareTo(b.reference.id); // fallback sort
+                        // --- extract rawA ---
+                        double rawA;
+                        final dynamic vA = a['value'];
+                        if (vA is String) {
+                          // original code assumed vA was always "RM 123" (String). Now we handle that case:
+                          rawA = double.tryParse(vA.replaceAll("RM ", "")) ?? 0.0;
+                        } else if (vA is num) {
+                          // If it’s already a number (e.g. 50.0), just convert to double:
+                          rawA = vA.toDouble();
+                        } else {
+                          rawA = 0.0;
+                        }
+
+                        // --- extract rawB ---
+                        double rawB;
+                        final dynamic vB = b['value'];
+                        if (vB is String) {
+                          rawB = double.tryParse(vB.replaceAll("RM ", "")) ?? 0.0;
+                        } else if (vB is num) {
+                          rawB = vB.toDouble();
+                        } else {
+                          rawB = 0.0;
+                        }
+
+                        // 3) Compare rawA vs. rawB numerically:
+                        if (rawA != rawB) {
+                          return rawA.compareTo(rawB);
+                        }
+
+                        // 4) (Optional) If they’re equal, you can tie‐break however you want.
+                        //     For example, sort by document ID to have a deterministic order:
+                        return a.id.compareTo(b.id);
                       });
 
                       return Column(

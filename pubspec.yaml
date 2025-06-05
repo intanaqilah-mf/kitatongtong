@@ -61,6 +61,7 @@ dependencies:
   app_links: ^6.4.0
   webview_flutter_web: ^0.2.3+4
   url_launcher: ^6.3.1
+  flutter_typeahead: ^5.2.0
 
 dev_dependencies:
   flutter_test:

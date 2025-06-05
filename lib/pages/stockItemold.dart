@@ -33,11 +33,8 @@ class _StockItemState extends State<StockItem> {
   List<Map<String, dynamic>> detailedPackageItems = [];
   TextEditingController itemNameController = TextEditingController();
   TextEditingController itemNumberController = TextEditingController();
-  String selectedCategory = "";
+  String selectedUnit = "kg";
   List<Map<String, dynamic>> itemSuggestions = [];
-
-  String? selectedItemId;    // Firestore document ID of the chosen item
-  double selectedPrice = 0.0; // “average_price” from your price catcher
 
   void _onItemTapped(int index) {
     setState(() {
@@ -454,6 +451,10 @@ class _StockItemState extends State<StockItem> {
 
   void _AddPackageKasih() {
     TextEditingController itemNameController = TextEditingController();
+    TextEditingController itemNumberController = TextEditingController();
+    String selectedUnit = "kg";
+    String selectedCategory = "";
+    double selectedPrice = 0.0;
 
     List<Map<String, dynamic>> detailedPackageItems = [];
 
@@ -483,7 +484,34 @@ class _StockItemState extends State<StockItem> {
                         ),
                       ),
                       SizedBox(height: 16),
-                      Text("Item Name", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFF1D789))),
+                      Text("Value Package Kasih", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFF1D789))),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Color(0xFFFFCF40),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        padding: EdgeInsets.symmetric(horizontal: 12),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: selectedValue,
+                            isExpanded: true,
+                            dropdownColor: Color(0xFFFFCF40),
+                            items: ["RM 10", "RM 20", "RM 30", "RM 40", "RM 50"].map((String type) {
+                              return DropdownMenuItem<String>(
+                                value: type,
+                                child: Text(type, style: TextStyle(color: Colors.black)),
+                              );
+                            }).toList(),
+                            onChanged: (String? newValue) {
+                              setModalState(() {
+                                selectedValue = newValue!;
+                              });
+                            },
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: 16),
+                      Text("Package Item", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFF1D789))),
                       Column(
                         children: List.generate(detailedPackageItems.length, (index) {
                           final item = detailedPackageItems[index];
@@ -497,6 +525,7 @@ class _StockItemState extends State<StockItem> {
                             child: Row(
                               children: [
                                 Expanded(child: Text(item["name"], style: TextStyle(color: Colors.black))),
+                                Text("${item["number"]} ${item["unit"]}", style: TextStyle(color: Colors.black)),
                                 SizedBox(width: 8),
                                 GestureDetector(
                                   onTap: () {
@@ -513,20 +542,19 @@ class _StockItemState extends State<StockItem> {
                       ),
                       Row(
                         children: [
-                          // ────────────────────────────────────────────────────────────────────────
-                          // 1) The “Item Name + suggestions” column (unchanged)
                           Expanded(
                             flex: 4,
-                            child: Column(
+                            child: /// REPLACEMENT START
+                            Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                // Your existing TextField for itemNameController:
+                                // 1) A normal TextField that calls SearchService.searchItems on each change:
                                 TextField(
                                   controller: itemNameController,
                                   decoration: InputDecoration(
                                     filled: true,
                                     fillColor: Color(0xFFFFCF40),
-                                    hintText: "Type to search item…",
+                                    hintText: "Item name",
                                     border: OutlineInputBorder(),
                                   ),
                                   onChanged: (pattern) async {
@@ -549,15 +577,17 @@ class _StockItemState extends State<StockItem> {
                                     }
                                   },
                                 ),
-                                // If there are suggestions, show them:
+
+                                // 2) If there are any suggestions, show a small dropdown list:
                                 if (itemSuggestions.isNotEmpty)
                                   Container(
+                                    // adjust maxHeight as needed (e.g. 200)
                                     constraints: BoxConstraints(maxHeight: 200),
                                     margin: const EdgeInsets.only(top: 4),
                                     decoration: BoxDecoration(
                                       color: Colors.white,
                                       border: Border.all(color: Colors.grey),
-                                      borderRadius: BorderRadius.circular(16),
+                                      borderRadius: BorderRadius.circular(8),
                                       boxShadow: [
                                         BoxShadow(
                                           color: Colors.black26,
@@ -577,121 +607,202 @@ class _StockItemState extends State<StockItem> {
                                             "RM ${(suggestion['average_price'] as num).toStringAsFixed(2)}",
                                           ),
                                           onTap: () {
+                                            // When user taps a suggestion, fill the TextField and clear suggestions:
                                             setModalState(() {
                                               itemNameController.text = suggestion['item_name'] as String;
                                               itemSuggestions = [];
-                                              selectedItemId = suggestion['id'] as String;
-                                              selectedPrice = (suggestion['average_price'] as num).toDouble();
-                                              selectedCategory        = suggestion['item_group'] as String? ?? "";
                                             });
                                           },
                                         );
                                       },
                                     ),
                                   ),
-                                SizedBox(height: 16),
                               ],
                             ),
+                            /// REPLACEMENT END
+
                           ),
 
                           SizedBox(width: 8),
+                          Expanded(
+                            flex: 2,
+                            child: TextField(
+                              controller: itemNumberController,
+                              keyboardType: TextInputType.number,
+                              decoration: InputDecoration(
+                                filled: true,
+                                fillColor: Color(0xFFFFCF40),
+                                hintText: "No.",
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 8),
+                          Expanded(
+                            flex: 3,
+                            child: Container(
+                              padding: EdgeInsets.symmetric(horizontal: 8),
+                              decoration: BoxDecoration(
+                                color: Color(0xFFFFCF40),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  value: selectedUnit,
+                                  isExpanded: true,
+                                  items: ["kg", "g", "cartoon", "unit"].map((String unit) {
+                                    return DropdownMenuItem<String>(
+                                      value: unit,
+                                      child: Text(unit),
+                                    );
+                                  }).toList(),
+                                  onChanged: (String? newUnit) {
+                                    setModalState(() {
+                                      selectedUnit = newUnit!;
+                                    });
+                                  },
+                                ),
+                              ),
+                            ),
+                          ),
                           IconButton(
                             icon: Icon(Icons.add, color: Colors.white),
                             onPressed: () {
-                              final name = itemNameController.text.trim();
-                              final int qty  = 1;
-
-                              setModalState(() {
-                                detailedPackageItems.add({
-                                  "name": name,
-                                  "price": selectedPrice,          // <— include price
-                                  "category": selectedCategory,
-                                  "number": qty,
+                              if (itemNameController.text.trim().isNotEmpty &&
+                                  int.tryParse(itemNumberController.text.trim()) != null) {
+                                setModalState(() {
+                                  detailedPackageItems.add({
+                                    "name": itemNameController.text.trim(),
+                                    "number": int.parse(itemNumberController.text.trim()),
+                                    "unit": selectedUnit,
+                                  });
+                                  itemNameController.clear();
+                                  itemNumberController.clear();
                                 });
-
-                                // Clear for the next entry:
-                                itemNameController.clear();
-                              });
+                              }
                             },
                           ),
-
                         ],
                       ),
-
                       SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: () async {
-                          // 1) If no items have been added, warn and return:
-                          if (detailedPackageItems.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text("Please add at least one item to the package first.")),
-                            );
-                            return;
-                          }
-
-                          try {
-                            double totalPrice = 0.0;
-                            for (var item in detailedPackageItems) {
-                              final double p = (item["price"] as num).toDouble();
-                              final int qty = item["number"] as int;
-                              totalPrice += p * qty;
-                            }
-                            final priceResponse = await http.post(
-                              Uri.parse("https://us-central1-kita-tongtong.cloudfunctions.net/getPackagePrice"),
-                              headers: {"Content-Type": "application/json"},
-                              body: jsonEncode({"items": detailedPackageItems}),
-                            );
-                            if (priceResponse.statusCode != 200) {
-                              throw Exception("getPackagePrice failed: ${priceResponse.body}");
-                            }
-                            final priceData = jsonDecode(priceResponse.body) as Map<String, dynamic>;
-                            final double expectedTotal = (priceData["expectedTotal"] as num).toDouble();
-                            final bannerResponse = await http.post(
-                              Uri.parse("https://us-central1-kita-tongtong.cloudfunctions.net/generatePackageKasihImage"),
-                              headers: {"Content-Type": "application/json"},
-                              body: jsonEncode({"items": detailedPackageItems}),
-                            );
-                            if (bannerResponse.statusCode != 200) {
-                              throw Exception("generatePackageKasihImage failed: ${bannerResponse.body}");
-                            }
-                            final bannerData = jsonDecode(bannerResponse.body) as Map<String, dynamic>;
-                            final String bannerUrl = bannerData["image_url"] as String;
-
-                            // 5) Finally, write the “package” document exactly as before:
-                            final packagesRef = FirebaseFirestore.instance.collection('package_kasih');
-                            await packagesRef.add({
-                              "price": totalPrice,
-                              "items": detailedPackageItems
-                                  .map((item) => {
-                                "name": item["name"],
-                                // Add price & category so your UI can show it if needed:
-                                "price": item["price"],
-                                "category": item["category"],
-                              })
-                                  .toList(),
-                              "bannerUrl": bannerUrl,
-                              "createdAt": Timestamp.now(),
-                            });
-
-                            // 6) Close the bottom sheet and return to the list
-                            Navigator.pop(context);
-                          } catch (e) {
-                            print("❌ ERROR inserting package: $e");
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Error creating package: ${e.toString()}')),
-                            );
-                          }
+                      Text("Package Kasih Banner", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFF1D789))),
+                      GestureDetector(
+                        onTap: () async {
+                          await _pickImage(setModalState);
                         },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Color(0xFFFDB515),
-                          padding: EdgeInsets.symmetric(vertical: 12, horizontal: 24),
-                        ),
-                        child: Center(
-                          child: Text("Submit Package",
-                              style: TextStyle(fontSize: 16, color: Colors.black)),
+                        child: Container(
+                          height: 150,
+                          decoration: BoxDecoration(
+                            color: Color(0xFFFFCF40),
+                            border: Border.all(color: Colors.grey),
+                            borderRadius: BorderRadius.circular(8),
+                            image: _selectedImage != null
+                                ? DecorationImage(image: FileImage(_selectedImage!), fit: BoxFit.cover)
+                                : null,
+                          ),
+                          child: _selectedImage == null
+                              ? Center(child: Icon(Icons.add_a_photo, size: 40, color: Colors.grey))
+                              : null,
                         ),
                       ),
+                      SizedBox(height: 20),
+                      Center(
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            if (detailedPackageItems.isEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                    content: Text(
+                                        'Please add at least one item to the package.')),
+                              );
+                              return;
+                            }
 
+                            // 1) Calculate expected total from Cloud Function
+                            try {
+                              final expectedTotal =
+                              await fetchExpectedTotalRemote(detailedPackageItems);
+
+                              final selectedValueDouble = double.parse(
+                                  selectedValue.replaceAll('RM ', '').trim());
+
+                              final diff = selectedValueDouble - expectedTotal;
+                              final pctDiff = (diff.abs() / expectedTotal) * 100;
+
+                              if (pctDiff > 20.0) {
+                                // Show Warning Dialog
+                                await showDialog(
+                                  context: context,
+                                  builder: (_) => AlertDialog(
+                                    title: Text('📊 Price Validation Warning'),
+                                    content: Text(
+                                        'You set RM${selectedValueDouble.toStringAsFixed(2)},\n'
+                                            'current market total is RM${expectedTotal.toStringAsFixed(2)}.\n'
+                                            'Difference RM${diff.abs().toStringAsFixed(2)} exceeds 20%.'),
+                                    actions: [
+                                      TextButton(
+                                          onPressed: () => Navigator.pop(context),
+                                          child: Text('OK'))
+                                    ],
+                                  ),
+                                );
+                                return; // Abort
+                              }
+
+                              // 2) Generate Banner Image via Cloud Function (if needed)
+                              final funcResp = await http.post(
+                                Uri.parse(
+                                    "https://us-central1-kita-tongtong.cloudfunctions.net/generatePackageKasihImage"),
+                                headers: {"Content-Type": "application/json"},
+                                body: jsonEncode({
+                                  "items": detailedPackageItems
+                                      .map((i) => {"name": i["name"]})
+                                      .toList(),
+                                }),
+                              );
+                              if (funcResp.statusCode != 200) {
+                                throw Exception("Image function failed: ${funcResp.body}");
+                              }
+                              final bannerData = jsonDecode(funcResp.body);
+                              final bannerUrl = bannerData["image_url"] as String;
+
+                              // 3) Write to Firestore: package details, banner URL, etc.
+                              final packagesRef =
+                              FirebaseFirestore.instance.collection('package_kasih');
+                              await packagesRef.add({
+                                "value": selectedValueDouble,
+                                "items": detailedPackageItems
+                                    .map((i) => {
+                                  "name": i["name"],
+                                  "number": i["number"],
+                                  "unit": i["unit"]
+                                })
+                                    .toList(),
+                                "bannerUrl": bannerUrl,
+                                "createdAt": Timestamp.now(),
+                              });
+
+                              Navigator.pop(context);
+                            } catch (e) {
+                              print("❌ ERROR in Submit PackageKasih: $e");
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                    content:
+                                    Text('Error submitting package: ${e.toString()}')),
+                              );
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Color(0xFFFDB515),
+                            padding: EdgeInsets.symmetric(
+                                vertical: 12, horizontal: 24),
+                          ),
+                          child: Center(
+                              child: Text("Submit",
+                                  style: TextStyle(
+                                      fontSize: 16, color: Colors.black))),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -709,345 +820,338 @@ class _StockItemState extends State<StockItem> {
       backgroundColor: Color(0xFF303030),
       body: SingleChildScrollView(
         child: Column(
-        children: [
-          Padding(
-            padding: EdgeInsets.only(top: 70, left: 16, right: 16),
-            child: Container(
-              height: 50,
-              decoration: BoxDecoration(
-                color: Color(0xFFFDB515),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          isVoucherSelected = true;
-                        });
-                      },
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: isVoucherSelected ? Colors.white : Color(0xFFFDB515),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          "Vouchers",
-                          style: TextStyle(
-                            color: isVoucherSelected ? Color(0xFFFDB515) : Colors.white,
-                            fontWeight: FontWeight.bold,
+          children: [
+            Padding(
+              padding: EdgeInsets.only(top: 70, left: 16, right: 16),
+              child: Container(
+                height: 50,
+                decoration: BoxDecoration(
+                  color: Color(0xFFFDB515),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            isVoucherSelected = true;
+                          });
+                        },
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: isVoucherSelected ? Colors.white : Color(0xFFFDB515),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            "Vouchers",
+                            style: TextStyle(
+                              color: isVoucherSelected ? Color(0xFFFDB515) : Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          isVoucherSelected = false;
-                        });
-                      },
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: !isVoucherSelected ? Colors.white : Color(0xFFFDB515),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          "Package Kasih",
-                          style: TextStyle(
-                            color: !isVoucherSelected ? Color(0xFFFDB515) : Colors.white,
-                            fontWeight: FontWeight.bold,
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            isVoucherSelected = false;
+                          });
+                        },
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: !isVoucherSelected ? Colors.white : Color(0xFFFDB515),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            "Package Kasih",
+                            style: TextStyle(
+                              color: !isVoucherSelected ? Color(0xFFFDB515) : Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (isVoucherSelected)
-            Container(
-              margin: EdgeInsets.symmetric(horizontal: 5, vertical: 10),
-              padding: EdgeInsets.symmetric(horizontal: 15, vertical: 20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  stops: [0.16, 0.38, 0.58, 0.88],
-                  colors: [
-                    Color(0xFFF9F295),
-                    Color(0xFFE0AA3E),
-                    Color(0xFFF9F295),
-                    Color(0xFFB88A44),
                   ],
                 ),
-                borderRadius: BorderRadius.circular(12),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Vouchers",
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
+            ),
+            if (isVoucherSelected)
+              Container(
+                margin: EdgeInsets.symmetric(horizontal: 5, vertical: 10),
+                padding: EdgeInsets.symmetric(horizontal: 15, vertical: 20),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    stops: [0.16, 0.38, 0.58, 0.88],
+                    colors: [
+                      Color(0xFFF9F295),
+                      Color(0xFFE0AA3E),
+                      Color(0xFFF9F295),
+                      Color(0xFFB88A44),
+                    ],
                   ),
-                  SizedBox(height: 10),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Vouchers",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                    ),
+                    SizedBox(height: 10),
 
-                  StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance.collection("vouchers").snapshots(),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return Center(child: CircularProgressIndicator());
-                      }
-                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                        return Center(
-                          child: Text(
-                            "No vouchers here",
-                            style: TextStyle(fontSize: 16, color: Colors.black),
-                          ),
-                        );
-                      }
-
-                      return Column(
-                        children: snapshot.data!.docs.map((doc) {
-                          Map<String, dynamic> voucher = doc.data() as Map<String, dynamic>;
-                          String bannerUrl = voucher["bannerVoucher"] ?? "";
-                          String valueText = voucher.containsKey("voucherValue")
-                              ? "Value RM ${voucher["voucherValue"]}"
-                              : "Value RM ${voucher["valuePoints"]}";
-
-                          return Container(
-                            margin: EdgeInsets.symmetric(vertical: 8),
-                            padding: EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: Colors.transparent, // ✅ Transparent Box
-                              border: Border.all(color: Colors.black), // ✅ Black Border
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // ✅ Voucher Image
-                                bannerUrl.isNotEmpty
-                                    ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: Image.network(
-                                    bannerUrl,
-                                    height: 140,
-                                    width: double.infinity,
-                                    fit: BoxFit.cover,
-                                  ),
-                                )
-                                    : Container(
-                                  height: 100,
-                                  color: Colors.grey[300],
-                                  child: Center(
-                                    child: Icon(Icons.image, color: Colors.grey),
-                                  ),
-                                ),
-                                SizedBox(height: 10),
-                                Text(
-                                  valueText,
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black,
-                                  ),
-                                ),
-                              ],
+                    StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance.collection("vouchers").snapshots(),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return Center(child: CircularProgressIndicator());
+                        }
+                        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                          return Center(
+                            child: Text(
+                              "No vouchers here",
+                              style: TextStyle(fontSize: 16, color: Colors.black),
                             ),
                           );
-                        }).toList(),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-          if (!isVoucherSelected)
-            Container(
-              margin: EdgeInsets.symmetric(horizontal: 5, vertical: 10),
-              padding: EdgeInsets.symmetric(horizontal: 15, vertical: 20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  stops: [0.16, 0.38, 0.58, 0.88],
-                  colors: [
-                    Color(0xFFF9F295),
-                    Color(0xFFE0AA3E),
-                    Color(0xFFF9F295),
-                    Color(0xFFB88A44),
+                        }
+
+                        return Column(
+                          children: snapshot.data!.docs.map((doc) {
+                            Map<String, dynamic> voucher = doc.data() as Map<String, dynamic>;
+                            String bannerUrl = voucher["bannerVoucher"] ?? "";
+                            String valueText = voucher.containsKey("voucherValue")
+                                ? "Value RM ${voucher["voucherValue"]}"
+                                : "Value RM ${voucher["valuePoints"]}";
+
+                            return Container(
+                              margin: EdgeInsets.symmetric(vertical: 8),
+                              padding: EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.transparent, // ✅ Transparent Box
+                                border: Border.all(color: Colors.black), // ✅ Black Border
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // ✅ Voucher Image
+                                  bannerUrl.isNotEmpty
+                                      ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: Image.network(
+                                      bannerUrl,
+                                      height: 140,
+                                      width: double.infinity,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  )
+                                      : Container(
+                                    height: 100,
+                                    color: Colors.grey[300],
+                                    child: Center(
+                                      child: Icon(Icons.image, color: Colors.grey),
+                                    ),
+                                  ),
+                                  SizedBox(height: 10),
+
+                                  // ✅ Voucher Value
+                                  Text(
+                                    valueText,
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        );
+                      },
+                    ),
                   ],
                 ),
-                borderRadius: BorderRadius.circular(12),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Package Kasih",
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
+            if (!isVoucherSelected)
+              Container(
+                margin: EdgeInsets.symmetric(horizontal: 5, vertical: 10),
+                padding: EdgeInsets.symmetric(horizontal: 15, vertical: 20),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    stops: [0.16, 0.38, 0.58, 0.88],
+                    colors: [
+                      Color(0xFFF9F295),
+                      Color(0xFFE0AA3E),
+                      Color(0xFFF9F295),
+                      Color(0xFFB88A44),
+                    ],
                   ),
-                  SizedBox(height: 10),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Package Kasih",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                    ),
+                    SizedBox(height: 10),
 
-                  StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance.collection("package_kasih").snapshots(),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return Center(child: CircularProgressIndicator());
-                      }
-                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                        return Center(
-                          child: Text(
-                            "No Package Kasih available",
-                            style: TextStyle(fontSize: 16, color: Colors.black),
-                          ),
-                        );
-                      }
+                    StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance.collection("package_kasih").snapshots(),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return Center(child: CircularProgressIndicator());
+                        }
+                        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                          return Center(
+                            child: Text(
+                              "No Package Kasih available",
+                              style: TextStyle(fontSize: 16, color: Colors.black),
+                            ),
+                          );
+                        }
 
-                      final docs = snapshot.data!.docs;
-                      docs.sort((a, b) {
-                        // Treat doc.data() as a Map; check whether it contains "price" first
-                        final dataA = a.data() as Map<String, dynamic>;
-                        final dataB = b.data() as Map<String, dynamic>;
-
-                        // --- Compute rawA safely ---
-                        double rawA = 0.0;
-                        if (dataA.containsKey('price')) {
-                          final dynamic vA = dataA['price'];
+                        final docs = snapshot.data!.docs;
+                        docs.sort((a, b) {
+                          // --- extract rawA ---
+                          double rawA;
+                          final dynamic vA = a['value'];
                           if (vA is String) {
-                             rawA = double.tryParse(vA.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0.0;
+                            // original code assumed vA was always "RM 123" (String). Now we handle that case:
+                            rawA = double.tryParse(vA.replaceAll("RM ", "")) ?? 0.0;
                           } else if (vA is num) {
+                            // If it’s already a number (e.g. 50.0), just convert to double:
                             rawA = vA.toDouble();
                           } else {
                             rawA = 0.0;
                           }
-                        }
 
-                        // --- Compute rawB safely (same pattern) ---
-                        double rawB = 0.0;
-                        if (dataB.containsKey('price')) {
-                          final dynamic vB = dataB['price'];
+                          // --- extract rawB ---
+                          double rawB;
+                          final dynamic vB = b['value'];
                           if (vB is String) {
-                            rawB = double.tryParse(vB.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0.0;
+                            rawB = double.tryParse(vB.replaceAll("RM ", "")) ?? 0.0;
                           } else if (vB is num) {
                             rawB = vB.toDouble();
                           } else {
                             rawB = 0.0;
                           }
-                        }
 
-                        return rawA.compareTo(rawB);
-                      });
+                          // 3) Compare rawA vs. rawB numerically:
+                          if (rawA != rawB) {
+                            return rawA.compareTo(rawB);
+                          }
 
+                          // 4) (Optional) If they’re equal, you can tie‐break however you want.
+                          //     For example, sort by document ID to have a deterministic order:
+                          return a.id.compareTo(b.id);
+                        });
 
-                      return Column(
-                        children: docs.asMap().entries.map((entry) {
-                          final index = entry.key;
-                          final doc = entry.value;
-                          final pkg = doc.data() as Map<String, dynamic>;
-                          final bannerUrl = pkg["bannerUrl"] ?? "";
-                          final value = pkg["price"] ?? "RM 0";
-                          final label = String.fromCharCode(65 + index); // A, B, C, ...
+                        return Column(
+                          children: docs.asMap().entries.map((entry) {
+                            final index = entry.key;
+                            final doc = entry.value;
+                            final pkg = doc.data() as Map<String, dynamic>;
+                            final bannerUrl = pkg["bannerUrl"] ?? "";
+                            final value = pkg["value"] ?? "RM 0";
+                            final label = String.fromCharCode(65 + index); // A, B, C, ...
 
-                          return Container(
-                            margin: EdgeInsets.symmetric(vertical: 8),
-                            padding: EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: Colors.transparent,
-                              border: Border.all(color: Colors.black),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                bannerUrl.isNotEmpty
-                                    ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: Image.network(
-                                    bannerUrl,
-                                    height: 140,
-                                    width: double.infinity,
-                                    fit: BoxFit.cover,
+                            return Container(
+                              margin: EdgeInsets.symmetric(vertical: 8),
+                              padding: EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.transparent,
+                                border: Border.all(color: Colors.black),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  bannerUrl.isNotEmpty
+                                      ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: Image.network(
+                                      bannerUrl,
+                                      height: 140,
+                                      width: double.infinity,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  )
+                                      : Container(
+                                    height: 100,
+                                    color: Colors.grey[300],
+                                    child: Center(
+                                      child: Icon(Icons.image, color: Colors.grey),
+                                    ),
                                   ),
-                                )
-                                    : Container(
-                                  height: 100,
-                                  color: Colors.grey[300],
-                                  child: Center(
-                                    child: Icon(Icons.image, color: Colors.grey),
+                                  Text(
+                                    "Package $label:",
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFFA67C00),
+                                    ),
+                                    textAlign: TextAlign.center,
                                   ),
-                                ),
-                                Text(
-                                  "Package $label:",
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFFA67C00),
+                                  SizedBox(height: 5),
+                                  if (pkg["items"] != null)
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.center,
+                                      children: (pkg["items"] as List<dynamic>)
+                                          .asMap()
+                                          .entries
+                                          .map((entry) {
+                                        final i = entry.key;
+                                        final item = entry.value as Map<String, dynamic>;
+                                        return Text(
+                                          "${i + 1}. ${item['name']} ${item['unit']}",
+                                          style: TextStyle(color: Colors.black),
+                                          textAlign: TextAlign.center,
+                                        );
+                                      }).toList(),
+                                    ),
+                                  SizedBox(height: 10),
+                                  Text(
+                                    "Value $value",
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black,
+                                    ),
                                   ),
-                                  textAlign: TextAlign.center,
-                                ),
-                                SizedBox(height: 5),
-                                if (pkg["items"] != null)
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.center,
-                                    children: (pkg["items"] as List<dynamic>)
-                                        .asMap()
-                                        .entries
-                                        .map((entry) {
-                                      final i = entry.key;
-                                      final item = entry.value as Map<String, dynamic>;
-                                      final String name = item['name'] as String? ?? "";
-                                      final double price = (item['price'] as num?)?.toDouble() ?? 0.0;
-                                      final String category = item['category'] as String? ?? "";
-                                      return Column(
-                                        children: [
-                                          Text(
-                                            "    Category: $category",
-                                            style: TextStyle(color: Colors.grey[700], fontStyle: FontStyle.italic, fontSize: 12),
-                                            textAlign: TextAlign.center,
-                                          ),
-                                          SizedBox(height: 4),
-                                        ],
-                                      );
-                                    }).toList(),
-                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        );
 
-                                SizedBox(height: 10),
-                                Text(
-                                  "Price: RM $value",
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }).toList(),
-                      );
-
-                    },
-                  ),
-                ],
+                      },
+                    ),
+                  ],
+                ),
               ),
-            ),
-        ],
-      ),
+          ],
+        ),
       ),
 
       // ✅ Calls different functions for each section

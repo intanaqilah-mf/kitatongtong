@@ -83,16 +83,42 @@ class _PackageKasihPageState extends State<PackageKasihPage> {
                     );
                   }
 
-                  final docs = snapshot.data!.docs.where((doc) {
-                    final valStr = (doc['value'] as String).replaceAll("RM ", "").trim();
-                    final val = int.tryParse(valStr);
-                    return val == widget.rmValue;
-                  }).toList();
+                  final docs = snapshot.data!.docs;
 
+                  // 2) Sort them by "value", but first detect whether `value` is a String or a number:
                   docs.sort((a, b) {
-                    int valueA = int.tryParse((a['value'] as String).replaceAll("RM ", "")) ?? 0;
-                    int valueB = int.tryParse((b['value'] as String).replaceAll("RM ", "")) ?? 0;
-                    return valueA.compareTo(valueB);
+                    // --- extract rawA ---
+                    double rawA;
+                    final dynamic vA = a['price'];
+                    if (vA is String) {
+                      // original code assumed vA was always "RM 123" (String). Now we handle that case:
+                      rawA = double.tryParse(vA) ?? 0.0;
+                    } else if (vA is num) {
+                      // If it’s already a number (e.g. 50.0), just convert to double:
+                      rawA = vA.toDouble();
+                    } else {
+                      rawA = 0.0;
+                    }
+
+                    // --- extract rawB ---
+                    double rawB;
+                    final dynamic vB = b['price'];
+                    if (vB is String) {
+                      rawB = double.tryParse(vB) ?? 0.0;
+                    } else if (vB is num) {
+                      rawB = vB.toDouble();
+                    } else {
+                      rawB = 0.0;
+                    }
+
+                    // 3) Compare rawA vs. rawB numerically:
+                    if (rawA != rawB) {
+                      return rawA.compareTo(rawB);
+                    }
+
+                    // 4) (Optional) If they’re equal, you can tie‐break however you want.
+                    //     For example, sort by document ID to have a deterministic order:
+                    return a.id.compareTo(b.id);
                   });
 
                   return ListView.builder(
@@ -101,7 +127,7 @@ class _PackageKasihPageState extends State<PackageKasihPage> {
                       final doc = docs[index];
                       final data = doc.data() as Map<String, dynamic>;
                       final bannerUrl = data['bannerUrl'] ?? '';
-                      final value = data['value'] ?? 'RM 0';
+                      final value = data['price'] ?? 'RM 0';
                       final items = data['items'] ?? [];
                       final label = String.fromCharCode(65 + index);
                       return GestureDetector(

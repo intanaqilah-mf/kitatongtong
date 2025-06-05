@@ -29,7 +29,7 @@ class _AmountPageState extends State<PackagePage> {
     for (var doc in docs) {
       final id = doc.id;
       final valueStr =
-      (doc['value'] as String).replaceAll("RM ", "").trim(); // e.g. "10"
+      (doc['price'] as String).replaceAll("RM ", "").trim(); // e.g. "10"
       final packageValue = int.tryParse(valueStr) ?? 0;
       final qtyController = _quantityControllers[id];
       int qty = int.tryParse(qtyController?.text ?? "0") ?? 0;
@@ -69,10 +69,10 @@ class _AmountPageState extends State<PackagePage> {
           List<QueryDocumentSnapshot> docs = snapshot.data!.docs;
           docs.sort((a, b) {
             int valueA = int.tryParse(
-                (a['value'] as String).replaceAll("RM ", "").trim()) ??
+                (a['price'] as String).replaceAll("RM ", "").trim()) ??
                 0;
             int valueB = int.tryParse(
-                (b['value'] as String).replaceAll("RM ", "").trim()) ??
+                (b['price'] as String).replaceAll("RM ", "").trim()) ??
                 0;
             return valueA.compareTo(valueB);
           });
@@ -157,7 +157,7 @@ class _AmountPageState extends State<PackagePage> {
                               // Package label A, B, C, etc.
                               final label = String.fromCharCode(65 + index);
                               final bannerUrl = data['bannerUrl'] ?? "";
-                              final valueStr = (data['value'] as String)
+                              final valueStr = (data['price'] as String)
                                   .replaceAll("RM ", "")
                                   .trim();
                               final packageValue = int.tryParse(valueStr) ?? 0;

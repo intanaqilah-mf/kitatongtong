@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:projects/pages/packageKasih.dart';
 import 'package:projects/pages/packageRedeem.dart';
+import 'package:projects/pages/redeem_voucher_items_page.dart';
 
 class Rewards extends StatefulWidget {
   @override
@@ -476,18 +477,30 @@ class _RewardsState extends State<Rewards> {
         String subtitle = "Redeemed on:\n" + redeemedDateStr;
 
         return GestureDetector(
+          // Inside _buildClaimedVoucherList, in the GestureDetector's onTap:
           onTap: () async {
-            bool? removed = await Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => PackageKasihPage(
-                  rmValue: rmValue,
-                  voucherReceived: voucher,
+            // 'voucher' is the map for the specific claimed voucher from voucherReceived array
+            final int valuePoints = voucher['valuePoints'] as int? ?? 0;
+            if (valuePoints > 0) {
+              // Ensure you pass the original voucher map to handle its deletion/update
+              final Map<String, dynamic> voucherDataForRedemption = Map<String, dynamic>.from(voucher);
+
+              bool? refreshed = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => RedeemVoucherWithItemsPage(
+                    voucherValue: valuePoints.toDouble(),
+                    voucherReceived: voucherDataForRedemption, // Pass the whole voucher map
+                  ),
                 ),
-              ),
-            );
-            if (removed == true) {
-              fetchUserData();
+              );
+              if (refreshed == true) { // Optional: if your success page returns true
+                fetchUserData();
+              }
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text("Invalid voucher value.")),
+              );
             }
           },
 
@@ -594,20 +607,27 @@ class _RewardsState extends State<Rewards> {
     String subtitle = "RM$rmValue";
 
     return GestureDetector(
+      // Inside buildAdminVoucherWidget, in the GestureDetector's onTap:
       onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => PackageRedeemPage(
-              bannerUrl: bannerUrl, // provide the proper bannerUrl extracted from your voucher or package data
-              packageLabel: 'X',    // set a label as needed
-              rmValue: rmValue,
-              validityDays: 30,
-              items: [],            // supply actual package items if available
-              voucherReceived: voucher,
+        // 'voucher' is the map for the admin-issued voucher (contains 'docId', 'voucherGranted', etc.)
+        final String voucherGrantedStr = voucher['voucherGranted']?.toString() ?? "RM0";
+        final int rmValueFromAdminVoucher = int.tryParse(voucherGrantedStr.replaceAll("RM", "")) ?? 0;
+
+        if (rmValueFromAdminVoucher > 0) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => RedeemVoucherWithItemsPage(
+                voucherValue: rmValueFromAdminVoucher.toDouble(),
+                voucherReceived: voucher, // Pass the whole admin voucher map (which includes 'docId')
+              ),
             ),
-          ),
-        );
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Invalid admin voucher value.")),
+          );
+        }
       },
       child: Container(
         width: double.infinity,

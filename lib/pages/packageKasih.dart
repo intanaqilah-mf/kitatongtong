@@ -15,6 +15,11 @@ class PackageKasihPage extends StatefulWidget {
 }
 
 class _PackageKasihPageState extends State<PackageKasihPage> {
+  List<Map<String, dynamic>> allItems = [];
+  List<Map<String, dynamic>> availableItems = [];
+  List<Map<String, dynamic>> cart = [];
+  double remainingBalance = 0.0;
+
   int _selectedIndex = 0;
   void _onItemTapped(int index) {
     setState(() {
@@ -28,7 +33,6 @@ class _PackageKasihPageState extends State<PackageKasihPage> {
     final rand = Random.secure();
     return List.generate(length, (_) => chars[rand.nextInt(chars.length)]).join();
   }
-
 
   @override
   Widget build(BuildContext context) {

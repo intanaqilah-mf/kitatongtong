@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:projects/pages/verifyApplications.dart';
 import 'package:projects/pages/issueReward.dart';
 import 'package:projects/pages/manageStaffs.dart';
+import 'package:projects/pages/viewReports.dart';
 
 class AdminDashboard extends StatelessWidget {
   Widget build(BuildContext context) {
@@ -35,6 +36,12 @@ class AdminDashboard extends StatelessWidget {
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (context) => IssueReward()),
+                      );
+                    }
+                    else if (i ==3) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => ViewReportsScreen()),
                       );
                     }
                     else if (i ==4) {

@@ -383,14 +383,6 @@ class _ApplyAidState extends State<ApplyAid> {
       ),
       SizedBox(height: 10),
       buildFileUploadField(
-        "Proof of Address (e.g. Utility Bill)",
-        "Proof of address",
-        "Format: jpeg/jpg/pdf",
-        "proofOfAddress",
-        2,
-      ),
-      SizedBox(height: 10),
-      buildFileUploadField(
         "Proof of Income",
         "Proof of income",
         "Format: jpeg/jpg/pdf",
@@ -481,8 +473,6 @@ class _ApplyAidState extends State<ApplyAid> {
 
   List<Widget> buildFourthPage() {
     return [
-      buildFileDisplayField("Snapshot of NRIC/License/Passport", fileName1),
-      SizedBox(height: 10),
       buildFileDisplayField("Proof of Address (e.g. Utility Bill)", fileName2),
       SizedBox(height: 10),
       buildFileDisplayField("Proof of Income", fileName3),

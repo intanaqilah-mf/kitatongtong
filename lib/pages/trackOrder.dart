@@ -8,314 +8,427 @@ import 'package:projects/widgets/bottomNavBar.dart';
 import '../pages/redemptionStatus.dart';
 
 class TrackOrderScreen extends StatefulWidget {
+  const TrackOrderScreen({Key? key}) : super(key: key);
+
   @override
   _TrackOrderScreenState createState() => _TrackOrderScreenState();
 }
 
-class _TrackOrderScreenState extends State<TrackOrderScreen> {
-  int _selectedIndex = 1;
+class _TrackOrderScreenState extends State<TrackOrderScreen>
+    with SingleTickerProviderStateMixin {
+  int _bottomNavSelectedIndex = 1;
+  late TabController _tabController;
   late Stream<QuerySnapshot> _ordersStream;
-  String selectedFilter = "All";
-  String selectedSort = "Date";
-  TextEditingController searchController = TextEditingController();
-  String searchQuery = "";
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = "";
+  String _selectedSort = "Date";
+
+  // Cache for item image URLs to avoid repeated Firestore reads.
+  // Key: Item Name, Value: Image URL
+  final Map<String, String> _itemImageCache = {};
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 4, vsync: this);
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       _ordersStream = FirebaseFirestore.instance
           .collection('redeemedKasih')
           .where('userId', isEqualTo: user.uid)
+          .orderBy('redeemedAt', descending: true)
           .snapshots();
     } else {
-      _ordersStream = const Stream.empty();
+      _ordersStream = Stream.empty();
+    }
+    _searchController.addListener(() {
+      if (mounted) {
+        setState(() {
+          _searchQuery = _searchController.text.toLowerCase();
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onBottomNavItemTapped(int index) {
+    if (mounted) {
+      setState(() {
+        _bottomNavSelectedIndex = index;
+      });
     }
   }
 
-  void _onItemTapped(int index) {
-    setState(() => _selectedIndex = index);
+  // NEW FUNCTION: Fetches an item's image URL from package_kasih by matching the item name.
+  Future<String?> _fetchItemImageUrl(Map<String, dynamic> item) async {
+    final String itemName = item['name'];
+    if (_itemImageCache.containsKey(itemName)) {
+      return _itemImageCache[itemName]; // Return from cache
+    }
+
+    try {
+      // Find the package that contains this exact item in its 'items' array.
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('package_kasih')
+          .where('items', arrayContains: item) // Match the exact item map
+          .limit(1)
+          .get();
+
+      if (querySnapshot.docs.isNotEmpty) {
+        final doc = querySnapshot.docs.first;
+        final bannerUrl = doc.data()['bannerUrl'] as String?;
+        if (bannerUrl != null) {
+          _itemImageCache[itemName] = bannerUrl; // Save to cache
+          return bannerUrl;
+        }
+      }
+    } catch (e) {
+      print("Error fetching image URL for $itemName: $e");
+    }
+    return null; // Return null if not found or on error
+  }
+
+
+  List<DocumentSnapshot> _filterAndSortOrders(
+      List<DocumentSnapshot> docs, int tabIndex) {
+    List<DocumentSnapshot> filteredByTab;
+
+    switch (tabIndex) {
+      case 0:
+        filteredByTab = docs;
+        break;
+      case 1:
+        filteredByTab = docs.where((doc) => (doc['processedOrder'] ?? 'no') == 'no').toList();
+        break;
+      case 2:
+        filteredByTab = docs.where((doc) => (doc['processedOrder'] ?? 'no') == 'yes' && (doc['pickedUp'] ?? 'no') == 'no').toList();
+        break;
+      case 3:
+        filteredByTab = docs.where((doc) => (doc['processedOrder'] ?? 'no') == 'yes' && (doc['pickedUp'] ?? 'no') == 'yes').toList();
+        break;
+      default:
+        filteredByTab = docs;
+    }
+
+    if (_searchQuery.isNotEmpty) {
+      filteredByTab = filteredByTab.where((doc) {
+        final code = (doc['pickupCode'] as String? ?? '').toLowerCase();
+        return code.contains(_searchQuery);
+      }).toList();
+    }
+
+    if (_selectedSort == "Code") {
+      filteredByTab.sort((a, b) {
+        final codeA = a['pickupCode'] as String? ?? '';
+        final codeB = b['pickupCode'] as String? ?? '';
+        return codeA.compareTo(codeB);
+      });
+    }
+    return filteredByTab;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(0xFF303030),
+      backgroundColor: const Color(0xFF303030),
       appBar: AppBar(
-        backgroundColor: Color(0xFF303030),
+        backgroundColor: const Color(0xFF303030),
         elevation: 0,
+        title: const Text(
+          "Track Order",
+          style: TextStyle(color: Color(0xFFFDB515), fontWeight: FontWeight.bold),
+        ),
+        centerTitle: true,
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: const Color(0xFFFDB515),
+          labelColor: const Color(0xFFFDB515),
+          unselectedLabelColor: Colors.white70,
+          tabs: const [
+            Tab(text: "All"),
+            Tab(text: "To Process"),
+            Tab(text: "Processed"),
+            Tab(text: "Rating"),
+          ],
+          onTap: (index) {
+            if (mounted) setState(() {});
+          },
+        ),
       ),
       body: Column(
         children: [
-          // HEADER
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.symmetric(vertical: 15, horizontal: 16),
-            child: Column(children: [
-              Text(
-                "Track Order",
-                style: TextStyle(
-                  color: Color(0xFFFDB515),
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              SizedBox(height: 15),
-              Text(
-                "Track orders you’ve redeemed.",
-                style: TextStyle(
-                  color: Color(0xFFAA820C),
-                  fontSize: 14,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ]),
-          ),
-
-          // SEARCH / FILTER / SORT (match VerifyApplications UI)
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 6.0),
+            padding: const EdgeInsets.all(12.0),
             child: Row(
               children: [
-                SizedBox(
-                  width: 145,
-                  height: 40,
-                  child: TextField(
-                    controller: searchController,
-                    onChanged: (v) => setState(() => searchQuery = v.toLowerCase()),
-                    decoration: InputDecoration(
-                      prefixIcon: ShaderMask(
-                        shaderCallback: (Rect bounds) {
-                          return LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            stops: [0.16, 0.38, 0.58, 0.88],
-                            colors: [
-                              Color(0xFFF9F295),
-                              Color(0xFFE0AA3E),
-                              Color(0xFFF9F295),
-                              Color(0xFFB88A44),
-                            ],
-                          ).createShader(bounds);
-                        },
-                        child: Icon(Icons.search_rounded, size: 25, color: Colors.white),
+                Expanded(
+                  child: SizedBox(
+                    height: 45,
+                    child: TextField(
+                      controller: _searchController,
+                      decoration: InputDecoration(
+                        hintText: "Search by Pickup Code",
+                        hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
+                        prefixIcon: Icon(Icons.search, color: Colors.grey[400]),
+                        filled: true,
+                        fillColor: Colors.grey[800],
+                        contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 15),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide.none,
+                        ),
                       ),
-                      hintText: "Search Code",
-                      hintStyle: TextStyle(fontSize: 14),
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      contentPadding: EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                      style: const TextStyle(color: Colors.white, fontSize: 14),
                     ),
-                    style: TextStyle(fontSize: 14),
                   ),
                 ),
-                SizedBox(width: 6),
-
+                const SizedBox(width: 10),
                 SizedBox(
                   width: 120,
-                  height: 40,
+                  height: 45,
                   child: DropdownButtonFormField<String>(
-                    value: selectedFilter,
+                    value: _selectedSort,
                     decoration: InputDecoration(
                       filled: true,
-                      fillColor: Colors.white,
+                      fillColor: Colors.grey[800],
+                      contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
                       border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10)),
-                      contentPadding:
-                      EdgeInsets.symmetric(vertical: 2, horizontal: 10),
-                    ),
-                    dropdownColor: Colors.white,
-                    icon: Align(
-                      alignment: Alignment.centerRight,
-                      child: Icon(Icons.filter_list, color: Colors.black),
-                    ),
-                    style: TextStyle(color: Colors.black),
-                    onChanged: (String? newValue) {
-                      setState(() {
-                        selectedFilter = newValue!;
-                      });
-                    },
-                    items: ["All", "Pending", "Processed", "Pick Up"]
-                        .map<DropdownMenuItem<String>>((String value) {
-                      return DropdownMenuItem<String>(
-                        value: value,
-                        child: Center(
-                          child:
-                          Text(value, style: TextStyle(color: Colors.black)),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-                SizedBox(width: 8),
-
-                // Sort dropdown
-                SizedBox(
-                  width: 90,
-                  height: 40,
-                  child: DropdownButtonFormField<String>(
-                    value: selectedSort,
-                    decoration: InputDecoration(
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
                       ),
-                      contentPadding: EdgeInsets.symmetric(vertical: 2, horizontal: 12),
                     ),
-                    dropdownColor: Colors.white,
-                    icon: Align(
-                      alignment: Alignment.centerRight,
-                      child: Icon(Icons.sort, color: Colors.black),
-                    ),
-                    style: TextStyle(color: Colors.black),
-                    onChanged: (v) => setState(() => selectedSort = v!),
-                    items: ["Date", "Code", "Status"]
-                        .map((s) => DropdownMenuItem(
-                      value: s,
-                      child: Center(child: Text(s, style: TextStyle(color: Colors.black))),
-                    ))
+                    dropdownColor: Colors.grey[800],
+                    icon: const Icon(Icons.sort, color: Colors.white70),
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    items: ["Date", "Code"]
+                        .map((s) => DropdownMenuItem(value: s, child: Text(s)))
                         .toList(),
+                    onChanged: (v) {
+                      if (v != null && mounted) setState(() => _selectedSort = v);
+                    },
                   ),
                 ),
               ],
             ),
           ),
-
-          Divider(thickness: 1, color: Colors.white, indent: 10, endIndent: 10),
-
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: _ordersStream,
-              builder: (ctx, snap) {
-                if (snap.connectionState == ConnectionState.waiting)
-                  return Center(child: CircularProgressIndicator());
-                final docs = snap.data?.docs ?? [];
-                if (docs.isEmpty)
-                  return Center(
-                    child: Text("No orders found", style: TextStyle(color: Colors.white, fontSize: 16)),
-                  );
-
-                return ListView.builder(
-                  itemCount: docs.length,
-                  padding: EdgeInsets.symmetric(vertical: 4),
-                  itemBuilder: (context, index) {
-                    final doc = docs[index];
-                    final data = doc.data()! as Map<String, dynamic>;
-
-                    final date = data['redeemedAt'] != null
-                        ? DateFormat("dd MMM yyyy").format((data['redeemedAt'] as Timestamp).toDate())
-                        : 'No date';
-                    final code = data['pickupCode'] ?? '—';
-                    final processed = data['processedOrder'] ?? 'no';
-                    final pickedUp  = data['pickedUp']      ?? 'no';
-
-                    // → New: determine status text & color
-                    String status;
-                    Color statusColor;
-                    if (processed == 'yes' && pickedUp == 'yes') {
-                      status = 'Pick Up';
-                      statusColor = Colors.green;
-                    } else if (processed == 'yes') {
-                      status = 'Processed';
-                      statusColor = Colors.green;
-                    } else {
-                      status = 'Pending';
-                      statusColor = Colors.orange;
+            child: TabBarView(
+              controller: _tabController,
+              children: List.generate(4, (tabIndex) {
+                return StreamBuilder<QuerySnapshot>(
+                  stream: _ordersStream,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFDB515))));
+                    }
+                    if (snapshot.hasError) {
+                      return Center(child: Text("Error: ${snapshot.error}", style: const TextStyle(color: Colors.white)));
+                    }
+                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                      return const Center(child: Text("No orders found.", style: TextStyle(color: Colors.white70)));
                     }
 
-                    // apply search & filter
-                    if (selectedFilter != "All" && status != selectedFilter) return SizedBox.shrink();
-                    if (searchQuery.isNotEmpty && !code.toLowerCase().contains(searchQuery)) return SizedBox.shrink();
+                    final allDocs = snapshot.data!.docs;
+                    final displayDocs = _filterAndSortOrders(allDocs, tabIndex);
 
-                    return Card(
-                      color: Colors.grey[850],
-                      elevation: 4,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      margin: EdgeInsets.symmetric(vertical: 4, horizontal: 12),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(8),
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => RedemptionStatus(documentId: doc.id)),
-                        ),
-                        child: Padding(
-                          padding: EdgeInsets.all(12),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // top row: date, code, status
-                              Row(
-                                children: [
-                                  Icon(Icons.circle, color: Colors.green, size: 16),
-                                  SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      "$date   #$code",
-                                      style: TextStyle(color: Colors.white, fontSize: 16),
-                                    ),
-                                  ),
-                                  Text(status, style: TextStyle(color: statusColor, fontSize: 14)),
-                                ],
-                              ),
-                              SizedBox(height: 8),
-                              // timeline row
-                              Row(
-                                children: [
-                                  _buildStep("Placed",
-                                      color: Colors.green,
-                                      filled: true),
-                                  _buildLine(color: processed == 'yes' ? Colors.green : Colors.grey),
-                                  _buildStep("Processed",
-                                      color: processed == 'yes' ? Colors.green : Colors.grey,
-                                      filled: processed == 'yes'),
-                                  _buildLine(color: pickedUp == 'yes' ? Colors.green : Colors.grey),
-                                  _buildStep("Pickup",
-                                      color: pickedUp == 'yes' ? Colors.green : Colors.grey,
-                                      filled: pickedUp == 'yes'),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+                    if (displayDocs.isEmpty) {
+                      return Center(
+                          child: Text(
+                            "No orders in this category${_searchQuery.isNotEmpty ? ' matching your search' : ''}.",
+                            style: const TextStyle(color: Colors.white70),
+                            textAlign: TextAlign.center,
+                          ));
+                    }
+                    return ListView.builder(
+                      padding: const EdgeInsets.all(8.0),
+                      itemCount: displayDocs.length,
+                      itemBuilder: (context, index) {
+                        final orderDoc = displayDocs[index];
+                        return _buildOrderCard(orderDoc, tabIndex);
+                      },
                     );
                   },
                 );
-
-              },
+              }),
             ),
           ),
         ],
       ),
       bottomNavigationBar: BottomNavBar(
-        selectedIndex: _selectedIndex,
-        onItemTapped: _onItemTapped,
+        selectedIndex: _bottomNavSelectedIndex,
+        onItemTapped: _onBottomNavItemTapped,
       ),
     );
   }
 
-  Widget _buildStep(String label, {required Color color, required bool filled}) {
-    return Column(
-      children: [
-        Icon(Icons.circle, size: 12, color: filled ? color : Colors.grey[700]),
-        SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(color: filled ? Colors.white : Colors.grey[600], fontSize: 10),
+  // --- WIDGETS REBUILT TO SHOW MULTIPLE ITEMS ---
+
+  // Main Order Card Widget
+  Widget _buildOrderCard(DocumentSnapshot orderDoc, int currentTabIndex) {
+    final data = orderDoc.data()! as Map<String, dynamic>;
+    final dateFormat = DateFormat("dd MMM yyyy, hh:mm a");
+    final date = data['redeemedAt'] != null
+        ? dateFormat.format((data['redeemedAt'] as Timestamp).toDate())
+        : 'No date';
+    final code = data['pickupCode'] ?? 'N/A';
+    final processedOrder = data['processedOrder'] ?? 'no';
+    final pickedUp = data['pickedUp'] ?? 'no';
+
+    String statusText;
+    Color statusColor;
+    if (processedOrder == 'yes' && pickedUp == 'yes') {
+      statusText = 'Completed';
+      statusColor = Colors.green;
+    } else if (processedOrder == 'yes') {
+      statusText = 'Processed, Awaiting Pickup';
+      statusColor = Colors.orangeAccent;
+    } else {
+      statusText = 'To Process';
+      statusColor = Colors.blueAccent;
+    }
+
+    final List<dynamic> itemsRedeemed = data['itemsRedeemed'] ?? [];
+
+    return Card(
+      color: Colors.grey[850],
+      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      elevation: 2,
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => RedemptionStatus(documentId: orderDoc.id)),
+          );
+        },
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Order-level details
+              Text("Pickup Code: $code", style: TextStyle(color: Colors.grey[400], fontSize: 13, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(statusText, style: TextStyle(color: statusColor, fontSize: 13, fontWeight: FontWeight.w500)),
+                  Text(date, style: TextStyle(color: Colors.grey[500], fontSize: 11)),
+                ],
+              ),
+              const Divider(color: Colors.white24, height: 20, thickness: 0.5),
+
+              // List of items
+              ...itemsRedeemed.map((item) {
+                // Ensure item is a Map before passing
+                if (item is Map<String, dynamic>) {
+                  return _buildItemDetailRow(item);
+                }
+                return const SizedBox.shrink(); // Return empty widget if format is wrong
+              }).toList(),
+
+              if (currentTabIndex == 3 && statusText == 'Completed')
+                Padding(
+                  padding: const EdgeInsets.only(top: 12.0),
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Navigate to rate order: $code')));
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFDB515),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        textStyle: const TextStyle(fontSize: 12, color: Color(0xFF303030)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                      ),
+                      child: const Text("Rate Order", style: TextStyle(color: Color(0xFF303030), fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
-      ],
+      ),
     );
   }
 
-  Widget _buildLine({required Color color}) {
-    return Expanded(
-      child: Container(height: 2, color: color, margin: EdgeInsets.symmetric(horizontal: 4)),
+  // New Widget for displaying a single item row
+  Widget _buildItemDetailRow(Map<String, dynamic> item) {
+    final String name = item['name'] ?? 'Unknown Item';
+    final double price = (item['price'] as num? ?? 0).toDouble();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Item Image with FutureBuilder
+          SizedBox(
+            width: 60,
+            height: 60,
+            child: FutureBuilder<String?>(
+              future: _fetchItemImageUrl(item),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return Container(
+                      width: 60, height: 60,
+                      decoration: BoxDecoration(color: Colors.grey[700], borderRadius: BorderRadius.circular(8)),
+                      child: const Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFDB515))))));
+                }
+                if (snapshot.hasError || !snapshot.hasData || snapshot.data == null) {
+                  return Container(
+                    width: 60, height: 60,
+                    decoration: BoxDecoration(color: Colors.grey[700], borderRadius: BorderRadius.circular(8)),
+                    child: Icon(Icons.image_not_supported, color: Colors.grey[500], size: 30),
+                  );
+                }
+                final imageUrl = snapshot.data!;
+                return ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.network(
+                    imageUrl,
+                    width: 60,
+                    height: 60,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => Container(
+                        width: 60, height: 60,
+                        decoration: BoxDecoration(color: Colors.grey[700], borderRadius: BorderRadius.circular(8)),
+                        child: Icon(Icons.broken_image, color: Colors.grey[500], size: 30)),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Item Name and Price
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  "RM ${price.toStringAsFixed(2)}",
+                  style: TextStyle(color: Colors.grey[300], fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

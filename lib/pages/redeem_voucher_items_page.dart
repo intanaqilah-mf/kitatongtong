@@ -59,20 +59,16 @@ class _RedeemVoucherWithItemsPageState
             if (itemData is Map<String, dynamic> &&
                 itemData.containsKey('name') &&
                 itemData.containsKey('price')) {
-
-              // Use a combination of package ID and item name for a more unique ID
-              // This helps if the same item name exists in different packages (though prices should be checked)
               String itemName = itemData['name'] as String;
               String uniqueId = doc.id + '_' + itemName.replaceAll(RegExp(r'\s+'), '_');
 
               allItems.add({
-                'id': uniqueId, // More robust unique ID for cart management
+                'id': uniqueId,
                 'name': itemName,
                 'price': (itemData['price'] as num).toDouble(),
                 'category': itemData['category'] as String? ?? 'Uncategorized',
-                // Placeholder for item image - you might want to map categories to icons or use a default image
-                'itemImageUrl': itemData['itemImageUrl'] ?? '', // If individual items have images
-                'packageBannerUrl': packageData['bannerUrl'] ?? '', // Fallback to package banner
+                'itemImageUrl': itemData['itemImageUrl'] ?? '',
+                'packageBannerUrl': packageData['bannerUrl'] ?? '',
               });
             }
           }
@@ -86,7 +82,9 @@ class _RedeemVoucherWithItemsPageState
         SnackBar(content: Text("Error loading items: ${e.toString()}")),
       );
     } finally {
-      setState(() => _isLoading = false);
+      if(mounted){
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -101,15 +99,17 @@ class _RedeemVoucherWithItemsPageState
   }
 
   void _addToCart(Map<String, dynamic> item) {
+    // Background price check still happens
     if (item['price'] <= _remainingBalance) {
       setState(() {
         _cart.add(item);
-        _remainingBalance -= item['price'];
+        _remainingBalance -= item['price']; // Internal tracking
         _updateDisplayItems();
       });
     } else {
+      // User won't see this item if it's over budget, but as a safeguard:
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Item price exceeds remaining balance.")),
+        const SnackBar(content: Text("Cannot add item.")), // Generic message
       );
     }
   }
@@ -117,7 +117,7 @@ class _RedeemVoucherWithItemsPageState
   void _removeFromCart(Map<String, dynamic> item) {
     setState(() {
       _cart.removeWhere((cartItem) => cartItem['id'] == item['id']);
-      _remainingBalance += item['price'];
+      _remainingBalance += item['price']; // Internal tracking
       _updateDisplayItems();
     });
   }
@@ -154,17 +154,18 @@ class _RedeemVoucherWithItemsPageState
       final userData = userDocSnap.data();
       final userName = userData?['name'] ?? 'Unknown User';
 
+      // This is for backend/data recording, not shown to Asnaf
       double totalCartValue = _cart.fold(0.0, (sum, item) => sum + (item['price'] as double));
 
       await FirebaseFirestore.instance.collection('redeemedKasih').add({
         'userId': user.uid,
         'userName': userName,
-        'voucherValue': widget.voucherValue,
-        'valueRedeemed': totalCartValue,
+        'voucherValue': widget.voucherValue, // Original voucher value (internal)
+        'valueRedeemed': totalCartValue, // Actual value of items in cart (internal)
         'pickupCode': pickupCode,
         'itemsRedeemed': _cart.map((item) => {
           'name': item['name'],
-          'price': item['price'],
+          'price': item['price'], // Price recorded for admin/NGO
           'category': item['category'],
         }).toList(),
         'pickedUp': 'no',
@@ -193,7 +194,7 @@ class _RedeemVoucherWithItemsPageState
         SnackBar(content: Text("Checkout failed: ${e.toString()}")),
       );
     } finally {
-      if(mounted) { // Check if the widget is still in the tree
+      if(mounted) {
         setState(() => _isLoading = false);
       }
     }
@@ -201,22 +202,21 @@ class _RedeemVoucherWithItemsPageState
 
   @override
   Widget build(BuildContext context) {
-    double totalCartValue = _cart.fold(0.0, (sum, item) => sum + (item['price'] as double));
+    // double totalCartValue = _cart.fold(0.0, (sum, item) => sum + (item['price'] as double)); // Not shown to Asnaf
 
     return Scaffold(
-      backgroundColor: const Color(0xFF303030), // Matching packageKasih.dart
-      body: SafeArea( // Ensures content is not obscured by notches etc.
+      backgroundColor: const Color(0xFF303030),
+      body: SafeArea(
         child: Column(
           children: [
-            // Custom header matching packageKasih.dart style
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(16, 20, 16, 15), // Adjusted top padding
+              padding: const EdgeInsets.fromLTRB(16, 20, 16, 15),
               child: Column(
                 children: [
-                  SizedBox(height: 40.0),
+                  SizedBox(height: MediaQuery.of(context).padding.top > 20 ? 20 : 40.0), // Adjust top padding based on notch
                   Text(
-                    "Redeem Your Voucher", // Changed Title
+                    "Redeem Your Voucher",
                     style: TextStyle(
                       color: Color(0xFFFDB515),
                       fontSize: 22,
@@ -225,6 +225,7 @@ class _RedeemVoucherWithItemsPageState
                     textAlign: TextAlign.center,
                   ),
                   SizedBox(height: 10.0),
+                  // Removed voucher value and remaining balance from UI
                 ],
               ),
             ),
@@ -238,26 +239,26 @@ class _RedeemVoucherWithItemsPageState
                     padding: const EdgeInsets.all(20.0),
                     child: Text(
                       _allKasihItems.isEmpty
-                          ? 'No items available in Package Kasih program.'
-                          : 'No more items available for your remaining balance, or all eligible items are in your cart.',
+                          ? 'No items available at the moment.' // Simplified message
+                          : 'No more items match your voucher allowance, or all eligible items are in your cart.',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: Colors.white70, fontSize: 16),
                     ),
                   ))
                   : ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                padding: const EdgeInsets.fromLTRB(16.0, 0, 16.0, 16.0), // Adjusted padding
                 itemCount: _displayItems.length,
                 itemBuilder: (context, index) {
                   final item = _displayItems[index];
                   String displayImageUrl = item['itemImageUrl']?.isNotEmpty == true
                       ? item['itemImageUrl']
                       : item['packageBannerUrl']?.isNotEmpty == true
-                      ? item['packageBannerUrl'] // Fallback to package banner
-                      : ''; // No image
+                      ? item['packageBannerUrl']
+                      : '';
 
-                  return Container( // Golden Card Container
-                    margin: const EdgeInsets.symmetric(vertical: 8), // packageKasih.dart uses vertical: 10
-                    padding: const EdgeInsets.all(10),
+                  return Container(
+                    margin: const EdgeInsets.symmetric(vertical: 8),
+                    padding: const EdgeInsets.all(12), // Adjusted padding
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
                         begin: Alignment.topLeft,
@@ -277,12 +278,12 @@ class _RedeemVoucherWithItemsPageState
                       children: [
                         if (displayImageUrl.isNotEmpty)
                           ClipRRect(
-                            borderRadius: BorderRadius.circular(8), // Smaller radius for inner image
+                            borderRadius: BorderRadius.circular(8),
                             child: Image.network(
                               displayImageUrl,
-                              height: 100, // Adjusted height to match screenshot style
-                              width: 150, // Adjusted width
-                              fit: BoxFit.contain, // Or BoxFit.cover depending on image aspect ratios
+                              height: 100,
+                              width: 150,
+                              fit: BoxFit.contain,
                               errorBuilder: (context, error, stackTrace) {
                                 return Container(
                                   height: 100, width:150,
@@ -292,7 +293,7 @@ class _RedeemVoucherWithItemsPageState
                               },
                             ),
                           )
-                        else // Placeholder if no image at all
+                        else
                           Container(
                             height: 100, width: 150,
                             decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
@@ -303,38 +304,44 @@ class _RedeemVoucherWithItemsPageState
                           item['name'] as String,
                           textAlign: TextAlign.center,
                           style: const TextStyle(
-                            fontSize: 16, // From packageKasih.dart "Package $label"
+                            fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFFA67C00), // From packageKasih.dart
+                            color: Color(0xFFA67C00),
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          item['category'] as String,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: Color(0xFF303030), // From packageKasih.dart items list
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        // Divider to match style (optional, can be subtle)
-                        Container(height: 1, color: Color(0xFFA67C00).withOpacity(0.3), margin: EdgeInsets.symmetric(horizontal: 20)),
-                        const SizedBox(height: 10),
-                        Align(
-                          alignment: Alignment.bottomRight,
-                          child: ElevatedButton.icon(
-                            icon: Icon(Icons.add, size:18, color: Colors.black87),
-                            label: Text("Add", style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
-                            onPressed: () => _addToCart(item),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Color(0xFFFDB515).withOpacity(0.9), // Slightly transparent to blend
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(20),
+                        const SizedBox(height: 10), // Space before category and button row
+                        Row( // Row for Category and Add Button
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween, // Distribute space
+                          crossAxisAlignment: CrossAxisAlignment.center, // Align items vertically
+                          children: [
+                            Expanded( // Category takes available space
+                              child: Padding(
+                                padding: const EdgeInsets.only(left: 8.0), // Add some padding if needed
+                                child: Text(
+                                  item['category'] as String,
+                                  textAlign: TextAlign.center, // Center category text
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    color: Color(0xFF303030),
+                                  ),
+                                  overflow: TextOverflow.ellipsis, // Handle long category names
+                                ),
                               ),
-                              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                             ),
-                          ),
+                            ElevatedButton.icon( // Add Button
+                              icon: Icon(Icons.add, size:18, color: Colors.black87),
+                              label: Text("Add", style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 13)),
+                              onPressed: () => _addToCart(item),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Color(0xFFFDB515).withOpacity(0.9),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6), // Adjusted padding for smaller button
+                                minimumSize: Size(0, 30), // Ensure button height is decent
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -342,7 +349,7 @@ class _RedeemVoucherWithItemsPageState
                 },
               ),
             ),
-            if (_cart.isNotEmpty) _buildCartView(totalCartValue),
+            if (_cart.isNotEmpty) _buildCartView(), // totalCartValue removed from here
           ],
         ),
       ),
@@ -353,11 +360,11 @@ class _RedeemVoucherWithItemsPageState
     );
   }
 
-  Widget _buildCartView(double totalCartValue) {
+  Widget _buildCartView() { // totalCartValue removed
     return Container(
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
-          color: Color(0xFF1C1C1C), // Darker color for cart section
+          color: Color(0xFF1C1C1C),
           borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(20),
             topRight: Radius.circular(20),
@@ -382,7 +389,7 @@ class _RedeemVoucherWithItemsPageState
           const SizedBox(height: 10),
           if (_cart.isNotEmpty)
             SizedBox(
-              height: min(_cart.length * 70.0, 140.0), // Max height for 2 items with padding
+              height: min(_cart.length * 70.0, 140.0),
               child: ListView.builder(
                 shrinkWrap: true,
                 itemCount: _cart.length,
@@ -395,7 +402,6 @@ class _RedeemVoucherWithItemsPageState
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     child: ListTile(
                       title: Text(item['name'] as String, style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-                      // Price hidden for Asnaf in cart items as well, only total is shown
                       trailing: IconButton(
                         icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent),
                         onPressed: () => _removeFromCart(item),
@@ -406,12 +412,13 @@ class _RedeemVoucherWithItemsPageState
               ),
             ),
           const SizedBox(height: 16),
+          // Total Cart Value Text Removed
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFEFBF04), // Main action button color
-              padding: const EdgeInsets.symmetric(vertical: 14), // Make button prominent
+              backgroundColor: const Color(0xFFEFBF04),
+              padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10), // Consistent border radius
+                borderRadius: BorderRadius.circular(10),
               ),
             ),
             onPressed: _isLoading ? null : _checkout,

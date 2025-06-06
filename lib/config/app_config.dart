@@ -11,6 +11,10 @@ class AppConfig {
   static const String _smtpUsername = String.fromEnvironment('SMTP_USERNAME');
   static const String _smtpPassword = String.fromEnvironment('SMTP_PASSWORD');
   static const String _senderEmail = String.fromEnvironment('SENDER_EMAIL');
+  static const String _geminiAPIKey = String.fromEnvironment('GEMINI_API_KEY');
+  final String geminiApiKey;
+
+  AppConfig({required this.geminiApiKey});
 
   static String _getMandatoryKey(String value, String keyName, {String? debugFallback}) {
     if (value.isNotEmpty) return value;
@@ -36,6 +40,10 @@ class AppConfig {
 
   static String getToyyibPaySecretKey() {
     return _getMandatoryKey(_toyyibpaySecretKey, 'TOYYIB_PAY_SECRET_KEY');
+  }
+
+  static String getGeminiAPIKey() {
+    return _getMandatoryKey(_geminiAPIKey, 'GEMINI_API_KEY');
   }
 
   static String getToyyibPayCategoryCode() {

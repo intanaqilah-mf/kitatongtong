@@ -5,6 +5,9 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:intl/intl.dart';
 import 'dart:convert';
 import 'dart:math';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:projects/config/app_config.dart';
+import 'package:projects/main.dart';
 
 // The main screen for displaying reports and the chatbot
 class ViewReportsScreen extends StatefulWidget {
@@ -23,9 +26,8 @@ class _ViewReportsScreenState extends State<ViewReportsScreen> {
   bool _isDataLoading = true;
   Map<String, dynamic> _allData = {};
 
-  // Your Gemini API Key
-  final String _apiKey = "AIzaSyCBbvP1G3JKbvUV00QNcQLuXz6tBXwJlK4"; // Use your actual API key
-
+  // Your Gemini API Key loaded from .env
+  final String _apiKey = AppConfig.getGeminiAPIKey();
   @override
   void initState() {
     super.initState();

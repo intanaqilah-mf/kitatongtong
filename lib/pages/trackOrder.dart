@@ -1,4 +1,4 @@
-// lib/pages/trackOrder.dart
+// lib/pages/trackOrder.dart (Corrected and Optimized)
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -22,10 +22,6 @@ class _TrackOrderScreenState extends State<TrackOrderScreen>
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = "";
   String _selectedSort = "Date";
-
-  // Cache for item image URLs to avoid repeated Firestore reads.
-  // Key: Item Name, Value: Image URL
-  final Map<String, String> _itemImageCache = {};
 
   @override
   void initState() {
@@ -65,35 +61,9 @@ class _TrackOrderScreenState extends State<TrackOrderScreen>
     }
   }
 
-  // NEW FUNCTION: Fetches an item's image URL from package_kasih by matching the item name.
-  Future<String?> _fetchItemImageUrl(Map<String, dynamic> item) async {
-    final String itemName = item['name'];
-    if (_itemImageCache.containsKey(itemName)) {
-      return _itemImageCache[itemName]; // Return from cache
-    }
-
-    try {
-      // Find the package that contains this exact item in its 'items' array.
-      final querySnapshot = await FirebaseFirestore.instance
-          .collection('package_kasih')
-          .where('items', arrayContains: item) // Match the exact item map
-          .limit(1)
-          .get();
-
-      if (querySnapshot.docs.isNotEmpty) {
-        final doc = querySnapshot.docs.first;
-        final bannerUrl = doc.data()['bannerUrl'] as String?;
-        if (bannerUrl != null) {
-          _itemImageCache[itemName] = bannerUrl; // Save to cache
-          return bannerUrl;
-        }
-      }
-    } catch (e) {
-      print("Error fetching image URL for $itemName: $e");
-    }
-    return null; // Return null if not found or on error
-  }
-
+  // =================================================================
+  // ===== REMOVED _fetchItemImageUrl and image cache. No longer needed.
+  // =================================================================
 
   List<DocumentSnapshot> _filterAndSortOrders(
       List<DocumentSnapshot> docs, int tabIndex) {
@@ -267,8 +237,6 @@ class _TrackOrderScreenState extends State<TrackOrderScreen>
     );
   }
 
-  // --- WIDGETS REBUILT TO SHOW MULTIPLE ITEMS ---
-
   // Main Order Card Widget
   Widget _buildOrderCard(DocumentSnapshot orderDoc, int currentTabIndex) {
     final data = orderDoc.data()! as Map<String, dynamic>;
@@ -327,11 +295,10 @@ class _TrackOrderScreenState extends State<TrackOrderScreen>
 
               // List of items
               ...itemsRedeemed.map((item) {
-                // Ensure item is a Map before passing
                 if (item is Map<String, dynamic>) {
                   return _buildItemDetailRow(item);
                 }
-                return const SizedBox.shrink(); // Return empty widget if format is wrong
+                return const SizedBox.shrink();
               }).toList(),
 
               if (currentTabIndex == 3 && statusText == 'Completed')
@@ -360,51 +327,53 @@ class _TrackOrderScreenState extends State<TrackOrderScreen>
     );
   }
 
-  // New Widget for displaying a single item row
+  // ===================================================================
+  // ===== MODIFIED WIDGET: It now reads 'imageUrl' directly         =====
+  // ===== and no longer uses a FutureBuilder. This is much faster.  =====
+  // ===================================================================
   Widget _buildItemDetailRow(Map<String, dynamic> item) {
     final String name = item['name'] ?? 'Unknown Item';
     final double price = (item['price'] as num? ?? 0).toDouble();
+    // Directly read the imageUrl from the item map.
+    final String? imageUrl = item['imageUrl'] as String?;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6.0),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Item Image with FutureBuilder
+          // Item Image
           SizedBox(
             width: 60,
             height: 60,
-            child: FutureBuilder<String?>(
-              future: _fetchItemImageUrl(item),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return Container(
-                      width: 60, height: 60,
-                      decoration: BoxDecoration(color: Colors.grey[700], borderRadius: BorderRadius.circular(8)),
-                      child: const Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFDB515))))));
-                }
-                if (snapshot.hasError || !snapshot.hasData || snapshot.data == null) {
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              // Check if the imageUrl exists and is not empty.
+              child: (imageUrl != null && imageUrl.isNotEmpty)
+                  ? Image.network(
+                imageUrl,
+                width: 60,
+                height: 60,
+                fit: BoxFit.cover,
+                // A loading builder can improve user experience
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
                   return Container(
                     width: 60, height: 60,
                     decoration: BoxDecoration(color: Colors.grey[700], borderRadius: BorderRadius.circular(8)),
-                    child: Icon(Icons.image_not_supported, color: Colors.grey[500], size: 30),
+                    child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFDB515))))),
                   );
-                }
-                final imageUrl = snapshot.data!;
-                return ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.network(
-                    imageUrl,
-                    width: 60,
-                    height: 60,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Container(
-                        width: 60, height: 60,
-                        decoration: BoxDecoration(color: Colors.grey[700], borderRadius: BorderRadius.circular(8)),
-                        child: Icon(Icons.broken_image, color: Colors.grey[500], size: 30)),
-                  ),
-                );
-              },
+                },
+                errorBuilder: (context, error, stackTrace) => Container(
+                    width: 60, height: 60,
+                    decoration: BoxDecoration(color: Colors.grey[700], borderRadius: BorderRadius.circular(8)),
+                    child: Icon(Icons.broken_image, color: Colors.grey[500], size: 30)),
+              )
+                  : Container( // Placeholder if no image URL was found
+                width: 60, height: 60,
+                decoration: BoxDecoration(color: Colors.grey[700], borderRadius: BorderRadius.circular(8)),
+                child: Icon(Icons.image_not_supported, color: Colors.grey[500], size: 30),
+              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -418,11 +387,6 @@ class _TrackOrderScreenState extends State<TrackOrderScreen>
                   style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  "RM ${price.toStringAsFixed(2)}",
-                  style: TextStyle(color: Colors.grey[300], fontSize: 13),
                 ),
               ],
             ),

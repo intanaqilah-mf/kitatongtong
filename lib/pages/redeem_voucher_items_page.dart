@@ -157,22 +157,36 @@ class _RedeemVoucherWithItemsPageState
       // This is for backend/data recording, not shown to Asnaf
       double totalCartValue = _cart.fold(0.0, (sum, item) => sum + (item['price'] as double));
 
+      // =================================================================
+      // ===== MODIFICATION IS HERE TO ADD THE IMAGE URL TO THE ORDER ====
+      // =================================================================
       await FirebaseFirestore.instance.collection('redeemedKasih').add({
         'userId': user.uid,
         'userName': userName,
         'voucherValue': widget.voucherValue, // Original voucher value (internal)
         'valueRedeemed': totalCartValue, // Actual value of items in cart (internal)
         'pickupCode': pickupCode,
-        'itemsRedeemed': _cart.map((item) => {
-          'name': item['name'],
-          'price': item['price'], // Price recorded for admin/NGO
-          'category': item['category'],
+        'itemsRedeemed': _cart.map((item) {
+          // Logic to determine the best available image URL
+          String imageUrlToSave = item['itemImageUrl']?.isNotEmpty == true
+              ? item['itemImageUrl']
+              : item['packageBannerUrl'] ?? '';
+
+          return {
+            'name': item['name'],
+            'price': item['price'], // Price recorded for admin/NGO
+            'category': item['category'],
+            'imageUrl': imageUrlToSave, // <-- THE NEWLY ADDED FIELD
+          };
         }).toList(),
         'pickedUp': 'no',
         'processedOrder': 'no',
         'redeemedAt': now,
         'redeemType': 'itemSelection'
       });
+      // =================================================================
+      // ======================= END OF MODIFICATION =====================
+      // =================================================================
 
       if (widget.voucherReceived.containsKey('voucherId')) {
         final targetVoucherId = widget.voucherReceived['voucherId'];

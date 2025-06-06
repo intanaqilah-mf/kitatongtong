@@ -7,6 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../pages/applicationReviewScreen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:math';
+import 'package:projects/pages/ekyc_screen.dart';
 
 class ApplyAid extends StatefulWidget {
   @override
@@ -16,6 +17,7 @@ class ApplyAid extends StatefulWidget {
 class _ApplyAidState extends State<ApplyAid> {
   // Added state variable to store user role
   String? userRole;
+  bool _isEkycComplete = false;
 
   void initState() {
     super.initState();
@@ -368,12 +370,16 @@ class _ApplyAidState extends State<ApplyAid> {
 
   List<Widget> buildUploadDocumentsForm() {
     return [
+      buildEkycVerificationField(
+        "Verify Your Identity (eKYC)",
+        "Required for application",
+      ),
       buildFileUploadField(
-        "Snapshot of NRIC/License/Passport", // Title outside the box
-        "Proof of identity", // Label inside the box
+        "Proof of Address (e.g. Utility Bill)",
+        "Proof of address",
         "Format: jpeg/jpg/pdf",
-        "nricSnapshot",
-        1,
+        "proofOfAddress",
+        2,
       ),
       SizedBox(height: 10),
       buildFileUploadField(
@@ -392,6 +398,85 @@ class _ApplyAidState extends State<ApplyAid> {
         3,
       ),
     ];
+  }
+
+  Widget buildEkycVerificationField(String title, String subtitle) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+        SizedBox(height: 8),
+        GestureDetector(
+          onTap: () async {
+            // Navigate to the EkycScreen and wait for a result
+            final result = await Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => EkycScreen()),
+            );
+
+            // The EkycScreen will pop with `true` if successful
+            if (result == true) {
+              setState(() {
+                _isEkycComplete = true;
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text("eKYC Verification Successful!"),
+                  backgroundColor: Colors.green,
+                ),
+              );
+              // Optionally, you can now re-fetch user data to populate the NRIC
+              // and Name fields on the first page if the user goes back.
+              _fetchUserData();
+            }
+          },
+          child: Container(
+            width: double.infinity,
+            padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            decoration: BoxDecoration(
+              color: _isEkycComplete ? Colors.green : Color(0xFFFFCF40),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _isEkycComplete ? "Verification Complete" : "Start eKYC Verification",
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        color: Colors.black87,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+                Icon(
+                  _isEkycComplete ? Icons.check_circle : Icons.arrow_forward_ios,
+                  color: Colors.black,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   List<Widget> buildFourthPage() {
@@ -420,9 +505,16 @@ class _ApplyAidState extends State<ApplyAid> {
     formData["monthlyIncome"] = incomeController.text;
     formData["justificationApplication"] = justificationController.text;
 
-    formData["nricSnapshot"] = fileName1 ?? "No file uploaded";
     formData["proofOfAddress"] = fileName2 ?? "No file uploaded";
     formData["proofOfIncome"] = fileName3 ?? "No file uploaded";
+    if (!_isEkycComplete) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Please complete the eKYC verification first."),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return; // Stop the submission
+    }
 
     // Call a method to upload this data to Firebase
     uploadToFirebase(formData);

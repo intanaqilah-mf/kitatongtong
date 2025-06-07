@@ -532,7 +532,7 @@ class _AmountPageState extends State<AmountPage> {
                   final int amountInCents = (parsedAmount * 100).round();
 
                   final donationData = {
-                    'amount': parsedAmount.toStringAsFixed(2),
+                    'amount': parsedAmount,
                     'designation': selectedSalutation ?? '',
                     'name': nameController.text.trim(),
                     'email': emailController.text.trim(),

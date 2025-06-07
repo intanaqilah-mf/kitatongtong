@@ -16,7 +16,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 class PayPackage extends StatefulWidget {
   final int totalQuantity;
-  final int overallAmount;
+  final double  overallAmount;
 
   const PayPackage({
     Key? key,
@@ -220,7 +220,6 @@ class _PayPackageState extends State<PayPackage> {
     return Scaffold(
       backgroundColor: const Color(0xFF1C1C1C),
       appBar: AppBar(
-        title: const Text('Donate Package', style: TextStyle(color: Color(0xFFFDB515))),
         backgroundColor: const Color(0xFF1C1C1C),
         iconTheme: const IconThemeData(color: Color(0xFFFDB515)),
         elevation: 0,
@@ -235,16 +234,6 @@ class _PayPackageState extends State<PayPackage> {
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
                 color: Color(0xFFFDB515),
-              ),
-              textAlign: TextAlign.center,
-            ),
-            SizedBox(height: 8),
-            Text(
-              'Total Amount: RM ${widget.overallAmount}',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
               ),
               textAlign: TextAlign.center,
             ),
@@ -467,7 +456,7 @@ class _PayPackageState extends State<PayPackage> {
                   final String amountInCents = (widget.overallAmount * 100).toString();
 
                   final donationData = {
-                    'amount': widget.overallAmount.toString(), // RM amount
+                    'amount': widget.overallAmount, // RM amount
                     'totalQuantity': widget.totalQuantity,
                     'designation': selectedSalutation ?? '',
                     'name': nameController.text.trim(),

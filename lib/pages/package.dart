@@ -20,26 +20,24 @@ class _AmountPageState extends State<PackagePage> {
   }
   final Map<String, TextEditingController> _quantityControllers = {};
   int totalQuantity = 0;
-  int totalValue = 0;
+  double  totalValue = 0.0;
 
   // Recomputes totals whenever a quantity field changes.
   void _updateTotals(List<QueryDocumentSnapshot> docs) {
     int sumQty = 0;
-    int sumValue = 0;
+    double sumValue = 0.0;
     for (var doc in docs) {
       final id = doc.id;
-      final valueStr =
-      (doc['price'] as String).replaceAll("RM ", "").trim(); // e.g. "10"
-      final packageValue = int.tryParse(valueStr) ?? 0;
+      final packageValue = (doc['price'] as num?)?.toDouble() ?? 0.0;
       final qtyController = _quantityControllers[id];
       int qty = int.tryParse(qtyController?.text ?? "0") ?? 0;
       sumQty += qty;
       sumValue += qty * packageValue;
     }
-    if (sumQty != totalQuantity || sumValue != totalValue) {
+    if (sumQty != totalQuantity || (sumValue - totalValue).abs() > 0.001) {
       setState(() {
         totalQuantity = sumQty;
-        totalValue = sumValue;
+        totalValue = sumValue; // Store the exact double value
       });
     }
   }
@@ -68,12 +66,9 @@ class _AmountPageState extends State<PackagePage> {
           // Sort documents based on package value (lowest first)
           List<QueryDocumentSnapshot> docs = snapshot.data!.docs;
           docs.sort((a, b) {
-            int valueA = int.tryParse(
-                (a['price'] as String).replaceAll("RM ", "").trim()) ??
-                0;
-            int valueB = int.tryParse(
-                (b['price'] as String).replaceAll("RM ", "").trim()) ??
-                0;
+            // Parse price as a double for correct sorting
+            double valueA = (a['price'] as num?)?.toDouble() ?? 0.0;
+            double valueB = (b['price'] as num?)?.toDouble() ?? 0.0;
             return valueA.compareTo(valueB);
           });
 
@@ -157,10 +152,8 @@ class _AmountPageState extends State<PackagePage> {
                               // Package label A, B, C, etc.
                               final label = String.fromCharCode(65 + index);
                               final bannerUrl = data['bannerUrl'] ?? "";
-                              final valueStr = (data['price'] as String)
-                                  .replaceAll("RM ", "")
-                                  .trim();
-                              final packageValue = int.tryParse(valueStr) ?? 0;
+                              // Parse price as a double
+                              final packageValue = (data['price'] as num?)?.toDouble() ?? 0.0;
                               final items = data['items'] as List? ?? [];
 
                               // "Choice" box with a golden gradient.
@@ -255,7 +248,7 @@ class _AmountPageState extends State<PackagePage> {
                               int qty = int.tryParse(
                                   _quantityControllers[doc.id]?.text ?? "0") ??
                                   0;
-                              int computedValue = qty * packageValue;
+                              double  computedValue = qty * packageValue;
                               Widget valueWidget = Container(
                                 margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
                                 padding: const EdgeInsets.symmetric(
@@ -266,7 +259,7 @@ class _AmountPageState extends State<PackagePage> {
                                 ),
                                 child: Center(
                                   child: Text(
-                                    "$computedValue",
+                                    computedValue.toStringAsFixed(2),
                                     style: const TextStyle(
                                         color: Color(0xFFA67C00), fontSize: 16),
                                   ),
@@ -353,7 +346,7 @@ class _AmountPageState extends State<PackagePage> {
                                 child: Padding(
                                   padding: const EdgeInsets.only(top: 4.0),
                                   child: Text(
-                                    "$totalValue",
+                                    totalValue.toStringAsFixed(2),
                                     style: TextStyle(
                                       color: Colors.white,
                                     ),

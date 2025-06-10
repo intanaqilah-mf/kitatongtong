@@ -360,7 +360,21 @@ class _RewardsState extends State<Rewards> {
             }
             List<Map<String, dynamic>> adminVoucherList = [];
             if (appSnapshot.hasData && appSnapshot.data!.docs.isNotEmpty) {
-              adminVoucherList = appSnapshot.data!.docs.map((doc) {
+              adminVoucherList = appSnapshot.data!.docs.where((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+
+                // Visibility logic for recurring vouchers
+                if (data['isRecurring'] == true) {
+                  final nextEligibleDate = (data['nextEligibleDate'] as Timestamp?)?.toDate();
+                  // Show if next eligible date is today or in the past
+                  return nextEligibleDate != null && !nextEligibleDate.isAfter(DateTime.now());
+                }
+
+                // For non-recurring, show only if it has not been redeemed
+                // Assuming 'lastRedeemed' is null for non-redeemed non-recurring vouchers.
+                return data['lastRedeemed'] == null;
+
+              }).map((doc) {
                 final data = doc.data() as Map<String, dynamic>;
                 data['docId'] = doc.id;
                 return data;

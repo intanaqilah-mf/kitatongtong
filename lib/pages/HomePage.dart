@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart'; // Added for date formatting
 import '../widgets/HomeAppBar.dart';
 import '../widgets/AsnafDashboard.dart';
 import '../widgets/AdminDashboard.dart';
@@ -72,6 +73,33 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    // --- Start of modification for Upcoming Activities ---
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    final upcomingEventsList = sectionEvents["Upcoming Activities"] ?? [];
+
+    final validUpcomingEvents = upcomingEventsList.where((event) {
+      String eventEndDateString = event["eventEndDate"] ?? "";
+      if (eventEndDateString.isNotEmpty) {
+        try {
+          DateTime eventEndDate = DateFormat('dd MMM yyyy HH:mm').parse(eventEndDateString);
+          return !eventEndDate.isBefore(today);
+        } catch (e) {
+          print("Error parsing date: $e");
+          return false;
+        }
+      }
+      return true; // Keep events without an end date
+    }).toList();
+
+    validUpcomingEvents.sort((a, b) {
+      Timestamp aTimestamp = a["updatedAt"];
+      Timestamp bTimestamp = b["updatedAt"];
+      return bTimestamp.compareTo(aTimestamp);
+    });
+    // --- End of modification ---
+
     final _widgetOptions = <Widget>[
       SingleChildScrollView(
         // Wrap the content in SingleChildScrollView for scrolling
@@ -167,10 +195,9 @@ class _HomePageState extends State<HomePage> {
                           height: 200,
                           child: ListView.builder(
                             scrollDirection: Axis.horizontal,
-                            // Changed here as well:
-                            itemCount: sectionEvents["Upcoming Activities"]?.length ?? 0,
+                            itemCount: validUpcomingEvents.length, // Changed here
                             itemBuilder: (context, index) {
-                              var event = sectionEvents["Upcoming Activities"]![index];
+                              var event = validUpcomingEvents[index]; // Changed here
                               return Padding(
                                 padding: const EdgeInsets.symmetric(horizontal: 10),
                                 child: Container(
@@ -271,11 +298,34 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildSectionRow(String sectionName, List<DocumentSnapshot> events) {
-    events.sort((a, b) {
+    // --- Start of modification ---
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    final validEvents = events.where((event) {
+      String eventEndDateString = event["eventEndDate"] ?? "";
+      if (eventEndDateString.isNotEmpty) {
+        try {
+          DateTime eventEndDate = DateFormat('dd MMM yyyy HH:mm').parse(eventEndDateString);
+          return !eventEndDate.isBefore(today);
+        } catch (e) {
+          print("Error parsing date: $e");
+          return false;
+        }
+      }
+      return true; // Keep events without an end date
+    }).toList();
+
+
+    validEvents.sort((a, b) {
+      // --- End of modification ---
       Timestamp aTimestamp = a["updatedAt"];
       Timestamp bTimestamp = b["updatedAt"];
       return bTimestamp.compareTo(aTimestamp);
     });
+    if (validEvents.isEmpty) {
+      return SizedBox.shrink();
+    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 1),
@@ -291,9 +341,9 @@ class _HomePageState extends State<HomePage> {
             height: 250,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
-              itemCount: events.length,
+              itemCount: validEvents.length, // Changed here
               itemBuilder: (context, index) {
-                var event = events[index];
+                var event = validEvents[index]; // Changed here
                 return Padding(
                   padding: const EdgeInsets.all(10.0),
                   child: Container(

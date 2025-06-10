@@ -263,7 +263,6 @@ class _AmountPageState extends State<AmountPage> {
     return Scaffold(
       backgroundColor: const Color(0xFF1C1C1C),
       appBar: AppBar(
-        title: const Text('Donate by Amount', style: TextStyle(color: Color(0xFFFDB515))),
         backgroundColor: const Color(0xFF1C1C1C),
         iconTheme: const IconThemeData(color: Color(0xFFFDB515)),
         elevation: 0,

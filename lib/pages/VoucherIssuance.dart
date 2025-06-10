@@ -22,6 +22,10 @@ class _VoucherIssuanceState extends State<VoucherIssuance> {
   String selectedRewardAmount = "RM10"; // Default for RM rewards
   TextEditingController pointsController = TextEditingController(); // For manual points input
 
+  // New state variables for recurring feature
+  bool isRecurring = false;
+  String selectedRecurrence = "2 Weeks"; // Default recurrence period
+
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
@@ -43,6 +47,24 @@ class _VoucherIssuanceState extends State<VoucherIssuance> {
           ? pointsController.text
           : selectedRewardAmount;
 
+      // Calculate next eligible date if recurring
+      DateTime? nextEligibleDate;
+      if (isRecurring) {
+        if (selectedRecurrence == "2 Weeks") {
+          nextEligibleDate = DateTime.now().add(Duration(days: 14));
+        } else if (selectedRecurrence == "1 Month") {
+          nextEligibleDate = DateTime.now().add(Duration(days: 30));
+        } else if (selectedRecurrence == "3 Month") {
+          nextEligibleDate = DateTime.now().add(Duration(days: 90));
+        } else if (selectedRecurrence == "6 Month") {
+          nextEligibleDate = DateTime.now().add(Duration(days: 180));
+        } else if (selectedRecurrence == "9 Month") {
+          nextEligibleDate = DateTime.now().add(Duration(days: 270));
+        } else if (selectedRecurrence == "1 year") {
+          nextEligibleDate = DateTime.now().add(Duration(days: 365));
+        }
+      }
+
       // Update the application document with reward details.
       await FirebaseFirestore.instance
           .collection('applications')
@@ -52,6 +74,10 @@ class _VoucherIssuanceState extends State<VoucherIssuance> {
         'eligibilityDetails': selectedEligibility,
         'reward': finalRewardValue,
         'statusReward': 'Issued',
+        'isRecurring': isRecurring,
+        'recurrencePeriod': isRecurring ? selectedRecurrence : null,
+        'nextEligibleDate': isRecurring ? Timestamp.fromDate(nextEligibleDate!) : null,
+        'lastRedeemed': null, // Initially not redeemed
       });
 
       print("Application document ${widget.documentId} updated successfully.");
@@ -300,6 +326,67 @@ class _VoucherIssuanceState extends State<VoucherIssuance> {
                           },
                         ),
                       ),
+
+                      SizedBox(height: 15),
+                      // Recurring Asnaf Radio Buttons
+                      Text("Recurring Asnaf", style: TextStyle(color: Colors.white, fontSize: 16)),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: RadioListTile<bool>(
+                              title: Text("Yes", style: TextStyle(color: Colors.white)),
+                              value: true,
+                              groupValue: isRecurring,
+                              onChanged: (bool? value) {
+                                setState(() {
+                                  isRecurring = value!;
+                                });
+                              },
+                            ),
+                          ),
+                          Expanded(
+                            child: RadioListTile<bool>(
+                              title: Text("No", style: TextStyle(color: Colors.white)),
+                              value: false,
+                              groupValue: isRecurring,
+                              onChanged: (bool? value) {
+                                setState(() {
+                                  isRecurring = value!;
+                                });
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      // Recurrence Period Dropdown (Conditional)
+                      if (isRecurring) ...[
+                        SizedBox(height: 15),
+                        Text("Recurring every", style: TextStyle(color: Colors.white, fontSize: 16)),
+                        SizedBox(height: 5),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: DropdownButtonFormField<String>(
+                            value: selectedRecurrence,
+                            decoration: InputDecoration(border: InputBorder.none, contentPadding: EdgeInsets.all(10)),
+                            items: ["2 Weeks", "1 Month", "3 Month","6 Month","9 Month","1 year",].map((String value) {
+                              return DropdownMenuItem<String>(
+                                value: value,
+                                child: Text(value),
+                              );
+                            }).toList(),
+                            onChanged: (newValue) {
+                              setState(() {
+                                selectedRecurrence = newValue!;
+                              });
+                            },
+                          ),
+                        ),
+                      ],
+
 
                       SizedBox(height: 15),
                       // Reward Amount (or Points) Input

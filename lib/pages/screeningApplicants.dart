@@ -38,6 +38,10 @@ class _ScreeningApplicantsState extends State<ScreeningApplicants> {
     if (selectedStatus.isEmpty) {
       finalStatus = "Pending";
     }
+    String rewardStatus = 'Pending';
+    if (finalStatus == 'Reject') {
+      rewardStatus = 'Reject';
+    }
 
     try {
       // Update the application in Firestore with the new statusReward field.
@@ -47,7 +51,7 @@ class _ScreeningApplicantsState extends State<ScreeningApplicants> {
           .update({
         'statusApplication': finalStatus,
         'reasonStatus': reasonController.text,
-        'statusReward': 'Pending',
+        'statusReward': rewardStatus,
       });
 
       // Show a success message.

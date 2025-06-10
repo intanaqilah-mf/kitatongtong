@@ -1,9 +1,7 @@
-// lib/pages/redemptionStatus.dart
-
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
-import 'package:projects/pages/HomePage.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 class RedemptionStatus extends StatefulWidget {
   final String documentId;
@@ -18,150 +16,226 @@ class _RedemptionStatusPageState extends State<RedemptionStatus> {
 
   void _onItemTapped(int index) => setState(() => _selectedIndex = index);
 
-  Color _dotColor(int stage, String processed, String pickedUp) {
-    if (stage == 1) return Colors.green;
-    if (stage == 2) return processed == 'yes' ? Colors.green : Colors.grey;
-    // stage 3
-    return pickedUp == 'yes' ? Colors.green : Colors.grey;
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Color(0xFF303030),
+      appBar: AppBar(
+        title: Text("Pickup Status", style: TextStyle(color: Color(0xFFFDB515), fontWeight: FontWeight.bold)),
+        backgroundColor: Color(0xFF303030),
+        elevation: 0,
+        centerTitle: true,
+        automaticallyImplyLeading: false,
+      ),
       body: StreamBuilder<DocumentSnapshot>(
         stream: FirebaseFirestore.instance
             .collection('redeemedKasih')
             .doc(widget.documentId)
             .snapshots(),
-        builder: (ctx, snap) {
-          if (snap.connectionState == ConnectionState.waiting)
-            return Center(child: CircularProgressIndicator());
-          if (!snap.hasData || !snap.data!.exists)
-            return Center(child: Text("No order found.", style: TextStyle(color: Colors.red)));
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Center(child: CircularProgressIndicator(color: Color(0xFFFDB515)));
+          }
+          if (!snapshot.hasData || !snapshot.data!.exists) {
+            return Center(child: Text("Order not found.", style: TextStyle(color: Colors.white)));
+          }
 
-          final data = snap.data!.data()! as Map<String, dynamic>;
-          final code = data['pickupCode'] ?? 'N/A';
-          final name = data['userName'] ?? 'Unknown';
-          final processed = data['processedOrder'] ?? 'no';
-          final pickedUp = data['pickedUp'] ?? 'no';
+          final data = snapshot.data!.data() as Map<String, dynamic>;
+          final pickupCode = data['pickupCode'] ?? 'N/A';
+          final userName = data['userName'] ?? 'User';
+          final isProcessed = (data['processedOrder'] ?? 'no') == 'yes';
+          final isPickedUp = (data['pickedUp'] ?? 'no') == 'yes';
 
-          final c1 = _dotColor(1, processed, pickedUp);
-          final c2 = _dotColor(2, processed, pickedUp);
-          final c3 = _dotColor(3, processed, pickedUp);
+          bool showQrCode = isProcessed && !isPickedUp;
 
-          return Column(children: [
-            // HEADER
-            Container(
-              width: double.infinity,
-              padding: EdgeInsets.symmetric(vertical: 25, horizontal: 16),
-              child: Column(children: [
-                SizedBox(height: 50),
-                Text(
-                  "Pickup Status",
-                  style: TextStyle(color: Color(0xFFFDB515), fontSize: 22, fontWeight: FontWeight.bold),
-                  textAlign: TextAlign.center,
-                ),
-                SizedBox(height: 20),
-                Row(children: [
-                  Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
-                      Text("Pickup Code", style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
-                      SizedBox(height: 4),
-                      Text("#$code", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                    ]),
-                  ),
-                  Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
-                      Text("Full Name", style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
-                      SizedBox(height: 4),
-                      Text(name, style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                    ]),
-                  ),
-                ]),
-                SizedBox(height: 15),
+          return SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+            child: Column(
+              children: [
+                // Header
                 Container(
-                  width: double.infinity,
-                  height: 2,
+                  padding: const EdgeInsets.all(16.0),
                   decoration: BoxDecoration(
-                    color: Color(0xFF303030),
-                    boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 4, spreadRadius: 1, offset: Offset(0, 2))],
+                      color: Colors.grey[850],
+                      borderRadius: BorderRadius.circular(12)
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _buildHeaderInfo("Pickup Code", "#$pickupCode"),
+                      _buildHeaderInfo("Full Name", userName, isRightAligned: true),
+                    ],
                   ),
                 ),
+                SizedBox(height: 40),
+
+                // QR Code Display
+                if (showQrCode)
+                  Column(
+                    children: [
+                      Container(
+                        padding: EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: QrImageView(
+                          data: pickupCode,
+                          version: QrVersions.auto,
+                          size: 200.0,
+                        ),
+                      ),
+                      SizedBox(height: 10),
+                      Text(
+                        "Show this QR to the staff for pickup",
+                        style: TextStyle(color: Colors.white70, fontSize: 14),
+                      ),
+                      SizedBox(height: 40),
+                    ],
+                  ),
+
+                // Timeline
+                _buildStatusTimeline(isPlaced: true, isProcessed: isProcessed, isReady: isPickedUp),
+
                 SizedBox(height: 50),
-              ]),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: Color(0xFFFDB515),
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))
+                    ),
+                    child: Text("OK", style: TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.bold)),
+                  ),
+                )
+              ],
             ),
-
-            // Stage 1: Order Placed
-            statusTile(
-              "Order Placed",
-              "We have received your order.",
-              "assets/pickup1.png",
-              c1,
-              true,
-              c2,
-            ),
-
-            // Stage 2: Order Processed
-            statusTile(
-              "Order Processed",
-              "We are processing your order.",
-              "assets/pickup2.png",
-              c2,
-              true,
-              c3,
-            ),
-
-            // Stage 3: Ready to Pickup
-            statusTile(
-              "Ready to Pickup",
-              "Your order is ready to pickup.",
-              "assets/pickup3.png",
-              c3,
-              false,
-              Colors.transparent,
-            ),
-
-            SizedBox(height: 100),
-
-            // OK button
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: ElevatedButton(
-                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => HomePage())),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFFFDB515),
-                  minimumSize: Size(double.infinity, 48),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: Text("OK", style: TextStyle(fontSize: 16, color: Colors.white)),
-              ),
-            ),
-          ]);
+          );
         },
       ),
       bottomNavigationBar: BottomNavBar(selectedIndex: _selectedIndex, onItemTapped: _onItemTapped),
     );
   }
 
-  Widget statusTile(String title, String subtitle, String iconPath, Color dotColor, bool showLine, Color lineColor) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 0.0),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Column(children: [
-          Container(width: 65, height: 30, decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle)),
-          if (showLine) Container(width: 5, height: 90, color: lineColor),
-        ]),
-        SizedBox(width: 15),
-        Image.asset(iconPath, width: 45, height: 45),
-        SizedBox(width: 15),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title, style: TextStyle(color: Color(0xFFFDB515), fontSize: 16, fontWeight: FontWeight.bold)),
-            SizedBox(height: 10),
-            Text(subtitle, style: TextStyle(color: Colors.white, fontSize: 14)),
-          ]),
-        ),
-      ]),
+  Widget _buildHeaderInfo(String title, String value, {bool isRightAligned = false}) {
+    return Column(
+      crossAxisAlignment: isRightAligned ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      children: [
+        Text(title, style: TextStyle(color: Colors.grey[400], fontSize: 14)),
+        SizedBox(height: 4),
+        Text(value, style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+      ],
     );
+  }
+
+  // A more robust timeline builder that matches the screenshot
+  Widget _buildStatusTimeline({required bool isPlaced, required bool isProcessed, required bool isReady}) {
+    return Column(
+      children: [
+        _buildTimelineNode(
+          icon: Icons.shopping_cart_checkout,
+          title: "Order Placed",
+          subtitle: "We have received your order.",
+          isActive: isPlaced,
+          isFirst: true,
+        ),
+        _buildTimelineConnector(isActive: isProcessed),
+        _buildTimelineNode(
+          icon: Icons.inventory_2_outlined,
+          title: "Order Processed",
+          subtitle: "We are processing your order.",
+          isActive: isProcessed,
+        ),
+        _buildTimelineConnector(isActive: isReady),
+        _buildTimelineNode(
+          icon: Icons.storefront_outlined,
+          title: "Ready to Pickup",
+          subtitle: "Your order is ready to pickup.",
+          isActive: isReady,
+          isLast: true,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTimelineNode({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required bool isActive,
+    bool isFirst = false,
+    bool isLast = false,
+  }) {
+    return IntrinsicHeight(
+      child: Row(
+        children: [
+          // Dot and Line Column
+          Column(
+            children: [
+              Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isActive ? Colors.green : Colors.grey[700],
+                ),
+              ),
+              if (!isLast)
+                Expanded(
+                  child: Container(
+                    width: 2,
+                    color: isActive ? Colors.green : Colors.grey[700],
+                  ),
+                ),
+            ],
+          ),
+          SizedBox(width: 20),
+          // Icon and Text Column
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 30.0), // Space between timeline items
+              child: Row(
+                children: [
+                  Icon(icon, color: isActive ? Color(0xFFFDB515) : Colors.grey[600], size: 40),
+                  SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: TextStyle(
+                            color: isActive ? Colors.white : Colors.grey[500],
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          subtitle,
+                          style: TextStyle(
+                            color: isActive ? Colors.grey[300] : Colors.grey[600],
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // This is a simplified connector for the visual timeline. The main logic is in the node.
+  Widget _buildTimelineConnector({required bool isActive}) {
+    // This widget is no longer needed as the line is part of the node now.
+    // Kept for clarity in case you want to separate it again.
+    return SizedBox.shrink();
   }
 }

@@ -8,6 +8,7 @@ import '../widgets/UserPoints.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:projects/pages/EventDetailPage.dart'; // <-- 1. IMPORT THE NEW PAGE
 
 class HomePage extends StatefulWidget {
   @override
@@ -198,72 +199,83 @@ class _HomePageState extends State<HomePage> {
                             itemCount: validUpcomingEvents.length, // Changed here
                             itemBuilder: (context, index) {
                               var event = validUpcomingEvents[index]; // Changed here
-                              return Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 10),
-                                child: Container(
-                                  width: 160,
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      // Event Image
-                                      ClipRRect(
-                                        borderRadius: BorderRadius.circular(8),
-                                        child: Image.network(
-                                          event["bannerUrl"] ?? '',
-                                          height: 100,
-                                          width: double.infinity,
-                                          fit: BoxFit.cover,
-                                        ),
-                                      ),
-                                      SizedBox(height: 4),
-                                      // Event Name
-                                      SizedBox(
-                                        height: 36,
-                                        child: Text(
-                                          event["eventName"] ?? "Unknown",
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 14,
-                                            color: Colors.black,
+                              // v-- 2. WRAP EVENT CARD WITH GESTUREDETECTOR --v
+                              return GestureDetector(
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => EventDetailPage(event: event),
+                                    ),
+                                  );
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                                  child: Container(
+                                    width: 160,
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        // Event Image
+                                        ClipRRect(
+                                          borderRadius: BorderRadius.circular(8),
+                                          child: Image.network(
+                                            event["bannerUrl"] ?? '',
+                                            height: 100,
+                                            width: double.infinity,
+                                            fit: BoxFit.cover,
                                           ),
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
                                         ),
-                                      ),
-                                      SizedBox(height: 8),
-                                      // Points and Date
-                                      Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            "Get ${event["points"] ?? "0"} pts",
+                                        SizedBox(height: 4),
+                                        // Event Name
+                                        SizedBox(
+                                          height: 36,
+                                          child: Text(
+                                            event["eventName"] ?? "Unknown",
                                             style: TextStyle(
                                               fontWeight: FontWeight.bold,
-                                              fontSize: 13,
+                                              fontSize: 14,
                                               color: Colors.black,
                                             ),
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
                                           ),
-                                          SizedBox(height: 4),
-                                          Row(
-                                            children: [
-                                              Icon(Icons.calendar_today, color: Colors.red, size: 14),
-                                              SizedBox(width: 4),
-                                              Expanded(
-                                                child: Text(
-                                                  event["eventEndDate"] ?? "",
-                                                  style: TextStyle(
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.w500,
-                                                    color: Colors.black87,
-                                                  ),
-                                                  overflow: TextOverflow.ellipsis,
-                                                ),
+                                        ),
+                                        SizedBox(height: 8),
+                                        // Points and Date
+                                        Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              "Get ${event["points"] ?? "0"} pts",
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 13,
+                                                color: Colors.black,
                                               ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ],
+                                            ),
+                                            SizedBox(height: 4),
+                                            Row(
+                                              children: [
+                                                Icon(Icons.calendar_today, color: Colors.red, size: 14),
+                                                SizedBox(width: 4),
+                                                Expanded(
+                                                  child: Text(
+                                                    event["eventEndDate"] ?? "",
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      fontWeight: FontWeight.w500,
+                                                      color: Colors.black87,
+                                                    ),
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               );
@@ -344,72 +356,83 @@ class _HomePageState extends State<HomePage> {
               itemCount: validEvents.length, // Changed here
               itemBuilder: (context, index) {
                 var event = validEvents[index]; // Changed here
-                return Padding(
-                  padding: const EdgeInsets.all(10.0),
-                  child: Container(
-                    width: 160,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Event Image
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.network(
-                            event["bannerUrl"] ?? '',
-                            height: 100,
-                            width: double.infinity,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        // Event Name
-                        SizedBox(
-                          height: 36,
-                          child: Text(
-                            event["eventName"] ?? "Unknown",
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                              color: Colors.black,
+                // v-- 3. WRAP THIS CARD WITH GESTUREDETECTOR AS WELL --v
+                return GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => EventDetailPage(event: event),
+                      ),
+                    );
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.all(10.0),
+                    child: Container(
+                      width: 160,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Event Image
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.network(
+                              event["bannerUrl"] ?? '',
+                              height: 100,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
                             ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
-                        SizedBox(height: 8),
-                        // Points and Date
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "Get ${event["points"] ?? "0"} pts",
+                          SizedBox(height: 4),
+                          // Event Name
+                          SizedBox(
+                            height: 36,
+                            child: Text(
+                              event["eventName"] ?? "Unknown",
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
-                                fontSize: 13,
+                                fontSize: 14,
                                 color: Colors.black,
                               ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            SizedBox(height: 4),
-                            Row(
-                              children: [
-                                Icon(Icons.calendar_today, color: Colors.red, size: 14),
-                                SizedBox(width: 4),
-                                Expanded(
-                                  child: Text(
-                                    event["eventEndDate"] ?? "",
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
-                                      color: Colors.black87,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
+                          ),
+                          SizedBox(height: 8),
+                          // Points and Date
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "Get ${event["points"] ?? "0"} pts",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                  color: Colors.black,
                                 ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ],
+                              ),
+                              SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Icon(Icons.calendar_today, color: Colors.red, size: 14),
+                                  SizedBox(width: 4),
+                                  Expanded(
+                                    child: Text(
+                                      event["eventEndDate"] ?? "",
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                        color: Colors.black87,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 );

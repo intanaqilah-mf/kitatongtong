@@ -4,7 +4,8 @@ import 'package:projects/pages/pickupSuccess.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
 import 'package:projects/pages/pickupFail.dart';
 import 'package:intl/intl.dart';
-import 'face_validation_screen.dart'; // Import the new screen
+import 'face_validation_screen.dart';
+import 'qr_scanner_page.dart'; // Import the scanner page
 
 class PickUpItem extends StatefulWidget {
   @override
@@ -12,7 +13,6 @@ class PickUpItem extends StatefulWidget {
 }
 
 class _PickUpItemState extends State<PickUpItem> {
-  // Use more descriptive names for controllers
   final TextEditingController _pickupCodeController = TextEditingController();
   final TextEditingController _rewardRedeemedController = TextEditingController();
   final TextEditingController _asnafNameController = TextEditingController();
@@ -21,7 +21,7 @@ class _PickUpItemState extends State<PickUpItem> {
   int _selectedIndex = 0;
   String? docIdToUpdate;
   bool _isLoading = false;
-  bool _isVerified = false; // To track if validation was successful
+  bool _isVerified = false;
 
   void _onItemTapped(int index) {
     setState(() {
@@ -29,22 +29,38 @@ class _PickUpItemState extends State<PickUpItem> {
     });
   }
 
-  // Main function to start the verification flow
+  Future<void> _scanQRCode() async {
+    try {
+      final String? qrCode = await Navigator.push<String>(
+        context,
+        MaterialPageRoute(builder: (context) => const QrScannerPage()),
+      );
+
+      if (!mounted) return;
+
+      if (qrCode != null && qrCode.isNotEmpty) {
+        _pickupCodeController.text = qrCode;
+        _initiateVerification(); // Automatically start verification after scan
+      }
+    } catch (e) {
+      _showError("Error opening QR scanner: $e");
+    }
+  }
+
   Future<void> _initiateVerification() async {
     final String code = _pickupCodeController.text.trim();
     if (code.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Please enter a pickup code.")));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Please enter or scan a pickup code.")));
       return;
     }
 
     setState(() {
       _isLoading = true;
       _isVerified = false;
-      _clearAllFields(); // Clear previous data
+      _clearAllFields();
     });
 
     try {
-      // 1. Find the pickup order in 'redeemedKasih' collection
       final pickupSnapshot = await FirebaseFirestore.instance
           .collection('redeemedKasih')
           .where('pickupCode', isEqualTo: code)
@@ -59,18 +75,29 @@ class _PickUpItemState extends State<PickUpItem> {
       final pickupData = pickupSnapshot.docs.first.data();
       docIdToUpdate = pickupSnapshot.docs.first.id;
 
-      // 2. Fetch the user's data to get the selfie URL
+      // Check if already picked up
+      if(pickupData['pickedUp'] == 'yes') {
+        _showError("This order has already been picked up.");
+        return;
+      }
+
+      // Check if order is processed
+      if(pickupData['processedOrder'] != 'yes') {
+        _showError("This order has not been processed by admin yet.");
+        return;
+      }
+
+
       final String userId = pickupData['userId'];
       final userDoc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
 
       if (!userDoc.exists || userDoc.data()?['selfieImageUrl'] == null) {
-        _showError("Asnaf eKYC photo not found. User may not have completed the verification process.");
+        _showError("Asnaf eKYC photo not found.");
         return;
       }
       final userData = userDoc.data()!;
       final String ekycSelfieUrl = userData['selfieImageUrl'];
 
-      // 3. Navigate to FaceValidationScreen
       if (!mounted) return;
       final bool? isMatch = await Navigator.push(
         context,
@@ -79,14 +106,12 @@ class _PickUpItemState extends State<PickUpItem> {
         ),
       );
 
-      // 4. Handle the result from the validation screen
       if (isMatch == true) {
-        // If validation is successful, populate the fields
         setState(() {
           _rewardRedeemedController.text = pickupData['valueRedeemed']?.toString() ?? 'N/A';
           _asnafNameController.text = pickupData['userName'] ?? 'N/A';
           _asnafNumberController.text = userData['phone'] ?? 'N/A';
-          _isVerified = true; // Mark as verified to enable the submit button
+          _isVerified = true;
         });
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text("Validation successful. Details loaded."),
@@ -111,29 +136,10 @@ class _PickUpItemState extends State<PickUpItem> {
       _showError("Please verify the Asnaf's identity first.");
       return;
     }
-
     setState(() { _isLoading = true; });
 
     try {
-      final docRef = FirebaseFirestore.instance.collection("redeemedKasih").doc(docIdToUpdate!);
-      final docSnap = await docRef.get();
-
-      if(docSnap.data()?['pickedUp'] == 'yes') {
-        final pickedUpAt = (docSnap.data()?['pickedUpAt'] as Timestamp?)?.toDate();
-        String formattedPickedUpAt = pickedUpAt != null
-            ? DateFormat("d MMM yyyy, h:mm a").format(pickedUpAt)
-            : "an unknown date";
-        Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => PickupFail(
-          name: _asnafNameController.text,
-          phone: _asnafNumberController.text,
-          reward: _rewardRedeemedController.text,
-          pickupCode: _pickupCodeController.text,
-          pickedUpAt: formattedPickedUpAt,
-        )), (route) => false,);
-        return;
-      }
-
-      await docRef.update({
+      await FirebaseFirestore.instance.collection("redeemedKasih").doc(docIdToUpdate!).update({
         "pickedUp": "yes",
         "pickedUpAt": FieldValue.serverTimestamp(),
       });
@@ -144,7 +150,6 @@ class _PickUpItemState extends State<PickUpItem> {
         reward: _rewardRedeemedController.text,
         pickupCode: _pickupCodeController.text,
       )), (route) => false,);
-
     } catch (e) {
       _showError("Failed to submit pickup: $e");
     } finally {
@@ -166,7 +171,7 @@ class _PickUpItemState extends State<PickUpItem> {
         content: Text(message),
         backgroundColor: Colors.red,
       ));
-      setState(() { _isLoading = false; _clearAllFields(); });
+      setState(() { _isLoading = false; _pickupCodeController.clear(); _clearAllFields(); });
     }
   }
 
@@ -197,12 +202,15 @@ class _PickUpItemState extends State<PickUpItem> {
               ),
               SizedBox(height: 4),
               Text(
-                "Enter pickup code to begin face validation",
+                "Scan QR or enter code to begin validation",
                 style: TextStyle(fontSize: 14, color: Color(0xFFAA820C)),
                 textAlign: TextAlign.center,
               ),
               SizedBox(height: 20),
-              buildTextField("Enter Pickup Code", _pickupCodeController, isReadOnly: false),
+
+              // New Pickup Code Input Field
+              buildPickupCodeField(),
+
               SizedBox(height: 10),
               if (_isLoading)
                 Center(child: CircularProgressIndicator())
@@ -218,12 +226,12 @@ class _PickUpItemState extends State<PickUpItem> {
               SizedBox(height: 20),
               Divider(color: Colors.white24),
               SizedBox(height: 10),
-              buildTextField("Reward Redeemed", _rewardRedeemedController, isReadOnly: true),
-              buildTextField("Asnaf's Name", _asnafNameController, isReadOnly: true),
+              buildInfoTextField("Reward Redeemed", _rewardRedeemedController),
+              buildInfoTextField("Asnaf's Name", _asnafNameController),
               buildMobileField("Asnaf's Number", _asnafNumberController),
               SizedBox(height: 20),
               ElevatedButton(
-                onPressed: _isVerified && !_isLoading ? _submitPickup : null, // Enabled only after successful verification
+                onPressed: _isVerified && !_isLoading ? _submitPickup : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _isVerified ? Colors.green : Colors.grey[700],
                   padding: EdgeInsets.symmetric(vertical: 16),
@@ -241,7 +249,45 @@ class _PickUpItemState extends State<PickUpItem> {
     );
   }
 
-  Widget buildTextField(String label, TextEditingController controller, {bool isReadOnly = true}) {
+  // New widget for the combined Text and Scanner button field
+  Widget buildPickupCodeField() {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text("Enter Pickup Code or Scan QR", style: TextStyle(color: Color(0xFFFDB515), fontSize: 14, fontWeight: FontWeight.bold)),
+          SizedBox(height: 4),
+          Container(
+            decoration: BoxDecoration(color: Colors.grey[800], borderRadius: BorderRadius.circular(8)),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _pickupCodeController,
+                    style: TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 15),
+                      hintText: "Enter code manually",
+                      hintStyle: TextStyle(color: Colors.white54),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.qr_code_scanner, color: Color(0xFFFDB515)),
+                  onPressed: _scanQRCode,
+                  tooltip: 'Scan QR Code',
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget buildInfoTextField(String label, TextEditingController controller) {
     return Padding(
       padding: EdgeInsets.symmetric(vertical: 8),
       child: Column(
@@ -251,8 +297,8 @@ class _PickUpItemState extends State<PickUpItem> {
           SizedBox(height: 4),
           TextField(
             controller: controller,
-            readOnly: isReadOnly,
-            style: TextStyle(color: isReadOnly ? Colors.white70 : Colors.white),
+            readOnly: true,
+            style: TextStyle(color: Colors.white70),
             decoration: InputDecoration(
               filled: true,
               fillColor: Colors.grey[800],

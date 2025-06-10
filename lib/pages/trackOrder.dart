@@ -1,10 +1,9 @@
-// lib/pages/trackOrder.dart (Corrected and Optimized)
-
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
+import 'package:qr_flutter/qr_flutter.dart'; // Import the QR package
 import '../pages/redemptionStatus.dart';
 
 class TrackOrderScreen extends StatefulWidget {
@@ -61,10 +60,6 @@ class _TrackOrderScreenState extends State<TrackOrderScreen>
     }
   }
 
-  // =================================================================
-  // ===== REMOVED _fetchItemImageUrl and image cache. No longer needed.
-  // =================================================================
-
   List<DocumentSnapshot> _filterAndSortOrders(
       List<DocumentSnapshot> docs, int tabIndex) {
     List<DocumentSnapshot> filteredByTab;
@@ -77,10 +72,11 @@ class _TrackOrderScreenState extends State<TrackOrderScreen>
         filteredByTab = docs.where((doc) => (doc['processedOrder'] ?? 'no') == 'no').toList();
         break;
       case 2:
+      // "Processed" tab: processed but not yet picked up
         filteredByTab = docs.where((doc) => (doc['processedOrder'] ?? 'no') == 'yes' && (doc['pickedUp'] ?? 'no') == 'no').toList();
         break;
       case 3:
-        filteredByTab = docs.where((doc) => (doc['processedOrder'] ?? 'no') == 'yes' && (doc['pickedUp'] ?? 'no') == 'yes').toList();
+        filteredByTab = docs.where((doc) => (doc['pickedUp'] ?? 'no') == 'yes').toList();
         break;
       default:
         filteredByTab = docs;
@@ -93,6 +89,7 @@ class _TrackOrderScreenState extends State<TrackOrderScreen>
       }).toList();
     }
 
+    // Sorting logic remains the same
     if (_selectedSort == "Code") {
       filteredByTab.sort((a, b) {
         final codeA = a['pickupCode'] as String? ?? '';
@@ -115,6 +112,7 @@ class _TrackOrderScreenState extends State<TrackOrderScreen>
           style: TextStyle(color: Color(0xFFFDB515), fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
+        automaticallyImplyLeading: false,
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: const Color(0xFFFDB515),
@@ -123,8 +121,8 @@ class _TrackOrderScreenState extends State<TrackOrderScreen>
           tabs: const [
             Tab(text: "All"),
             Tab(text: "To Process"),
-            Tab(text: "Processed"),
-            Tab(text: "Rating"),
+            Tab(text: "To Pickup"), // Changed from "Processed"
+            Tab(text: "Completed"), // Changed from "Rating"
           ],
           onTap: (index) {
             if (mounted) setState(() {});
@@ -182,6 +180,7 @@ class _TrackOrderScreenState extends State<TrackOrderScreen>
                     onChanged: (v) {
                       if (v != null && mounted) setState(() => _selectedSort = v);
                     },
+
                   ),
                 ),
               ],
@@ -220,7 +219,7 @@ class _TrackOrderScreenState extends State<TrackOrderScreen>
                       itemCount: displayDocs.length,
                       itemBuilder: (context, index) {
                         final orderDoc = displayDocs[index];
-                        return _buildOrderCard(orderDoc, tabIndex);
+                        return _buildOrderCard(orderDoc);
                       },
                     );
                   },
@@ -237,8 +236,7 @@ class _TrackOrderScreenState extends State<TrackOrderScreen>
     );
   }
 
-  // Main Order Card Widget
-  Widget _buildOrderCard(DocumentSnapshot orderDoc, int currentTabIndex) {
+  Widget _buildOrderCard(DocumentSnapshot orderDoc) {
     final data = orderDoc.data()! as Map<String, dynamic>;
     final dateFormat = DateFormat("dd MMM yyyy, hh:mm a");
     final date = data['redeemedAt'] != null
@@ -250,11 +248,14 @@ class _TrackOrderScreenState extends State<TrackOrderScreen>
 
     String statusText;
     Color statusColor;
-    if (processedOrder == 'yes' && pickedUp == 'yes') {
+    // Condition to show QR code
+    bool showQrCode = (processedOrder == 'yes' && pickedUp == 'no');
+
+    if (pickedUp == 'yes') {
       statusText = 'Completed';
       statusColor = Colors.green;
     } else if (processedOrder == 'yes') {
-      statusText = 'Processed, Awaiting Pickup';
+      statusText = 'Ready for Pickup';
       statusColor = Colors.orangeAccent;
     } else {
       statusText = 'To Process';
@@ -278,46 +279,42 @@ class _TrackOrderScreenState extends State<TrackOrderScreen>
         borderRadius: BorderRadius.circular(10),
         child: Padding(
           padding: const EdgeInsets.all(12.0),
-          child: Column(
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Order-level details
-              Text("Pickup Code: $code", style: TextStyle(color: Colors.grey[400], fontSize: 13, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 4),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(statusText, style: TextStyle(color: statusColor, fontSize: 13, fontWeight: FontWeight.w500)),
-                  Text(date, style: TextStyle(color: Colors.grey[500], fontSize: 11)),
-                ],
-              ),
-              const Divider(color: Colors.white24, height: 20, thickness: 0.5),
-
-              // List of items
-              ...itemsRedeemed.map((item) {
-                if (item is Map<String, dynamic>) {
-                  return _buildItemDetailRow(item);
-                }
-                return const SizedBox.shrink();
-              }).toList(),
-
-              if (currentTabIndex == 3 && statusText == 'Completed')
-                Padding(
-                  padding: const EdgeInsets.only(top: 12.0),
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Navigate to rate order: $code')));
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFFDB515),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                        textStyle: const TextStyle(fontSize: 12, color: Color(0xFF303030)),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                      ),
-                      child: const Text("Rate Order", style: TextStyle(color: Color(0xFF303030), fontWeight: FontWeight.bold)),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text("Pickup Code: $code", style: TextStyle(color: Colors.grey[400], fontSize: 13, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(statusText, style: TextStyle(color: statusColor, fontSize: 13, fontWeight: FontWeight.w500)),
+                        Text(date, style: TextStyle(color: Colors.grey[500], fontSize: 11)),
+                      ],
                     ),
+                    const Divider(color: Colors.white24, height: 20, thickness: 0.5),
+                    ...itemsRedeemed.map((item) {
+                      if (item is Map<String, dynamic>) {
+                        return _buildItemDetailRow(item);
+                      }
+                      return const SizedBox.shrink();
+                    }).toList(),
+                  ],
+                ),
+              ),
+              // Show QR code only if the condition is met
+              if (showQrCode)
+                Padding(
+                  padding: const EdgeInsets.only(left: 12.0),
+                  child: QrImageView(
+                    data: code, // The data for the QR code
+                    version: QrVersions.auto,
+                    size: 80.0,
+                    backgroundColor: Colors.white,
+                    gapless: false,
                   ),
                 ),
             ],
@@ -327,14 +324,8 @@ class _TrackOrderScreenState extends State<TrackOrderScreen>
     );
   }
 
-  // ===================================================================
-  // ===== MODIFIED WIDGET: It now reads 'imageUrl' directly         =====
-  // ===== and no longer uses a FutureBuilder. This is much faster.  =====
-  // ===================================================================
   Widget _buildItemDetailRow(Map<String, dynamic> item) {
     final String name = item['name'] ?? 'Unknown Item';
-    final double price = (item['price'] as num? ?? 0).toDouble();
-    // Directly read the imageUrl from the item map.
     final String? imageUrl = item['imageUrl'] as String?;
 
     return Padding(
@@ -342,53 +333,29 @@ class _TrackOrderScreenState extends State<TrackOrderScreen>
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Item Image
           SizedBox(
-            width: 60,
-            height: 60,
+            width: 50,
+            height: 50,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(8),
-              // Check if the imageUrl exists and is not empty.
               child: (imageUrl != null && imageUrl.isNotEmpty)
                   ? Image.network(
                 imageUrl,
-                width: 60,
-                height: 60,
                 fit: BoxFit.cover,
-                // A loading builder can improve user experience
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
-                  return Container(
-                    width: 60, height: 60,
-                    decoration: BoxDecoration(color: Colors.grey[700], borderRadius: BorderRadius.circular(8)),
-                    child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFDB515))))),
-                  );
-                },
-                errorBuilder: (context, error, stackTrace) => Container(
-                    width: 60, height: 60,
-                    decoration: BoxDecoration(color: Colors.grey[700], borderRadius: BorderRadius.circular(8)),
-                    child: Icon(Icons.broken_image, color: Colors.grey[500], size: 30)),
+                loadingBuilder: (context, child, progress) =>
+                progress == null ? child : Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                errorBuilder: (context, error, stack) => Icon(Icons.broken_image, color: Colors.grey[500]),
               )
-                  : Container( // Placeholder if no image URL was found
-                width: 60, height: 60,
-                decoration: BoxDecoration(color: Colors.grey[700], borderRadius: BorderRadius.circular(8)),
-                child: Icon(Icons.image_not_supported, color: Colors.grey[500], size: 30),
-              ),
+                  : Icon(Icons.image_not_supported, color: Colors.grey[500]),
             ),
           ),
           const SizedBox(width: 12),
-          // Item Name and Price
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+            child: Text(
+              name,
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],

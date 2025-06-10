@@ -141,7 +141,7 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
                         selectedFilter = newValue!;
                       });
                     },
-                    items: ["All", "Pending", "Approved", "Rejected"]
+                    items: ["All", "Pending", "Approve", "Reject"]
                         .map<DropdownMenuItem<String>>((String value) {
                       return DropdownMenuItem<String>(
                         value: value,
@@ -227,6 +227,29 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
                     'userId': appData['userId'] ?? '',
                   };
                 }).toList();
+                if (selectedFilter != "All") {
+                  applications = applications.where((app) {
+                    return app['statusApplication'].toString().toLowerCase() == selectedFilter.toLowerCase();
+                  }).toList();
+                }
+
+// Apply search query
+                if (searchQuery.isNotEmpty) {
+                  applications = applications.where((app) {
+                    return app['fullname'].toString().toLowerCase().contains(searchQuery);
+                  }).toList();
+                }
+                applications.sort((a, b) {
+                  if (selectedSort == "Name") {
+                    return a['fullname'].compareTo(b['fullname']);
+                  } else if (selectedSort == "Status") {
+                    return a['statusApplication'].compareTo(b['statusApplication']);
+                  } else { // Default to sorting by Date descending
+                    DateTime dateA = a['date'] != '' ? DateTime.parse(a['date']) : DateTime(1900);
+                    DateTime dateB = b['date'] != '' ? DateTime.parse(b['date']) : DateTime(1900);
+                    return dateB.compareTo(dateA);
+                  }
+                });
 
                 return ListView.builder(
                   itemCount: applications.length,
@@ -349,9 +372,12 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
                     size: 6,
                   ),
                   SizedBox(width: 6),
-                  Text(
-                    uniqueCode,
-                    style: TextStyle(color: Colors.grey),
+                  Flexible(
+                    child: Text(
+                      uniqueCode,
+                      style: TextStyle(color: Colors.grey),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ],
               ),

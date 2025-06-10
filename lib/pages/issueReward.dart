@@ -141,7 +141,7 @@ class _IssueRewardScreenState extends State<IssueReward> {
                         selectedFilter = newValue!;
                       });
                     },
-                    items: ["All", "Pending", "Approved", "Rejected"]
+                    items: ["All", "Pending", "Issued"]
                         .map<DropdownMenuItem<String>>((String value) {
                       return DropdownMenuItem<String>(
                         value: value,
@@ -231,6 +231,33 @@ class _IssueRewardScreenState extends State<IssueReward> {
                   };
                 }).where((app) => app['statusApplication'] == "Approve")
                     .toList();
+
+                if (selectedFilter != "All") {
+                  applications = applications.where((app) {
+                    return app['statusReward'].toString().toLowerCase() == selectedFilter.toLowerCase();
+                  }).toList();
+                }
+
+// Apply search query
+                if (searchQuery.isNotEmpty) {
+                  applications = applications.where((app) {
+                    return app['fullname'].toString().toLowerCase().contains(searchQuery);
+                  }).toList();
+                }
+
+// 3. Apply sorting
+                applications.sort((a, b) {
+                  if (selectedSort == "Name") {
+                    return a['fullname'].compareTo(b['fullname']);
+                  } else if (selectedSort == "Status") {
+                    // Sort by reward status, not application status
+                    return a['statusReward'].compareTo(b['statusReward']);
+                  } else { // Default to sorting by Date
+                    DateTime dateA = a['date'] != '' ? DateTime.parse(a['date']) : DateTime(1900);
+                    DateTime dateB = b['date'] != '' ? DateTime.parse(b['date']) : DateTime(1900);
+                    return dateB.compareTo(dateA); // Descending
+                  }
+                });
 
                 return ListView.builder(
                   itemCount: applications.length,

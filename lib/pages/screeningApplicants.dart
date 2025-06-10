@@ -292,7 +292,7 @@ class _ScreeningApplicantsState extends State<ScreeningApplicants> {
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<String>(
                             value: selectedStatus,
-                            items: ["Approve", "Disapprove"].map((String value) {
+                            items: ["Approve", "Reject"].map((String value) {
                               return DropdownMenuItem<String>(
                                 value: value,
                                 child: Text(value),

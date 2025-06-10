@@ -19,7 +19,7 @@ class _VoucherIssuanceState extends State<VoucherIssuance> {
   // Dropdown selections
   String selectedRewardType = "Voucher Package Kasih";
   String selectedEligibility = "Asnaf Application";
-  String selectedRewardAmount = "RM10"; // Default for RM rewards
+  String selectedRewardAmount = "RM50"; // Default for RM rewards
   TextEditingController pointsController = TextEditingController(); // For manual points input
 
   // New state variables for recurring feature
@@ -416,7 +416,7 @@ class _VoucherIssuanceState extends State<VoucherIssuance> {
                             border: InputBorder.none,
                             contentPadding: EdgeInsets.all(10),
                           ),
-                          items: ["RM10", "RM20", "RM50"].map((String value) {
+                          items: ["RM50", "RM150", "RM150", "RM200", "RM250"].map((String value) {
                             return DropdownMenuItem<String>(
                               value: value,
                               child: Text(value),

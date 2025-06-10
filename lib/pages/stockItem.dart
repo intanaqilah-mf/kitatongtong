@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:projects/widgets/bottomNavBar.dart';
-import 'package:projects/services/price_service.dart';
-
 import 'package:projects/services/search_service.dart';
 
 class StockItem extends StatefulWidget {
@@ -15,20 +12,12 @@ class StockItem extends StatefulWidget {
   _StockItemState createState() => _StockItemState();
 }
 
-class _StockItemState extends State<StockItem> {
-  bool isVoucherSelected = true;
-  String selectedVoucherType = "Cash Voucher";
-  String selectedValue = "RM 10";
-  int? voucherValue;
+class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
   File? _selectedImage;
   String? _selectedImageUrl;
   List<String> packageItems = [];
   String? selectedPackageItem;
   TextEditingController packageItemController = TextEditingController();
-  List<int> minRedeemablePointsOptions = [100, 200, 500, 800, 1000, 1250, 1500, 2000, 3000, 4000, 5000];
-  int minRedeemablePointsIndex = 0;
-  List<int> rmScalingOptions = [1, 2, 5, 10, 15, 20];
-  int rmScalingIndex = 0;
   int _selectedIndex = 0;
   List<Map<String, dynamic>> detailedPackageItems = [];
   TextEditingController itemNameController = TextEditingController();
@@ -36,8 +25,31 @@ class _StockItemState extends State<StockItem> {
   String selectedCategory = "";
   List<Map<String, dynamic>> itemSuggestions = [];
 
-  String? selectedItemId;    // Firestore document ID of the chosen item
+  String? selectedItemId; // Firestore document ID of the chosen item
   double selectedPrice = 0.0; // “average_price” from your price catcher
+
+  // Animation Controller for the loading indicator
+  late AnimationController _animationController;
+  late Animation<Color?> _colorAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 4),
+    );
+
+    // Color palette for the loading indicator animation
+    _colorAnimation = _animationController.drive(
+      ColorTween(
+        begin: Color(0xFFF9F295),
+        end: Color(0xFFB88A44),
+      ),
+    );
+
+    _animationController.repeat(reverse: true);
+  }
 
   void _onItemTapped(int index) {
     setState(() {
@@ -45,89 +57,128 @@ class _StockItemState extends State<StockItem> {
     });
   }
 
-  Future<void> _pickImage(Function setModalState) async {
-    final pickedFile = await ImagePicker().pickImage(source: ImageSource.gallery);
-    if (pickedFile != null) {
-      File imageFile = File(pickedFile.path);
-      setModalState(() { // ✅ Update UI inside modal
-        _selectedImage = imageFile;
-      });
-
-      print("📸 Image selected: ${pickedFile.path}");
-
-      // ✅ Upload image to Firebase Storage
-      String fileName = isVoucherSelected
-          ? "voucherBanner/${DateTime.now().millisecondsSinceEpoch}.jpg"
-          : "package_kasih_banner/${DateTime.now().millisecondsSinceEpoch}.jpg";
-      Reference storageRef = FirebaseStorage.instance.ref().child(fileName);
-      UploadTask uploadTask = storageRef.putFile(imageFile);
-      TaskSnapshot snapshot = await uploadTask;
-
-      // ✅ Get the download URL
-      String downloadUrl = await snapshot.ref.getDownloadURL();
-      setModalState(() { // ✅ Update UI with Firebase URL
-        _selectedImageUrl = downloadUrl; // Store Firebase URL
-      });
-
-      print("✅ Image uploaded to Firebase: $downloadUrl");
-    } else {
-      print("❌ No image selected");
-    }
-  }
-
-  Future<String?> generateVoucherBannerImage(int points, int value) async {
-    try {
-      final url = Uri.parse("https://generatevoucherimage-m4nvbdigca-uc.a.run.app");
-
-      final response = await http.post(
-        url,
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({"points": points, "value": value}),
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return data['image_url'];
-      } else {
-        print("❌ Failed to generate image: ${response.body}");
-      }
-    } catch (e) {
-      print("❌ Error calling function: $e");
-    }
-    return null;
-  }
-
-  Future<void> deleteOldVoucherImages(List<DocumentSnapshot> existingVouchers) async {
-    final storage = FirebaseStorage.instance;
-
-    for (var doc in existingVouchers) {
-      final data = doc.data() as Map<String, dynamic>;
-      final imageUrl = data['bannerVoucher'];
-
-      if (imageUrl != null && imageUrl is String) {
-        try {
-          final ref = storage.refFromURL(imageUrl);
-          await ref.delete();
-          print("Deleted old image: $imageUrl");
-        } catch (e) {
-          print("Failed to delete image $imageUrl: $e");
-        }
-      }
-    }
-  }
-
   @override
   void dispose() {
     itemNameController.dispose();
     itemNumberController.dispose();
     packageItemController.dispose();
+    _animationController.dispose(); // Dispose the animation controller
     super.dispose();
   }
+
+  // --- LOADING OVERLAY ---
+  void _showLoadingDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // User cannot dismiss by tapping outside
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.black54,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AnimatedBuilder(
+                  animation: _colorAnimation,
+                  builder: (context, child) {
+                    return SizedBox(
+                      width: 60,
+                      height: 60,
+                      child: CircularProgressIndicator(
+                        valueColor: _colorAnimation,
+                        strokeWidth: 6,
+                      ),
+                    );
+                  },
+                ),
+                SizedBox(height: 24),
+                Text(
+                  "Submitting Package...",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _hideLoadingDialog() {
+    Navigator.of(context, rootNavigator: true).pop();
+  }
+
+  // --- EDIT PACKAGE NAME DIALOG ---
+  Future<void> _editPackageName(DocumentSnapshot doc) async {
+    final Map<String, dynamic> pkg = doc.data() as Map<String, dynamic>;
+    final List<dynamic> items = pkg['items'] as List<dynamic>? ?? [];
+
+    if (items.isEmpty) return; // Cannot edit if there are no items
+
+    final String currentName = items.first['name'] as String? ?? '';
+    final TextEditingController editController = TextEditingController(text: currentName);
+
+    return showDialog<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Color(0xFF3F3F3F),
+          title: Text('Edit Package Name', style: TextStyle(color: Color(0xFFFDB515))),
+          content: TextField(
+            controller: editController,
+            autofocus: true,
+            style: TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              hintText: "Enter new package name",
+              hintStyle: TextStyle(color: Colors.white54),
+              enabledBorder: UnderlineInputBorder(
+                borderSide: BorderSide(color: Color(0xFFFDB515)),
+              ),
+              focusedBorder: UnderlineInputBorder(
+                borderSide: BorderSide(color: Colors.white),
+              ),
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: Text('Cancel', style: TextStyle(color: Colors.white70)),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Color(0xFFFDB515)),
+              child: Text('Update', style: TextStyle(color: Colors.black)),
+              onPressed: () async {
+                final String newName = editController.text.trim();
+                if (newName.isNotEmpty && newName != currentName) {
+                  // Create a new list with the updated name
+                  List<Map<String, dynamic>> updatedItems = List<Map<String, dynamic>>.from(items.map((item) => Map<String, dynamic>.from(item)));
+                  updatedItems[0]['name'] = newName;
+
+                  // Update the document in Firestore
+                  await doc.reference.update({'items': updatedItems});
+                }
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
 
   Future<double> fetchExpectedTotalRemote(
       List<Map<String, dynamic>> items) async {
     final resp = await http.post(
-      Uri.parse("https://us-central1-kita-tongtong.cloudfunctions.net/getPackagePrice"),
+      Uri.parse(
+          "https://us-central1-kita-tongtong.cloudfunctions.net/getPackagePrice"),
       headers: {"Content-Type": "application/json"},
       body: jsonEncode({"items": items}),
     );
@@ -136,320 +187,6 @@ class _StockItemState extends State<StockItem> {
       throw Exception(body["error"] ?? "Price lookup failed");
     }
     return (body["expectedTotal"] as num).toDouble();
-  }
-
-  void _showAddVoucherForm() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Color(0xFF3F3F3F),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Padding(
-              padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-              child: SingleChildScrollView(
-                child: Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Center(
-                        child: Text(
-                          "Add Voucher",
-                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFFFDB515)),
-                        ),
-                      ),
-                      SizedBox(height: 16),
-                      Text("Type Voucher", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFF1D789))),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Color(0xFFFFCF40), // ✅ Updated field box background color
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        padding: EdgeInsets.symmetric(horizontal: 12),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: selectedVoucherType,
-                            isExpanded: true,
-                            dropdownColor: Color(0xFFFFCF40), // ✅ Ensures dropdown matches field color
-                            items: ["Cash Voucher", "Points"].map((String type) {
-                              return DropdownMenuItem<String>(
-                                value: type,
-                                child: Text(type, style: TextStyle(color: Colors.black)), // ✅ Ensures text is visible
-                              );
-                            }).toList(),
-                            onChanged: (String? newValue) {
-                              setModalState(() { // ✅ Use setModalState to update UI inside modal
-                                selectedVoucherType = newValue!;
-                              });
-                            },
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: 16),
-
-                      if (selectedVoucherType == "Cash Voucher") ...[
-                        Text("Voucher Value (RM)", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFF1D789))),
-                        TextField(
-                          keyboardType: TextInputType.number,
-                          decoration: InputDecoration(
-                            filled: true,
-                            fillColor: Color(0xFFFFCF40),
-                            border: OutlineInputBorder(),
-                            hintText: "Enter voucher value",
-                          ),
-                          onChanged: (value) {
-                            setModalState(() {
-                              voucherValue = int.tryParse(value);
-                            });
-                          },
-                        ),
-                        SizedBox(height: 16),
-                        Text("Voucher Banner", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFF1D789))),
-                        GestureDetector(
-                          onTap: () async { // ✅ Fix: Make onTap an async function
-                            await _pickImage(setModalState); // ✅ Calls function properly
-                          },
-                          child: Container(
-                            height: 150,
-                            decoration: BoxDecoration(
-                              color: Color(0xFFFFCF40),
-                              border: Border.all(color: Colors.grey),
-                              borderRadius: BorderRadius.circular(8),
-                              image: _selectedImageUrl != null
-                                  ? DecorationImage(image: NetworkImage(_selectedImageUrl!), fit: BoxFit.cover)
-                                  : null,
-                            ),
-                            child: _selectedImageUrl == null
-                                ? Center(child: Icon(Icons.add_a_photo, size: 40, color: Colors.grey))
-                                : null,
-                          ),
-                        ),
-
-                      ],
-
-                      // If "Points" is selected
-                      if (selectedVoucherType == "Points") ...[
-                        Text("Minimum Redeemable Points", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFF1D789))),
-                        SliderTheme(
-                          data: SliderTheme.of(context).copyWith(
-                            activeTrackColor: Color(0xFFF1D789),
-                            inactiveTrackColor: Color(0xFFF1D789),
-                            thumbColor: Color(0xFFEFBF04),
-                            overlayColor: Color(0xFFEFBF04).withOpacity(0.3),
-                            trackHeight: 4.0,
-                          ),
-                          child: Slider(
-                            value: minRedeemablePointsIndex.toDouble(), // ✅ Use Index
-                            min: 0,
-                            max: (minRedeemablePointsOptions.length - 1).toDouble(),
-                            divisions: minRedeemablePointsOptions.length - 1,
-                            label: "${minRedeemablePointsOptions[minRedeemablePointsIndex]} points", // ✅ Corrected reference
-                            onChanged: (value) {
-                              setModalState(() {
-                                minRedeemablePointsIndex = value.round();
-                              });
-                            },
-                          ),
-                        ),
-                        Text("Scaling Factor (RM)", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFF1D789))),
-                        SliderTheme(
-                          data: SliderTheme.of(context).copyWith(
-                            activeTrackColor: Color(0xFFF1D789),
-                            inactiveTrackColor: Color(0xFFF1D789),
-                            thumbColor: Color(0xFFEFBF04),
-                            overlayColor: Color(0xFFEFBF04).withOpacity(0.3),
-                            trackHeight: 4.0,
-                          ),
-                          child: Slider(
-                            value: rmScalingIndex.toDouble(), // ✅ Use Index
-                            min: 0,
-                            max: (rmScalingOptions.length - 1).toDouble(),
-                            divisions: rmScalingOptions.length - 1,
-                            label: "RM${rmScalingOptions[rmScalingIndex]}", // ✅ Corrected reference
-                            onChanged: (value) {
-                              setModalState(() {
-                                rmScalingIndex = value.round();
-                              });
-                            },
-                          ),
-                        ),
-                        Center(
-                          child: Text(
-                            "Auto-generated voucher redemption:\n"
-                                "${minRedeemablePointsOptions[minRedeemablePointsIndex]} pts → RM${rmScalingOptions[rmScalingIndex]}\n"
-                                "${minRedeemablePointsOptions[minRedeemablePointsIndex] * 2} pts → RM${rmScalingOptions[rmScalingIndex] * 2}\n"
-                                "${minRedeemablePointsOptions[minRedeemablePointsIndex] * 3} pts → RM${rmScalingOptions[rmScalingIndex] * 3}\n"
-                                "${minRedeemablePointsOptions[minRedeemablePointsIndex] * 4} pts → RM${rmScalingOptions[rmScalingIndex] * 4}",
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white70),
-                            textAlign: TextAlign.center, // ✅ Ensures text alignment is centered
-                          ),
-                        ),
-                      ],
-
-                      SizedBox(height: 20),
-
-                      // Submit Button
-                      ElevatedButton(
-                        onPressed: () async {
-                          try {
-                            CollectionReference vouchersRef = FirebaseFirestore.instance.collection("vouchers");
-
-                            if (selectedVoucherType == "Cash Voucher") {
-                              QuerySnapshot existingVoucher = await vouchersRef
-                                  .where("typeVoucher", isEqualTo: "Cash Voucher")
-                                  .limit(1)
-                                  .get();
-
-                              if (existingVoucher.docs.isNotEmpty) {
-                                // ✅ Update Firestore with Firebase URL
-                                await vouchersRef.doc(existingVoucher.docs.first.id).update({
-                                  "voucherValue": voucherValue ?? 0,
-                                  "bannerVoucher": _selectedImageUrl, // ✅ Store Firebase URL, NOT Local Path
-                                  "updatedAt": Timestamp.now(),
-                                });
-                                print("🔥 Updated Cash Voucher");
-                              } else {
-                                // ✅ Create new Firestore entry with Firebase URL
-                                await vouchersRef.add({
-                                  "typeVoucher": "Cash Voucher",
-                                  "voucherValue": voucherValue ?? 0,
-                                  "bannerVoucher": _selectedImageUrl, // ✅ Store Firebase URL
-                                  "createdAt": Timestamp.now(),
-                                });
-                                print("🔥 Created Cash Voucher");
-                              }
-                            }
-                            else if (selectedVoucherType == "Points") {
-                              // Define the 4 voucher levels dynamically
-                              List<int> pointsList = [
-                                minRedeemablePointsOptions[minRedeemablePointsIndex],
-                                minRedeemablePointsOptions[minRedeemablePointsIndex] * 2,
-                                minRedeemablePointsOptions[minRedeemablePointsIndex] * 3,
-                                minRedeemablePointsOptions[minRedeemablePointsIndex] * 4
-                              ];
-                              List<int> valuesList = [
-                                rmScalingOptions[rmScalingIndex],
-                                rmScalingOptions[rmScalingIndex] * 2,
-                                rmScalingOptions[rmScalingIndex] * 3,
-                                rmScalingOptions[rmScalingIndex] * 4
-                              ];
-
-                              // Fetch all existing point vouchers
-                              QuerySnapshot existingVouchers = await vouchersRef
-                                  .where("typeVoucher", isEqualTo: "Points")
-                                  .get();
-
-                              int voucherCount = existingVouchers.docs.length;
-                              // Get existing vouchers of type "Points"
-                              final existingPointsVouchers = await FirebaseFirestore.instance
-                                  .collection('vouchers')
-                                  .where('typeVoucher', isEqualTo: 'Points')
-                                  .get();
-                              await deleteOldVoucherImages(existingPointsVouchers.docs);
-
-
-                              if (voucherCount == 4) {
-                                // **Update the 4 existing vouchers**
-                                for (int i = 0; i < 4; i++) {
-                                  String? bannerUrl = await generateVoucherBannerImage(pointsList[i], valuesList[i]);
-
-                                  String? oldBannerUrl = existingVouchers.docs[i]["bannerVoucher"];
-                                  if (oldBannerUrl != null && oldBannerUrl.isNotEmpty) {
-                                    try {
-                                      final oldRef = FirebaseStorage.instance.refFromURL(oldBannerUrl);
-                                      await oldRef.delete();
-                                      print("🗑️ Deleted old banner: $oldBannerUrl");
-                                    } catch (e) {
-                                      print("⚠️ Failed to delete old banner: $e");
-                                    }
-                                  }
-                                  await vouchersRef.doc(existingVouchers.docs[i].id).update({
-                                    "points": pointsList[i],
-                                    "valuePoints": valuesList[i],
-                                    "bannerVoucher": bannerUrl ?? "",
-                                    "updatedAt": Timestamp.now(),
-                                  });
-                                  print("✅ Updated: ${pointsList[i]} pts → RM${valuesList[i]}");
-                                }
-                              }
-                              else if (voucherCount == 0) {
-                                // **Create 4 new vouchers if none exist**
-                                List<DocumentReference> createdDocs = [];
-                                for (int i = 0; i < 4; i++) {
-                                  String? bannerUrl = await generateVoucherBannerImage(pointsList[i], valuesList[i]);
-
-                                  DocumentReference newDoc = await vouchersRef.add({
-                                    "typeVoucher": "Points",
-                                    "points": pointsList[i],
-                                    "valuePoints": valuesList[i],
-                                    "bannerVoucher": bannerUrl ?? "", // 🔥 Save generated banner
-                                    "createdAt": Timestamp.now(),
-                                  });
-                                  createdDocs.add(newDoc);
-                                  print("🔥 Created new: ${pointsList[i]} pts → RM${valuesList[i]}");
-                                }
-
-                                print("🎉 Successfully created 4 vouchers: ${createdDocs.map((doc) => doc.id).toList()}");
-                              }
-                              else {
-                                // **If vouchers exist but not 0 or 4, force fix Firestore**
-                                print("❌ ERROR: Expected 4 vouchers, but found $voucherCount. Fixing Firestore...");
-
-                                // Delete extra vouchers if more than 4
-                                if (voucherCount > 4) {
-                                  for (int i = 4; i < voucherCount; i++) {
-                                    await vouchersRef.doc(existingVouchers.docs[i].id).delete();
-                                    print("🗑 Deleted extra voucher ID: ${existingVouchers.docs[i].id}");
-                                  }
-                                }
-
-                                // If fewer than 4, create missing ones
-                                for (int i = 0; i < 4; i++) {
-                                  String? bannerUrl = await generateVoucherBannerImage(pointsList[i], valuesList[i]);
-
-                                  if (bannerUrl != null) {
-                                    await vouchersRef.doc(existingVouchers.docs[i].id).update({
-                                      "points": pointsList[i],
-                                      "valuePoints": valuesList[i],
-                                      "bannerVoucher": bannerUrl,
-                                      "updatedAt": Timestamp.now(),
-                                    });
-                                    print("✅ Updated with AI banner: ${pointsList[i]} pts → RM${valuesList[i]}");
-                                  } else {
-                                    print("❌ Failed to generate image for: ${pointsList[i]} pts");
-                                  }
-                                }
-                              }
-                            }
-
-                            print("🎉 Firestore update complete!");
-                            Navigator.pop(context);
-                          } catch (e) {
-                            print("❌ Firestore ERROR: $e");
-                          }
-                        },
-
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Color(0xFFFDB515),
-                          padding: EdgeInsets.symmetric(vertical: 12, horizontal: 24),
-                        ),
-                        child: Center(child: Text("Submit", style: TextStyle(fontSize: 16, color: Colors.black))),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
   }
 
   void _AddPackageKasih() {
@@ -468,7 +205,8 @@ class _StockItemState extends State<StockItem> {
         return StatefulBuilder(
           builder: (context, setModalState) {
             return Padding(
-              padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+              padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).viewInsets.bottom),
               child: SingleChildScrollView(
                 child: Padding(
                   padding: EdgeInsets.all(16),
@@ -479,13 +217,20 @@ class _StockItemState extends State<StockItem> {
                       Center(
                         child: Text(
                           "Add Package Kasih",
-                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFFFDB515)),
+                          style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFFFDB515)),
                         ),
                       ),
                       SizedBox(height: 16),
-                      Text("Item Name", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFF1D789))),
+                      Text("Item Name",
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFFF1D789))),
                       Column(
-                        children: List.generate(detailedPackageItems.length, (index) {
+                        children:
+                        List.generate(detailedPackageItems.length, (index) {
                           final item = detailedPackageItems[index];
                           return Container(
                             margin: EdgeInsets.symmetric(vertical: 5),
@@ -496,7 +241,9 @@ class _StockItemState extends State<StockItem> {
                             ),
                             child: Row(
                               children: [
-                                Expanded(child: Text(item["name"], style: TextStyle(color: Colors.black))),
+                                Expanded(
+                                    child: Text(item["name"],
+                                        style: TextStyle(color: Colors.black))),
                                 SizedBox(width: 8),
                                 GestureDetector(
                                   onTap: () {
@@ -513,14 +260,11 @@ class _StockItemState extends State<StockItem> {
                       ),
                       Row(
                         children: [
-                          // ────────────────────────────────────────────────────────────────────────
-                          // 1) The “Item Name + suggestions” column (unchanged)
                           Expanded(
                             flex: 4,
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                // Your existing TextField for itemNameController:
                                 TextField(
                                   controller: itemNameController,
                                   decoration: InputDecoration(
@@ -537,7 +281,9 @@ class _StockItemState extends State<StockItem> {
                                       return;
                                     }
                                     try {
-                                      final results = await SearchService.searchItems(pattern);
+                                      final results =
+                                      await SearchService.searchItems(
+                                          pattern);
                                       setModalState(() {
                                         itemSuggestions = results;
                                       });
@@ -549,10 +295,10 @@ class _StockItemState extends State<StockItem> {
                                     }
                                   },
                                 ),
-                                // If there are suggestions, show them:
                                 if (itemSuggestions.isNotEmpty)
                                   Container(
-                                    constraints: BoxConstraints(maxHeight: 200),
+                                    constraints:
+                                    BoxConstraints(maxHeight: 200),
                                     margin: const EdgeInsets.only(top: 4),
                                     decoration: BoxDecoration(
                                       color: Colors.white,
@@ -570,19 +316,30 @@ class _StockItemState extends State<StockItem> {
                                       shrinkWrap: true,
                                       itemCount: itemSuggestions.length,
                                       itemBuilder: (context, index) {
-                                        final suggestion = itemSuggestions[index];
+                                        final suggestion =
+                                        itemSuggestions[index];
                                         return ListTile(
-                                          title: Text(suggestion['item_name'] as String),
+                                          title: Text(suggestion['item_name']
+                                          as String),
                                           subtitle: Text(
                                             "RM ${(suggestion['average_price'] as num).toStringAsFixed(2)}",
                                           ),
                                           onTap: () {
                                             setModalState(() {
-                                              itemNameController.text = suggestion['item_name'] as String;
+                                              itemNameController.text =
+                                              suggestion['item_name']
+                                              as String;
                                               itemSuggestions = [];
-                                              selectedItemId = suggestion['id'] as String;
-                                              selectedPrice = (suggestion['average_price'] as num).toDouble();
-                                              selectedCategory        = suggestion['item_group'] as String? ?? "";
+                                              selectedItemId =
+                                              suggestion['id'] as String;
+                                              selectedPrice =
+                                                  (suggestion['average_price']
+                                                  as num)
+                                                      .toDouble();
+                                              selectedCategory =
+                                                  suggestion['item_group']
+                                                  as String? ??
+                                                      "";
                                             });
                                           },
                                         );
@@ -599,72 +356,81 @@ class _StockItemState extends State<StockItem> {
                             icon: Icon(Icons.add, color: Colors.white),
                             onPressed: () {
                               final name = itemNameController.text.trim();
-                              final int qty  = 1;
+                              final int qty = 1;
 
                               setModalState(() {
                                 detailedPackageItems.add({
                                   "name": name,
-                                  "price": selectedPrice,          // <— include price
+                                  "price": selectedPrice,
                                   "category": selectedCategory,
                                   "number": qty,
                                 });
 
-                                // Clear for the next entry:
                                 itemNameController.clear();
                               });
                             },
                           ),
-
                         ],
                       ),
 
                       SizedBox(height: 16),
                       ElevatedButton(
                         onPressed: () async {
-                          // 1) If no items have been added, warn and return:
                           if (detailedPackageItems.isEmpty) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text("Please add at least one item to the package first.")),
+                              SnackBar(
+                                  content: Text(
+                                      "Please add at least one item to the package first.")),
                             );
                             return;
                           }
 
+                          _showLoadingDialog(); // Show loading overlay
+
                           try {
                             double totalPrice = 0.0;
                             for (var item in detailedPackageItems) {
-                              final double p = (item["price"] as num).toDouble();
+                              final double p =
+                              (item["price"] as num).toDouble();
                               final int qty = item["number"] as int;
                               totalPrice += p * qty;
                             }
                             final priceResponse = await http.post(
-                              Uri.parse("https://us-central1-kita-tongtong.cloudfunctions.net/getPackagePrice"),
+                              Uri.parse(
+                                  "https://us-central1-kita-tongtong.cloudfunctions.net/getPackagePrice"),
                               headers: {"Content-Type": "application/json"},
                               body: jsonEncode({"items": detailedPackageItems}),
                             );
                             if (priceResponse.statusCode != 200) {
-                              throw Exception("getPackagePrice failed: ${priceResponse.body}");
+                              throw Exception(
+                                  "getPackagePrice failed: ${priceResponse.body}");
                             }
-                            final priceData = jsonDecode(priceResponse.body) as Map<String, dynamic>;
-                            final double expectedTotal = (priceData["expectedTotal"] as num).toDouble();
+                            final priceData = jsonDecode(priceResponse.body)
+                            as Map<String, dynamic>;
+                            final double expectedTotal =
+                            (priceData["expectedTotal"] as num).toDouble();
                             final bannerResponse = await http.post(
-                              Uri.parse("https://us-central1-kita-tongtong.cloudfunctions.net/generatePackageKasihImage"),
+                              Uri.parse(
+                                  "https://us-central1-kita-tongtong.cloudfunctions.net/generatePackageKasihImage"),
                               headers: {"Content-Type": "application/json"},
                               body: jsonEncode({"items": detailedPackageItems}),
                             );
                             if (bannerResponse.statusCode != 200) {
-                              throw Exception("generatePackageKasihImage failed: ${bannerResponse.body}");
+                              throw Exception(
+                                  "generatePackageKasihImage failed: ${bannerResponse.body}");
                             }
-                            final bannerData = jsonDecode(bannerResponse.body) as Map<String, dynamic>;
-                            final String bannerUrl = bannerData["image_url"] as String;
+                            final bannerData = jsonDecode(bannerResponse.body)
+                            as Map<String, dynamic>;
+                            final String bannerUrl =
+                            bannerData["image_url"] as String;
 
-                            // 5) Finally, write the “package” document exactly as before:
-                            final packagesRef = FirebaseFirestore.instance.collection('package_kasih');
+                            final packagesRef = FirebaseFirestore.instance
+                                .collection('package_kasih');
                             await packagesRef.add({
                               "price": totalPrice,
                               "items": detailedPackageItems
                                   .map((item) => {
                                 "name": item["name"],
-                                // Add price & category so your UI can show it if needed:
                                 "price": item["price"],
                                 "category": item["category"],
                               })
@@ -673,25 +439,29 @@ class _StockItemState extends State<StockItem> {
                               "createdAt": Timestamp.now(),
                             });
 
-                            // 6) Close the bottom sheet and return to the list
-                            Navigator.pop(context);
+                            Navigator.pop(context); // Close the bottom sheet
                           } catch (e) {
                             print("❌ ERROR inserting package: $e");
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Error creating package: ${e.toString()}')),
+                              SnackBar(
+                                  content: Text(
+                                      'Error creating package: ${e.toString()}')),
                             );
+                          } finally {
+                            _hideLoadingDialog(); // Hide loading overlay
                           }
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Color(0xFFFDB515),
-                          padding: EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+                          padding: EdgeInsets.symmetric(
+                              vertical: 12, horizontal: 24),
                         ),
                         child: Center(
                           child: Text("Submit Package",
-                              style: TextStyle(fontSize: 16, color: Colors.black)),
+                              style:
+                              TextStyle(fontSize: 16, color: Colors.black)),
                         ),
                       ),
-
                     ],
                   ),
                 ),
@@ -709,170 +479,25 @@ class _StockItemState extends State<StockItem> {
       backgroundColor: Color(0xFF303030),
       body: SingleChildScrollView(
         child: Column(
-        children: [
-          Padding(
-            padding: EdgeInsets.only(top: 70, left: 16, right: 16),
-            child: Container(
-              height: 50,
-              decoration: BoxDecoration(
-                color: Color(0xFFFDB515),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          isVoucherSelected = true;
-                        });
-                      },
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: isVoucherSelected ? Colors.white : Color(0xFFFDB515),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          "Vouchers",
-                          style: TextStyle(
-                            color: isVoucherSelected ? Color(0xFFFDB515) : Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          isVoucherSelected = false;
-                        });
-                      },
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: !isVoucherSelected ? Colors.white : Color(0xFFFDB515),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          "Package Kasih",
-                          style: TextStyle(
-                            color: !isVoucherSelected ? Color(0xFFFDB515) : Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (isVoucherSelected)
-            Container(
-              margin: EdgeInsets.symmetric(horizontal: 5, vertical: 10),
-              padding: EdgeInsets.symmetric(horizontal: 15, vertical: 20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  stops: [0.16, 0.38, 0.58, 0.88],
-                  colors: [
-                    Color(0xFFF9F295),
-                    Color(0xFFE0AA3E),
-                    Color(0xFFF9F295),
-                    Color(0xFFB88A44),
-                  ],
+          children: [
+            Padding(
+              padding: EdgeInsets.only(top: 70, left: 16, right: 16),
+              child: Container(
+                height: 50,
+                decoration: BoxDecoration(
+                  color: Color(0xFFFDB515),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Vouchers",
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
+                alignment: Alignment.center,
+                child: Text(
+                  "Package Kasih",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
                   ),
-                  SizedBox(height: 10),
-
-                  StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance.collection("vouchers").snapshots(),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return Center(child: CircularProgressIndicator());
-                      }
-                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                        return Center(
-                          child: Text(
-                            "No vouchers here",
-                            style: TextStyle(fontSize: 16, color: Colors.black),
-                          ),
-                        );
-                      }
-
-                      return Column(
-                        children: snapshot.data!.docs.map((doc) {
-                          Map<String, dynamic> voucher = doc.data() as Map<String, dynamic>;
-                          String bannerUrl = voucher["bannerVoucher"] ?? "";
-                          String valueText = voucher.containsKey("voucherValue")
-                              ? "Value RM ${voucher["voucherValue"]}"
-                              : "Value RM ${voucher["valuePoints"]}";
-
-                          return Container(
-                            margin: EdgeInsets.symmetric(vertical: 8),
-                            padding: EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: Colors.transparent, // ✅ Transparent Box
-                              border: Border.all(color: Colors.black), // ✅ Black Border
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // ✅ Voucher Image
-                                bannerUrl.isNotEmpty
-                                    ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: Image.network(
-                                    bannerUrl,
-                                    height: 140,
-                                    width: double.infinity,
-                                    fit: BoxFit.cover,
-                                  ),
-                                )
-                                    : Container(
-                                  height: 100,
-                                  color: Colors.grey[300],
-                                  child: Center(
-                                    child: Icon(Icons.image, color: Colors.grey),
-                                  ),
-                                ),
-                                SizedBox(height: 10),
-                                Text(
-                                  valueText,
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }).toList(),
-                      );
-                    },
-                  ),
-                ],
+                ),
               ),
             ),
-          if (!isVoucherSelected)
             Container(
               margin: EdgeInsets.symmetric(horizontal: 5, vertical: 10),
               padding: EdgeInsets.symmetric(horizontal: 15, vertical: 20),
@@ -902,9 +527,11 @@ class _StockItemState extends State<StockItem> {
                     ),
                   ),
                   SizedBox(height: 10),
-
                   StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance.collection("package_kasih").snapshots(),
+                    stream: FirebaseFirestore.instance
+                        .collection("package_kasih")
+                        .orderBy("price", descending: false)
+                        .snapshots(),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return Center(child: CircularProgressIndicator());
@@ -919,142 +546,136 @@ class _StockItemState extends State<StockItem> {
                       }
 
                       final docs = snapshot.data!.docs;
-                      docs.sort((a, b) {
-                        // Treat doc.data() as a Map; check whether it contains "price" first
-                        final dataA = a.data() as Map<String, dynamic>;
-                        final dataB = b.data() as Map<String, dynamic>;
-
-                        // --- Compute rawA safely ---
-                        double rawA = 0.0;
-                        if (dataA.containsKey('price')) {
-                          final dynamic vA = dataA['price'];
-                          if (vA is String) {
-                             rawA = double.tryParse(vA.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0.0;
-                          } else if (vA is num) {
-                            rawA = vA.toDouble();
-                          } else {
-                            rawA = 0.0;
-                          }
-                        }
-
-                        // --- Compute rawB safely (same pattern) ---
-                        double rawB = 0.0;
-                        if (dataB.containsKey('price')) {
-                          final dynamic vB = dataB['price'];
-                          if (vB is String) {
-                            rawB = double.tryParse(vB.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0.0;
-                          } else if (vB is num) {
-                            rawB = vB.toDouble();
-                          } else {
-                            rawB = 0.0;
-                          }
-                        }
-
-                        return rawA.compareTo(rawB);
-                      });
-
 
                       return Column(
-                        children: docs.asMap().entries.map((entry) {
-                          final index = entry.key;
-                          final doc = entry.value;
+                        children: docs.map((doc) {
                           final pkg = doc.data() as Map<String, dynamic>;
                           final bannerUrl = pkg["bannerUrl"] ?? "";
-                          final value = pkg["price"] ?? "RM 0";
-                          final label = String.fromCharCode(65 + index); // A, B, C, ...
+                          final value = pkg["price"] ?? 0.0;
 
-                          return Container(
-                            margin: EdgeInsets.symmetric(vertical: 8),
-                            padding: EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: Colors.transparent,
-                              border: Border.all(color: Colors.black),
-                              borderRadius: BorderRadius.circular(10),
+                          final items = pkg['items'] as List<dynamic>? ?? [];
+                          final String title = items.isNotEmpty ? items.first['name'] as String? ?? 'Unnamed Package' : 'Unnamed Package';
+                          final String category = items.isNotEmpty ? items.first['category'] as String? ?? 'No Category' : 'No Category';
+
+                          // --- SWIPE-TO-DELETE IMPLEMENTED ---
+                          return Dismissible(
+                            key: Key(doc.id), // Unique key for each item
+                            direction: DismissDirection.endToStart, // Swipe left
+                            onDismissed: (direction) async {
+                              // Delete from Firestore
+                              await doc.reference.delete();
+
+                              // Show confirmation SnackBar
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('"$title" has been deleted.'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            },
+                            // Background shown during swipe
+                            background: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.red,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              margin: EdgeInsets.symmetric(vertical: 8),
+                              padding: EdgeInsets.symmetric(horizontal: 20),
+                              alignment: Alignment.centerRight,
+                              child: Icon(
+                                Icons.delete,
+                                color: Colors.white,
+                              ),
                             ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                bannerUrl.isNotEmpty
-                                    ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: Image.network(
-                                    bannerUrl,
-                                    height: 140,
-                                    width: double.infinity,
-                                    fit: BoxFit.cover,
+                            // The actual card content
+                            child: Container(
+                              margin: EdgeInsets.symmetric(vertical: 8),
+                              padding: EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.transparent,
+                                border: Border.all(color: Colors.black),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  bannerUrl.isNotEmpty
+                                      ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: Image.network(
+                                      bannerUrl,
+                                      height: 140,
+                                      width: double.infinity,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  )
+                                      : Container(
+                                    height: 100,
+                                    color: Colors.grey[300],
+                                    child: Center(
+                                      child: Icon(Icons.image,
+                                          color: Colors.grey),
+                                    ),
                                   ),
-                                )
-                                    : Container(
-                                  height: 100,
-                                  color: Colors.grey[300],
-                                  child: Center(
-                                    child: Icon(Icons.image, color: Colors.grey),
-                                  ),
-                                ),
-                                Text(
-                                  "Package $label:",
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFFA67C00),
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                                SizedBox(height: 5),
-                                if (pkg["items"] != null)
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.center,
-                                    children: (pkg["items"] as List<dynamic>)
-                                        .asMap()
-                                        .entries
-                                        .map((entry) {
-                                      final i = entry.key;
-                                      final item = entry.value as Map<String, dynamic>;
-                                      final String name = item['name'] as String? ?? "";
-                                      final double price = (item['price'] as num?)?.toDouble() ?? 0.0;
-                                      final String category = item['category'] as String? ?? "";
-                                      return Column(
+                                  GestureDetector(
+                                    onTap: () => _editPackageName(doc),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(vertical: 4.0),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
                                         children: [
-                                          Text(
-                                            "    Category: $category",
-                                            style: TextStyle(color: Colors.grey[700], fontStyle: FontStyle.italic, fontSize: 12),
-                                            textAlign: TextAlign.center,
+                                          Flexible(
+                                            child: Text(
+                                              title,
+                                              style: TextStyle(
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.black,
+                                              ),
+                                              textAlign: TextAlign.center,
+                                            ),
                                           ),
-                                          SizedBox(height: 4),
+                                          SizedBox(width: 8),
+                                          Icon(Icons.edit, size: 16, color: Colors.black54),
                                         ],
-                                      );
-                                    }).toList(),
+                                      ),
+                                    ),
                                   ),
-
-                                SizedBox(height: 10),
-                                Text(
-                                  "Price: RM $value",
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black,
+                                  Text(
+                                    "Category: $category",
+                                    style: TextStyle(
+                                        color: Colors.grey[800],
+                                        fontStyle: FontStyle.italic,
+                                        fontSize: 12),
+                                    textAlign: TextAlign.center,
                                   ),
-                                ),
-                              ],
+                                  SizedBox(height: 10),
+                                  Text(
+                                    "Price: RM ${value.toStringAsFixed(2)}",
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           );
                         }).toList(),
                       );
-
                     },
                   ),
                 ],
               ),
             ),
-        ],
+          ],
+        ),
       ),
-      ),
-
-      // ✅ Calls different functions for each section
       floatingActionButton: FloatingActionButton(
         backgroundColor: Color(0xFFFDB515),
         child: Icon(Icons.add, color: Colors.black),
-        onPressed: isVoucherSelected ? _showAddVoucherForm : _AddPackageKasih, // ✅ Uses different functions
+        onPressed: _AddPackageKasih,
       ),
       bottomNavigationBar: BottomNavBar(
         selectedIndex: _selectedIndex,
@@ -1062,5 +683,4 @@ class _StockItemState extends State<StockItem> {
       ),
     );
   }
-
 }

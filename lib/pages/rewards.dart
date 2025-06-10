@@ -31,6 +31,17 @@ class _RewardsState extends State<Rewards> {
     } else if (voucherGranted == "RM40") {
       return "https://firebasestorage.googleapis.com/v0/b/kita-tongtong.firebasestorage.app/o/voucherBanner%2F400_points_RM40.png?alt=media";
     }
+    else if (voucherGranted == "RM50") {
+      return "https://firebasestorage.googleapis.com/v0/b/kita-tongtong.firebasestorage.app/o/voucherBanner%2F100_points_RM50.png?alt=media";
+    } else if (voucherGranted == "RM100") {
+      return "https://firebasestorage.googleapis.com/v0/b/kita-tongtong.firebasestorage.app/o/voucherBanner%2F200_points_RM100.png?alt=media";
+    } else if (voucherGranted == "RM150") {
+      return "https://firebasestorage.googleapis.com/v0/b/kita-tongtong.firebasestorage.app/o/voucherBanner%2F300_points_RM150.png?alt=media";
+    } else if (voucherGranted == "RM200") {
+      return "https://firebasestorage.googleapis.com/v0/b/kita-tongtong.firebasestorage.app/o/voucherBanner%2F400_points_RM200.png?alt=media";
+    } else if (voucherGranted == "RM250") {
+      return "https://firebasestorage.googleapis.com/v0/b/kita-tongtong.firebasestorage.app/o/voucherBanner%2F500_points_RM250.png?alt=media";
+    }
     return "";
   }
 
@@ -362,18 +373,24 @@ class _RewardsState extends State<Rewards> {
             if (appSnapshot.hasData && appSnapshot.data!.docs.isNotEmpty) {
               adminVoucherList = appSnapshot.data!.docs.where((doc) {
                 final data = doc.data() as Map<String, dynamic>;
+                bool isRecurring = data['isRecurring'] ?? false;
+                var lastRedeemed = data['lastRedeemed'];
+                var nextEligibleDate = (data['nextEligibleDate'] as Timestamp?)?.toDate();
 
-                // Visibility logic for recurring vouchers
-                if (data['isRecurring'] == true) {
-                  final nextEligibleDate = (data['nextEligibleDate'] as Timestamp?)?.toDate();
-                  // Show if next eligible date is today or in the past
-                  return nextEligibleDate != null && !nextEligibleDate.isAfter(DateTime.now());
+                if (isRecurring) {
+                  // Show if it's the first time (never redeemed)
+                  if (lastRedeemed == null) {
+                    return true;
+                  }
+                  // Or show if the next eligible date has arrived
+                  if (nextEligibleDate != null && !nextEligibleDate.isAfter(DateTime.now())) {
+                    return true;
+                  }
+                  return false; // Otherwise, hide it.
+                } else {
+                  // For non-recurring, only show if it has never been redeemed.
+                  return lastRedeemed == null;
                 }
-
-                // For non-recurring, show only if it has not been redeemed
-                // Assuming 'lastRedeemed' is null for non-redeemed non-recurring vouchers.
-                return data['lastRedeemed'] == null;
-
               }).map((doc) {
                 final data = doc.data() as Map<String, dynamic>;
                 data['docId'] = doc.id;
@@ -386,9 +403,12 @@ class _RewardsState extends State<Rewards> {
                 .map((doc) {
               return {
                 'voucherGranted': doc['reward'], // e.g. "RM10", "RM20", etc.
-                'rewardType': doc.containsKey('rewardType') ? doc['rewardType'] : doc['reward'],
-                'eligibility': doc.containsKey('eligibility') ? doc['eligibility'] : "Asnaf Application",
-                'docId': doc['docId'], // <-- preserve the document id
+                'rewardType': doc['rewardType'] ?? doc['reward'],
+                'eligibility': doc['eligibility'] ?? "Asnaf Application",
+                'docId': doc['docId'], // preserve the document id
+                'isRecurring': doc['isRecurring'] ?? false,
+                'recurrencePeriod': doc['recurrencePeriod'],
+                'nextEligibleDate': doc['nextEligibleDate'],
               };
             }).toList();
 
@@ -415,7 +435,7 @@ class _RewardsState extends State<Rewards> {
                   children: [
                     // Section 1: Admin-issued vouchers fetched from the applications collection.
                     Text(
-                      "This is your Rewards!",
+                      "This is your Rewards!", //
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -439,7 +459,7 @@ class _RewardsState extends State<Rewards> {
                     SizedBox(height: 20),
                     // Section 2: Claimed vouchers from the user's voucherReceived field (which do not have voucherGranted).
                     Text(
-                      "My Claimed Vouchers",
+                      "My Claimed Vouchers", //
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -621,7 +641,6 @@ class _RewardsState extends State<Rewards> {
     String subtitle = "RM$rmValue";
 
     return GestureDetector(
-      // Inside buildAdminVoucherWidget, in the GestureDetector's onTap:
       onTap: () {
         // 'voucher' is the map for the admin-issued voucher (contains 'docId', 'voucherGranted', etc.)
         final String voucherGrantedStr = voucher['voucherGranted']?.toString() ?? "RM0";
@@ -721,8 +740,26 @@ class _RewardsState extends State<Rewards> {
     String voucherGranted = voucher['voucherGranted']?.toString() ?? "";
     String bannerUrl = getAdminVoucherBanner(voucherGranted);
     String title = voucherGranted;
-    String subtitle = "${voucher['rewardType']}\n${voucher['eligibility']}";
     int rmValue = int.tryParse(voucherGranted.replaceAll("RM", "")) ?? 0;
+
+    // UI Logic for subtitle based on whether the voucher is recurring
+    bool isRecurring = voucher['isRecurring'] ?? false;
+    String subtitle;
+
+    if (isRecurring) {
+      String recurrencePeriod = voucher['recurrencePeriod'] ?? 'N/A';
+      String nextEligibleDateStr = "Now";
+      if (voucher['nextEligibleDate'] != null) {
+        DateTime nextDate = (voucher['nextEligibleDate'] as Timestamp).toDate();
+        // Only show future date, otherwise it's redeemable now
+        if (nextDate.isAfter(DateTime.now())) {
+          nextEligibleDateStr = DateFormat("dd MMM yyyy").format(nextDate);
+        }
+      }
+      subtitle = "Every: $recurrencePeriod\nRedeemable from: $nextEligibleDateStr";
+    } else {
+      subtitle = "${voucher['rewardType']}\n${voucher['eligibility']}";
+    }
 
     return GestureDetector(
       onTap: () {
@@ -801,6 +838,7 @@ class _RewardsState extends State<Rewards> {
                   SizedBox(height: 4),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.start, // Align to top
                     children: [
                       Text(title,
                           style: TextStyle(
@@ -808,6 +846,7 @@ class _RewardsState extends State<Rewards> {
                               fontWeight: FontWeight.w600,
                               fontSize: 13)),
                       Text(subtitle,
+                          textAlign: TextAlign.end, // Align text to the right
                           style: TextStyle(
                               color: Colors.black,
                               fontWeight: FontWeight.w600,

@@ -41,7 +41,7 @@ Widget build(BuildContext context) {
                     context,
                     MaterialPageRoute(
                       builder: (context) =>
-                      role == 'asnaf' ? Rewards() : pickUpItem(), // Replace Placeholder with actual PickupItemPage()
+                      role == 'asnaf' ? Rewards() : PickUpItem(), // Replace Placeholder with actual PickupItemPage()
                     ),
                   );
                 },

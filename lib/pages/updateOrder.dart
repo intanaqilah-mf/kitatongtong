@@ -239,8 +239,8 @@ class _UpdateOrderState extends State<UpdateOrder> {
                                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                                   ),
                                   SizedBox(height: 4),
-                                  ...List.generate((applicationData['itemRedeemed'] as List).length, (i) {
-                                    final item = (applicationData['itemRedeemed'] as List)[i];
+                                  ...List.generate((applicationData['itemsRedeemed'] as List).length, (i) {
+                                    final item = (applicationData['itemsRedeemed'] as List)[i];
                                     return Text(
                                       "${i + 1}. ${item['name']} (${item['number']} ${item['unit']})",
                                       style: TextStyle(fontSize: 15, color: Colors.black),

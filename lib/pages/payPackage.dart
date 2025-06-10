@@ -7,11 +7,10 @@ import 'package:projects/pages/email_service.dart';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-// flutter_dotenv import is no longer needed for these keys
 import 'package:projects/pages/PaymentWebview.dart';
 import 'package:projects/config/app_config.dart'; // Import AppConfig
 
-import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:url_launcher/url_launcher.dart';
 
 class PayPackage extends StatefulWidget {
@@ -38,20 +37,81 @@ class _PayPackageState extends State<PayPackage> {
   final List<String> salutations = ['Mr.', 'Ms.', 'Mrs.', 'Dr.', 'Prof.'];
   int _selectedIndex = 0;
 
+  String? _nameError;
+  String? _emailError;
+  String? _contactError;
+
+
   @override
   void initState() {
     super.initState();
+    _loadUserData();
+    nameController.addListener(_validateName);
+    emailController.addListener(_validateEmail);
+    contactController.addListener(_validateContact);
+  }
+
+  @override
+  void dispose() {
+    nameController.removeListener(_validateName);
+    emailController.removeListener(_validateEmail);
+    contactController.removeListener(_validateContact);
+    nameController.dispose();
+    emailController.dispose();
+    contactController.dispose();
+    super.dispose();
+  }
+
+  void _loadUserData() {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       FirebaseFirestore.instance.collection('users').doc(user.uid).get().then((doc) {
         if (doc.exists) {
           final data = doc.data()!;
-          nameController.text = data['name'] ?? '';
-          emailController.text = data['email'] ?? '';
-          contactController.text = data['phone'] ?? '';
+          setState(() {
+            nameController.text = data['name'] ?? '';
+            emailController.text = data['email'] ?? '';
+            contactController.text = data['phone'] ?? '';
+          });
         }
       });
     }
+  }
+
+  void _validateName() {
+    setState(() {
+      if (nameController.text.trim().isEmpty) {
+        _nameError = 'Full name is required';
+      } else {
+        _nameError = null;
+      }
+    });
+  }
+
+  void _validateEmail() {
+    setState(() {
+      final email = emailController.text.trim();
+      if (email.isEmpty) {
+        _emailError = 'Email is required';
+      } else if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(email)) {
+        _emailError = 'Enter a valid email address';
+      } else {
+        _emailError = null;
+      }
+    });
+  }
+
+  void _validateContact() {
+    setState(() {
+      final contact = contactController.text.trim();
+      if (contact.isEmpty) {
+        _contactError = 'Contact number is required';
+      } else if (!RegExp(r'^\d{9,10}$').hasMatch(contact)) {
+        _contactError = 'Must be 9-10 digits';
+      } else {
+        _contactError = null;
+      }
+    });
   }
 
   Future<void> processPackagePaymentAndRedirect({
@@ -79,7 +139,6 @@ class _PayPackageState extends State<PayPackage> {
     }
 
     if (toyyibpaySecretKey.isEmpty || toyyibpayCategoryCode.isEmpty) {
-      print("ToyyibPay configuration (secret key or category code) is missing or empty from AppConfig.");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Payment configuration error. Please contact support.")),
@@ -87,14 +146,6 @@ class _PayPackageState extends State<PayPackage> {
       }
       return;
     }
-
-    print("--- ToyyibPay Request Data (Package) ---");
-    print("userSecretKey (length): ${toyyibpaySecretKey.length > 0 ? toyyibpaySecretKey.substring(0,5)+"..." : "EMPTY"}");
-    print("categoryCode: $toyyibpayCategoryCode");
-    print("billReturnUrl: $billReturnUrl");
-    print("billCallbackUrl: $billCallbackUrl");
-    print("billAmount: $amountInCents");
-    print("--- End ToyyibPay Request Data ---");
 
     final response = await http.post(
       Uri.parse('https://toyyibpay.com/index.php/api/createBill'),
@@ -126,7 +177,6 @@ class _PayPackageState extends State<PayPackage> {
 
         if (kIsWeb) {
           if (!await launchUrl(Uri.parse(paymentGatewayUrl))) {
-            print("Could not launch $paymentGatewayUrl");
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text("Could not open payment page.")),
@@ -144,7 +194,6 @@ class _PayPackageState extends State<PayPackage> {
           }
         }
       } else {
-        print("ToyyibPay bill creation successful, but response format unexpected: ${response.body}");
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text("Payment initiation error. Please try again.")),
@@ -152,7 +201,6 @@ class _PayPackageState extends State<PayPackage> {
         }
       }
     } else {
-      print("ToyyibPay bill creation failed: Status ${response.statusCode} - Body: ${response.body}");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Failed to initiate payment.")),
@@ -192,7 +240,7 @@ class _PayPackageState extends State<PayPackage> {
     return pdf.save();
   }
 
-  Widget buildFormInput(String label, Widget inputField) {
+  Widget buildFormInput(String label, Widget inputField, {String? errorText}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Column(
@@ -204,6 +252,14 @@ class _PayPackageState extends State<PayPackage> {
           ),
           const SizedBox(height: 4),
           inputField,
+          if (errorText != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 5.0, left: 12.0),
+              child: Text(
+                errorText,
+                style: const TextStyle(color: Colors.red, fontSize: 12),
+              ),
+            ),
         ],
       ),
     );
@@ -315,6 +371,10 @@ class _PayPackageState extends State<PayPackage> {
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFCF40),
                   borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: _nameError != null ? Colors.red : Colors.transparent,
+                    width: 2,
+                  ),
                 ),
                 child: TextField(
                   controller: nameController,
@@ -326,6 +386,7 @@ class _PayPackageState extends State<PayPackage> {
                   ),
                 ),
               ),
+              errorText: _nameError,
             ),
             buildFormInput(
               'Email',
@@ -334,9 +395,14 @@ class _PayPackageState extends State<PayPackage> {
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFCF40),
                   borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: _emailError != null ? Colors.red : Colors.transparent,
+                    width: 2,
+                  ),
                 ),
                 child: TextField(
                   controller: emailController,
+                  keyboardType: TextInputType.emailAddress,
                   style: const TextStyle(color: Colors.black),
                   decoration: const InputDecoration(
                     border: InputBorder.none,
@@ -345,6 +411,7 @@ class _PayPackageState extends State<PayPackage> {
                   ),
                 ),
               ),
+              errorText: _emailError,
             ),
             buildFormInput(
               'Contact Number',
@@ -353,6 +420,10 @@ class _PayPackageState extends State<PayPackage> {
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFCF40),
                   borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: _contactError != null ? Colors.red : Colors.transparent,
+                    width: 2,
+                  ),
                 ),
                 child: Row(
                   children: [
@@ -389,7 +460,9 @@ class _PayPackageState extends State<PayPackage> {
                   ],
                 ),
               ),
+              errorText: _contactError,
             ),
+
             const SizedBox(height: 20),
             const Divider(color: Colors.white, thickness: 2),
             const SizedBox(height: 20),
@@ -453,6 +526,17 @@ class _PayPackageState extends State<PayPackage> {
               height: 45,
               child: ElevatedButton(
                 onPressed: () async {
+                  _validateName();
+                  _validateEmail();
+                  _validateContact();
+
+                  if (_nameError != null || _emailError != null || _contactError != null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Please fix the errors before submitting.')),
+                    );
+                    return;
+                  }
+
                   final String amountInCents = (widget.overallAmount * 100).toString();
 
                   final donationData = {
@@ -466,15 +550,6 @@ class _PayPackageState extends State<PayPackage> {
                     'type': 'package'
                   };
 
-                  if (donationData['name'] == '' || donationData['email'] == '' || donationData['contact'] == '') {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Please fill in all donor details.')),
-                      );
-                    }
-                    return;
-                  }
-
                   await FirebaseFirestore.instance.collection('donation').add(donationData);
 
                   await FirebaseFirestore.instance
@@ -487,20 +562,16 @@ class _PayPackageState extends State<PayPackage> {
 
                   if (wantsTaxExemption) {
                     try {
-                      if (!kIsWeb) {
-                        final pdfBytes = await generatePdfBytes(
-                          name: nameController.text.trim(),
-                          email: emailController.text.trim(),
-                          amountRM: widget.overallAmount.toString(),
-                        );
-                        await sendTaxEmail(
-                          name: nameController.text.trim(),
-                          recipientEmail: emailController.text.trim(),
-                          pdfBytes: pdfBytes,
-                        );
-                      } else {
-                        print("Email sending via 'mailer' is not supported on web. PDF generation skipped for web in this path too.");
-                      }
+                      final pdfBytes = await generatePdfBytes(
+                        name: nameController.text.trim(),
+                        email: emailController.text.trim(),
+                        amountRM: widget.overallAmount.toString(),
+                      );
+                      await sendTaxEmail(
+                        name: nameController.text.trim(),
+                        recipientEmail: emailController.text.trim(),
+                        pdfBytes: pdfBytes,
+                      );
                     } catch (e) {
                       print('Error sending tax email for package: $e');
                     }

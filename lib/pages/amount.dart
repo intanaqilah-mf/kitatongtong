@@ -7,7 +7,6 @@ import 'package:projects/pages/email_service.dart';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-// flutter_dotenv import is no longer needed for these keys
 import 'package:projects/pages/PaymentWebview.dart';
 import 'package:projects/config/app_config.dart'; // Import AppConfig
 
@@ -22,21 +21,116 @@ class AmountPage extends StatefulWidget {
 }
 
 class _AmountPageState extends State<AmountPage> {
+  final TextEditingController nameController = TextEditingController();
+  final TextEditingController emailController = TextEditingController();
+  final TextEditingController otherAmountController = TextEditingController();
+  final TextEditingController contactController = TextEditingController();
+
+  String? selectedAmount;
+  String? selectedSalutation;
+  bool wantsTaxExemption = false;
+  int _selectedIndex = 0;
+
+  String? _amountError;
+  String? _emailError;
+  String? _contactError;
+  String? _nameError;
+
+
+  final List<String> salutations = ['Mr.', 'Ms.', 'Mrs.', 'Dr.', 'Prof.'];
+
   @override
   void initState() {
     super.initState();
+    _loadUserData();
+    nameController.addListener(_validateName);
+    emailController.addListener(_validateEmail);
+    contactController.addListener(_validateContact);
+    otherAmountController.addListener(_validateAmount);
+  }
+
+  @override
+  void dispose() {
+    nameController.removeListener(_validateName);
+    emailController.removeListener(_validateEmail);
+    contactController.removeListener(_validateContact);
+    otherAmountController.removeListener(_validateAmount);
+    nameController.dispose();
+    emailController.dispose();
+    contactController.dispose();
+    otherAmountController.dispose();
+    super.dispose();
+  }
+
+  void _loadUserData() {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       FirebaseFirestore.instance.collection('users').doc(user.uid).get().then((doc) {
         if (doc.exists) {
           final data = doc.data()!;
-          nameController.text = data['name'] ?? '';
-          emailController.text = data['email'] ?? '';
-          contactController.text = data['phone'] ?? '';
+          setState(() {
+            nameController.text = data['name'] ?? '';
+            emailController.text = data['email'] ?? '';
+            contactController.text = data['phone'] ?? '';
+          });
         }
       });
     }
   }
+
+  void _validateName() {
+    setState(() {
+      if (nameController.text.trim().isEmpty) {
+        _nameError = 'Full name is required';
+      } else {
+        _nameError = null;
+      }
+    });
+  }
+
+  void _validateEmail() {
+    setState(() {
+      final email = emailController.text.trim();
+      if (email.isEmpty) {
+        _emailError = 'Email is required';
+      } else if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(email)) {
+        _emailError = 'Enter a valid email address';
+      } else {
+        _emailError = null;
+      }
+    });
+  }
+
+  void _validateContact() {
+    setState(() {
+      final contact = contactController.text.trim();
+      if (contact.isEmpty) {
+        _contactError = 'Contact number is required';
+      } else if (!RegExp(r'^\d{9,10}$').hasMatch(contact)) {
+        _contactError = 'Must be 9-10 digits';
+      } else {
+        _contactError = null;
+      }
+    });
+  }
+
+  void _validateAmount() {
+    setState(() {
+      if (selectedAmount == 'Other') {
+        final amount = double.tryParse(otherAmountController.text.trim());
+        if (amount == null) {
+          _amountError = 'Please enter a number';
+        } else if (amount <= 1.0) {
+          _amountError = 'Amount must be greater than RM1';
+        } else {
+          _amountError = null;
+        }
+      } else {
+        _amountError = null;
+      }
+    });
+  }
+
 
   Future<void> processPaymentAndRedirect({
     required BuildContext context,
@@ -63,7 +157,6 @@ class _AmountPageState extends State<AmountPage> {
     }
 
     if (toyyibpaySecretKey.isEmpty || toyyibpayCategoryCode.isEmpty) {
-      print("ToyyibPay configuration (secret key or category code) is missing or empty from AppConfig.");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Payment configuration error. Please contact support.")),
@@ -71,14 +164,6 @@ class _AmountPageState extends State<AmountPage> {
       }
       return;
     }
-
-    print("--- ToyyibPay Request Data (Amount) ---");
-    print("userSecretKey (length): ${toyyibpaySecretKey.length > 0 ? toyyibpaySecretKey.substring(0,5)+"..." : "EMPTY"}");
-    print("categoryCode: $toyyibpayCategoryCode");
-    print("billReturnUrl: $billReturnUrl");
-    print("billCallbackUrl: $billCallbackUrl");
-    print("billAmount: $amountInCents");
-    print("--- End ToyyibPay Request Data ---");
 
     final response = await http.post(
       Uri.parse('https://toyyibpay.com/index.php/api/createBill'),
@@ -110,7 +195,6 @@ class _AmountPageState extends State<AmountPage> {
 
         if (kIsWeb) {
           if (!await launchUrl(Uri.parse(paymentGatewayUrl))) {
-            print("Could not launch $paymentGatewayUrl");
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text("Could not open payment page.")),
@@ -128,7 +212,6 @@ class _AmountPageState extends State<AmountPage> {
           }
         }
       } else {
-        print("ToyyibPay bill creation successful, but response format unexpected: ${response.body}");
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text("Payment initiation error. Please try again.")),
@@ -136,7 +219,6 @@ class _AmountPageState extends State<AmountPage> {
         }
       }
     } else {
-      print("ToyyibPay bill creation failed: Status ${response.statusCode} - Body: ${response.body}");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Failed to initiate payment.")),
@@ -145,23 +227,13 @@ class _AmountPageState extends State<AmountPage> {
     }
   }
 
-  int _selectedIndex = 0;
+
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
     });
   }
 
-  final TextEditingController nameController = TextEditingController();
-  final TextEditingController emailController = TextEditingController();
-  final TextEditingController otherAmountController = TextEditingController();
-  final TextEditingController contactController = TextEditingController();
-
-  String? selectedAmount;
-  String? selectedSalutation;
-  bool wantsTaxExemption = false;
-
-  final List<String> salutations = ['Mr.', 'Ms.', 'Mrs.', 'Dr.', 'Prof.'];
 
   Widget buildAmountBox(String label) {
     final isOther = label == 'Other';
@@ -171,6 +243,7 @@ class _AmountPageState extends State<AmountPage> {
       onTap: () {
         setState(() {
           selectedAmount = label;
+          _validateAmount();
         });
       },
       child: Container(
@@ -180,20 +253,26 @@ class _AmountPageState extends State<AmountPage> {
         decoration: BoxDecoration(
           color: isSelected ? const Color(0xFFFDB515) : const Color(0xFFFFCF40),
           borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected && isOther && _amountError != null ? Colors.red : Colors.transparent,
+            width: 2,
+          ),
         ),
         child: isOther && isSelected
             ? Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8.0),
           child: TextField(
             controller: otherAmountController,
-            keyboardType: TextInputType.number,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
             textAlign: TextAlign.center,
             autofocus: true,
             style: const TextStyle(color: Color(0xFFA67C00), fontWeight: FontWeight.bold, fontSize: 18),
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               border: InputBorder.none,
               hintText: 'Amount',
-              hintStyle: TextStyle(color: Color(0xFFA67C00), fontWeight: FontWeight.normal),
+              hintStyle: const TextStyle(color: Color(0xFFA67C00), fontWeight: FontWeight.normal),
+              errorText: _amountError,
+              errorStyle: const TextStyle(fontSize: 0.1, color: Colors.transparent),
             ),
           ),
         )
@@ -209,7 +288,7 @@ class _AmountPageState extends State<AmountPage> {
     );
   }
 
-  Widget buildFormInput(String label, Widget inputField) {
+  Widget buildFormInput(String label, Widget inputField, {String? errorText}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Column(
@@ -221,10 +300,19 @@ class _AmountPageState extends State<AmountPage> {
           ),
           const SizedBox(height: 4),
           inputField,
+          if (errorText != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 5.0, left: 12.0),
+              child: Text(
+                errorText,
+                style: const TextStyle(color: Colors.red, fontSize: 12),
+              ),
+            ),
         ],
       ),
     );
   }
+
 
   Future<Uint8List> generatePdfBytes({required String name, required String email, required String amount}) async {
     final pdf = pw.Document();
@@ -258,6 +346,7 @@ class _AmountPageState extends State<AmountPage> {
     return pdf.save();
   }
 
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -289,6 +378,16 @@ class _AmountPageState extends State<AmountPage> {
                   .map((label) => buildAmountBox(label))
                   .toList(),
             ),
+            if (_amountError != null && selectedAmount == 'Other')
+              Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: Text(
+                  _amountError!,
+                  style: const TextStyle(color: Colors.red, fontSize: 12),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+
             const SizedBox(height: 20),
             const Text(
               "Donor’s information",
@@ -367,6 +466,10 @@ class _AmountPageState extends State<AmountPage> {
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFCF40),
                   borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: _nameError != null ? Colors.red : Colors.transparent,
+                    width: 2,
+                  ),
                 ),
                 child: TextField(
                   controller: nameController,
@@ -378,6 +481,7 @@ class _AmountPageState extends State<AmountPage> {
                   ),
                 ),
               ),
+              errorText: _nameError,
             ),
             buildFormInput(
               'Email',
@@ -386,9 +490,14 @@ class _AmountPageState extends State<AmountPage> {
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFCF40),
                   borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: _emailError != null ? Colors.red : Colors.transparent,
+                    width: 2,
+                  ),
                 ),
                 child: TextField(
                   controller: emailController,
+                  keyboardType: TextInputType.emailAddress,
                   style: const TextStyle(color: Colors.black),
                   decoration: const InputDecoration(
                     border: InputBorder.none,
@@ -397,6 +506,7 @@ class _AmountPageState extends State<AmountPage> {
                   ),
                 ),
               ),
+              errorText: _emailError,
             ),
             buildFormInput(
               'Contact Number',
@@ -405,6 +515,10 @@ class _AmountPageState extends State<AmountPage> {
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFCF40),
                   borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: _contactError != null ? Colors.red : Colors.transparent,
+                    width: 2,
+                  ),
                 ),
                 child: Row(
                   children: [
@@ -441,7 +555,10 @@ class _AmountPageState extends State<AmountPage> {
                   ],
                 ),
               ),
+              errorText: _contactError,
             ),
+
+
             const SizedBox(height: 20),
             const Divider(color: Colors.white, thickness: 2),
             const SizedBox(height: 20),
@@ -505,6 +622,19 @@ class _AmountPageState extends State<AmountPage> {
               height: 45,
               child: ElevatedButton(
                 onPressed: () async {
+                  _validateName();
+                  _validateEmail();
+                  _validateContact();
+                  _validateAmount();
+
+
+                  if (_nameError != null || _emailError != null || _contactError != null || _amountError != null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Please fix the errors before submitting.')),
+                    );
+                    return;
+                  }
+
                   final String rawAmountString = selectedAmount == 'Other'
                       ? otherAmountController.text.trim()
                       : selectedAmount ?? "";
@@ -539,15 +669,6 @@ class _AmountPageState extends State<AmountPage> {
                     'timestamp': FieldValue.serverTimestamp(),
                   };
 
-                  if (donationData['name'] == '' || donationData['email'] == '' || donationData['contact'] == '') {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Please fill in all donor details.')),
-                      );
-                    }
-                    return;
-                  }
-
                   await FirebaseFirestore.instance.collection('donation').add(donationData);
 
                   await FirebaseFirestore.instance
@@ -558,29 +679,20 @@ class _AmountPageState extends State<AmountPage> {
                     'message': 'Donor ${nameController.text.trim()} donated RM ${parsedAmount.toStringAsFixed(2)}',
                   });
 
-                  // CORRECTED CODE for amount.dart / payPackage.dart:
                   if (wantsTaxExemption) {
                     try {
-                      // Step 1: Generate PDF bytes (can be done on both platforms)
                       final pdfBytes = await generatePdfBytes(
                         name: nameController.text.trim(),
                         email: emailController.text.trim(),
-                        // In amount.dart:
                         amount: parsedAmount.toStringAsFixed(2),
-                        // In payPackage.dart, ensure you use the correct amount variable:
-                        // amountRM: widget.overallAmount.toString(),
                       );
-
-                      // Step 2: Call sendTaxEmail. This function will now handle
-                      // calling the Cloud Function if kIsWeb is true,
-                      // or using SMTP if kIsWeb is false.
                       await sendTaxEmail(
                         name: nameController.text.trim(),
                         recipientEmail: emailController.text.trim(),
                         pdfBytes: pdfBytes,
                       );
                     } catch (e) {
-                      print('Error during tax exemption process (PDF generation or email trigger): $e');
+                      print('Error during tax exemption process: $e');
                     }
                   }
 

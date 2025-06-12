@@ -8,6 +8,10 @@ import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:qr_flutter/qr_flutter.dart' as qr;
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'dart:async';
 
 File? _selectedImage;
 String? _uploadedImageUrl;
@@ -37,7 +41,7 @@ class _EventPageState extends State<EventPage> {
   bool isCreateEvent = false;
   final TextEditingController _controller = TextEditingController();
   final TextEditingController _sectionController = TextEditingController();
-  Map<String, String> formData = {};
+  Map<String, dynamic> formData = {};
   int _selectedIndex = 0;
   double _pointsValue = 10.0;
   EventFilter _selectedFilter = EventFilter.Upcoming;
@@ -88,22 +92,18 @@ class _EventPageState extends State<EventPage> {
       _pointsValue = double.tryParse(event["points"] ?? '10.0') ?? 10.0;
       _organiserNameController.text = event["organiserName"] ?? "";
       _controller.text = event["organiserNumber"] ?? "";
-      _locationController.text = event["location"] ?? "";
+
+      final locationData = event['location'];
+      if (locationData is Map) {
+        _locationController.text = locationData['address'] ?? '';
+      } else if (locationData is String) {
+        _locationController.text = locationData;
+      }
+
       _uploadedImageUrl = event["bannerUrl"];
       selectedSection = event["sectionEvent"] ?? "Upcoming Activities";
 
-      formData = {
-        "eventDate": event["eventDate"] ?? "",
-        "eventEndDate": event["eventEndDate"] ?? "",
-        "attendanceCode": event["attendanceCode"] ?? "",
-        "eventName": event["eventName"] ?? "",
-        "points": event["points"] ?? "",
-        "organiserName": event["organiserName"] ?? "",
-        "organiserNumber": event["organiserNumber"] ?? "",
-        "location": event["location"] ?? "",
-        "bannerUrl": event["bannerUrl"] ?? "",
-        "sectionEvent": event["sectionEvent"] ?? "Upcoming Activities",
-      };
+      formData = Map<String, dynamic>.from(event);
     });
   }
 
@@ -374,6 +374,15 @@ class _EventPageState extends State<EventPage> {
                 !now.isBefore(startDate) &&
                 now.isBefore(endDate);
 
+            final locationData = event['location'];
+            String locationAddress = "Unknown";
+            if (locationData is Map) {
+              locationAddress = locationData['address'] ?? 'Unknown';
+            } else if (locationData is String) {
+              locationAddress = locationData;
+            }
+
+
             return Dismissible(
               key: Key(docId),
               direction: DismissDirection.endToStart,
@@ -460,9 +469,32 @@ class _EventPageState extends State<EventPage> {
                         "Organiser’s Number: ${event["organiserNumber"] ?? "N/A"}",
                         style: TextStyle(color: Colors.black),
                       ),
-                      Text(
-                        "Location: ${event["location"] ?? "Unknown"}",
-                        style: TextStyle(color: Colors.black),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              "Location: $locationAddress",
+                              style: TextStyle(color: Colors.black),
+                            ),
+                          ),
+                          if (locationData is Map && locationData['latitude'] != null && locationData['longitude'] != null)
+                            IconButton(
+                              icon: Icon(Icons.location_on, color: Colors.blue.shade800),
+                              onPressed: () async {
+                                final lat = locationData['latitude'];
+                                final lng = locationData['longitude'];
+                                // This URL will open Google Maps and place a pin at the coordinates.
+                                final url = Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
+                                if (await canLaunchUrl(url)) {
+                                  await launchUrl(url);
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text("Could not open map.")),
+                                  );
+                                }
+                              },
+                            )
+                        ],
                       ),
                       if (isOngoing) SizedBox(height: 8),
                       if (isOngoing)
@@ -632,7 +664,7 @@ class _EventPageState extends State<EventPage> {
                 ],
               ),
             ),
-            buildTextField("Location", "location", _locationController),
+            buildLocationPicker("Location", "location", _locationController),
             buildDateTimePicker("Event’s start date & time", "eventDate", _dateController),
             buildDateTimePicker("Event’s end date & time", "eventEndDate", _endDateController),
             Padding(
@@ -747,7 +779,6 @@ class _EventPageState extends State<EventPage> {
                 formData['attendanceCode'] = _attendanceCodeController.text;
                 formData['eventName'] = _eventNameController.text;
                 formData['organiserName'] = _organiserNameController.text;
-                formData['location'] = _locationController.text;
                 formData["bannerUrl"] = _uploadedImageUrl ?? "";
                 formData["sectionEvent"] = sectionEvent;
 
@@ -780,6 +811,62 @@ class _EventPageState extends State<EventPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget buildLocationPicker(String label, String key, TextEditingController controller) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+                color: Color(0xFFFDB515),
+                fontSize: 14,
+                fontWeight: FontWeight.bold),
+          ),
+          SizedBox(height: 4),
+          GestureDetector(
+            onTap: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => MapPickerPage()),
+              );
+
+              if (result != null && result is Map<String, dynamic>) {
+                setState(() {
+                  controller.text = result['address'];
+                  formData[key] = result;
+                });
+              }
+            },
+            child: Container(
+              padding: EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+              decoration: BoxDecoration(
+                color: Color(0xFFFDB515),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      controller.text.isEmpty
+                          ? "Pin location on map"
+                          : controller.text,
+                      style: TextStyle(color: Colors.black),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Icon(Icons.map, color: Colors.black),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -858,6 +945,146 @@ class _EventPageState extends State<EventPage> {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class MapPickerPage extends StatefulWidget {
+  @override
+  _MapPickerPageState createState() => _MapPickerPageState();
+}
+
+class _MapPickerPageState extends State<MapPickerPage> {
+  late GoogleMapController _mapController;
+  final TextEditingController _searchController = TextEditingController();
+  Marker? _selectedMarker;
+  static const LatLng _initialPosition = LatLng(3.1390, 101.6869); // Kuala Lumpur
+
+  void _onMapCreated(GoogleMapController controller) {
+    _mapController = controller;
+  }
+
+  void _onTap(LatLng position) {
+    setState(() {
+      _selectedMarker = Marker(
+        markerId: MarkerId('selected-location'),
+        position: position,
+      );
+    });
+  }
+
+  Future<void> _searchAndNavigate() async {
+    try {
+      List<Location> locations = await locationFromAddress(_searchController.text);
+      if (locations.isNotEmpty) {
+        final location = locations.first;
+        _mapController.animateCamera(CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: LatLng(location.latitude, location.longitude),
+            zoom: 15.0,
+          ),
+        ));
+        setState(() {
+          _selectedMarker = Marker(
+            markerId: MarkerId('selected-location'),
+            position: LatLng(location.latitude, location.longitude),
+          );
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Location not found.")));
+      }
+    } catch(e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error finding location.")));
+    }
+  }
+
+
+  void _onConfirm() async {
+    if (_selectedMarker == null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Please select a location on the map.")));
+      return;
+    }
+
+    try {
+      final position = _selectedMarker!.position;
+      List<Placemark> placemarks = await placemarkFromCoordinates(position.latitude, position.longitude);
+
+      if (placemarks.isNotEmpty) {
+        final placemark = placemarks.first;
+        final address = "${placemark.name}, ${placemark.street}, ${placemark.locality}, ${placemark.postalCode}, ${placemark.country}";
+        Navigator.pop(context, {
+          'address': address,
+          'latitude': position.latitude,
+          'longitude': position.longitude,
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Could not get address for the location.")));
+    }
+  }
+
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Pin Location'),
+        backgroundColor: Color(0xFF303030),
+      ),
+      body: Stack(
+        children: [
+          GoogleMap(
+            onMapCreated: _onMapCreated,
+            initialCameraPosition: CameraPosition(
+              target: _initialPosition,
+              zoom: 11.0,
+            ),
+            onTap: _onTap,
+            markers: _selectedMarker != null ? {_selectedMarker!} : {},
+          ),
+          Positioned(
+            top: 10,
+            left: 10,
+            right: 10,
+            child: Container(
+              color: Colors.white,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      decoration: InputDecoration(
+                        hintText: 'Search for an address',
+                        contentPadding: EdgeInsets.all(10),
+                      ),
+                      onSubmitted: (_) => _searchAndNavigate(),
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.search),
+                    onPressed: _searchAndNavigate,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 20,
+            left: 20,
+            right: 20,
+            child: ElevatedButton.icon(
+              icon: Icon(Icons.check),
+              label: Text('Confirm Location'),
+              onPressed: _onConfirm,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Color(0xFFFDB515),
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(vertical: 15),
+              ),
+            ),
+          )
         ],
       ),
     );

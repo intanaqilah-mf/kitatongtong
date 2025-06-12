@@ -8,7 +8,9 @@ import '../widgets/UserPoints.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:projects/pages/EventDetailPage.dart'; // <-- 1. IMPORT THE NEW PAGE
+import 'package:projects/pages/EventDetailPage.dart';
+import 'package:url_launcher/url_launcher.dart';
+
 
 class HomePage extends StatefulWidget {
   @override
@@ -193,19 +195,20 @@ class _HomePageState extends State<HomePage> {
                         ),
                         // Display the event list horizontally
                         Container(
-                          height: 200,
+                          height: 230,
                           child: ListView.builder(
                             scrollDirection: Axis.horizontal,
                             itemCount: validUpcomingEvents.length, // Changed here
                             itemBuilder: (context, index) {
-                              var event = validUpcomingEvents[index]; // Changed here
-                              // v-- 2. WRAP EVENT CARD WITH GESTUREDETECTOR --v
+                              var eventData = validUpcomingEvents[index].data() as Map<String, dynamic>;
+                              var eventDoc = validUpcomingEvents[index];
+
                               return GestureDetector(
                                 onTap: () {
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (context) => EventDetailPage(event: event),
+                                      builder: (context) => EventDetailPage(event: eventDoc),
                                     ),
                                   );
                                 },
@@ -220,10 +223,11 @@ class _HomePageState extends State<HomePage> {
                                         ClipRRect(
                                           borderRadius: BorderRadius.circular(8),
                                           child: Image.network(
-                                            event["bannerUrl"] ?? '',
+                                            eventData["bannerUrl"] ?? '',
                                             height: 100,
                                             width: double.infinity,
                                             fit: BoxFit.cover,
+                                            errorBuilder: (context, error, stackTrace) => Container(height: 100, color: Colors.grey.shade300, child: Icon(Icons.image_not_supported)),
                                           ),
                                         ),
                                         SizedBox(height: 4),
@@ -231,7 +235,7 @@ class _HomePageState extends State<HomePage> {
                                         SizedBox(
                                           height: 36,
                                           child: Text(
-                                            event["eventName"] ?? "Unknown",
+                                            eventData["eventName"] ?? "Unknown",
                                             style: TextStyle(
                                               fontWeight: FontWeight.bold,
                                               fontSize: 14,
@@ -241,39 +245,38 @@ class _HomePageState extends State<HomePage> {
                                             overflow: TextOverflow.ellipsis,
                                           ),
                                         ),
-                                        SizedBox(height: 8),
-                                        // Points and Date
-                                        Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                        SizedBox(height: 4),
+                                        // Points
+                                        Text(
+                                          "Get ${eventData["points"] ?? "0"} pts",
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 13,
+                                            color: Colors.black,
+                                          ),
+                                        ),
+                                        SizedBox(height: 4),
+                                        // Date
+                                        Row(
                                           children: [
-                                            Text(
-                                              "Get ${event["points"] ?? "0"} pts",
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 13,
-                                                color: Colors.black,
-                                              ),
-                                            ),
-                                            SizedBox(height: 4),
-                                            Row(
-                                              children: [
-                                                Icon(Icons.calendar_today, color: Colors.red, size: 14),
-                                                SizedBox(width: 4),
-                                                Expanded(
-                                                  child: Text(
-                                                    event["eventEndDate"] ?? "",
-                                                    style: TextStyle(
-                                                      fontSize: 12,
-                                                      fontWeight: FontWeight.w500,
-                                                      color: Colors.black87,
-                                                    ),
-                                                    overflow: TextOverflow.ellipsis,
-                                                  ),
+                                            Icon(Icons.calendar_today, color: Colors.red, size: 14),
+                                            SizedBox(width: 4),
+                                            Expanded(
+                                              child: Text(
+                                                eventData["eventEndDate"] ?? "",
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w500,
+                                                  color: Colors.black87,
                                                 ),
-                                              ],
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
                                             ),
                                           ],
                                         ),
+                                        SizedBox(height: 4),
+                                        // Location
+                                        _buildLocationRow(eventData['location']),
                                       ],
                                     ),
                                   ),
@@ -309,8 +312,52 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Widget _buildLocationRow(dynamic locationData) {
+    String address = "No location";
+    bool isTappable = false;
+
+    if (locationData is Map) {
+      address = locationData['address'] ?? 'No location';
+      isTappable = locationData['latitude'] != null && locationData['longitude'] != null;
+    } else if (locationData is String && locationData.isNotEmpty) {
+      address = locationData;
+    }
+
+    return GestureDetector(
+      onTap: () async {
+        if (isTappable) {
+          final lat = locationData['latitude'];
+          final lng = locationData['longitude'];
+          final url = Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
+          if (await canLaunchUrl(url)) {
+            await launchUrl(url);
+          }
+        }
+      },
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.location_on, color: isTappable ? Colors.blue.shade800 : Colors.grey, size: 14),
+          SizedBox(width: 4),
+          Expanded(
+            child: Text(
+              address,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: Colors.black87,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+
   Widget _buildSectionRow(String sectionName, List<DocumentSnapshot> events) {
-    // --- Start of modification ---
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
 
@@ -325,16 +372,15 @@ class _HomePageState extends State<HomePage> {
           return false;
         }
       }
-      return true; // Keep events without an end date
+      return true;
     }).toList();
 
-
     validEvents.sort((a, b) {
-      // --- End of modification ---
       Timestamp aTimestamp = a["updatedAt"];
       Timestamp bTimestamp = b["updatedAt"];
       return bTimestamp.compareTo(aTimestamp);
     });
+
     if (validEvents.isEmpty) {
       return SizedBox.shrink();
     }
@@ -344,7 +390,6 @@ class _HomePageState extends State<HomePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Section title
           Text(
             sectionName,
             style: TextStyle(fontSize: 25, fontWeight: FontWeight.bold, color: Colors.black),
@@ -353,16 +398,17 @@ class _HomePageState extends State<HomePage> {
             height: 250,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
-              itemCount: validEvents.length, // Changed here
+              itemCount: validEvents.length,
               itemBuilder: (context, index) {
-                var event = validEvents[index]; // Changed here
-                // v-- 3. WRAP THIS CARD WITH GESTUREDETECTOR AS WELL --v
+                var eventDoc = validEvents[index];
+                var eventData = eventDoc.data() as Map<String, dynamic>;
+
                 return GestureDetector(
                   onTap: () {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => EventDetailPage(event: event),
+                        builder: (context) => EventDetailPage(event: eventDoc),
                       ),
                     );
                   },
@@ -373,22 +419,21 @@ class _HomePageState extends State<HomePage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Event Image
                           ClipRRect(
                             borderRadius: BorderRadius.circular(8),
                             child: Image.network(
-                              event["bannerUrl"] ?? '',
+                              eventData["bannerUrl"] ?? '',
                               height: 100,
                               width: double.infinity,
                               fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) => Container(height: 100, color: Colors.grey.shade300, child: Icon(Icons.image_not_supported)),
                             ),
                           ),
                           SizedBox(height: 4),
-                          // Event Name
                           SizedBox(
                             height: 36,
                             child: Text(
-                              event["eventName"] ?? "Unknown",
+                              eventData["eventName"] ?? "Unknown",
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 14,
@@ -398,39 +443,35 @@ class _HomePageState extends State<HomePage> {
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          SizedBox(height: 8),
-                          // Points and Date
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          SizedBox(height: 4),
+                          Text(
+                            "Get ${eventData["points"] ?? "0"} pts",
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                              color: Colors.black,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Row(
                             children: [
-                              Text(
-                                "Get ${event["points"] ?? "0"} pts",
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
-                                  color: Colors.black,
-                                ),
-                              ),
-                              SizedBox(height: 4),
-                              Row(
-                                children: [
-                                  Icon(Icons.calendar_today, color: Colors.red, size: 14),
-                                  SizedBox(width: 4),
-                                  Expanded(
-                                    child: Text(
-                                      event["eventEndDate"] ?? "",
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w500,
-                                        color: Colors.black87,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
+                              Icon(Icons.calendar_today, color: Colors.red, size: 14),
+                              SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  eventData["eventEndDate"] ?? "",
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.black87,
                                   ),
-                                ],
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
                             ],
                           ),
+                          SizedBox(height: 4),
+                          _buildLocationRow(eventData['location']),
                         ],
                       ),
                     ),

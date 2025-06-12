@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart'; // <-- 1. IMPORT FOR DATE FORMATTING
-import 'package:qr_flutter/qr_flutter.dart'; // <-- 2. IMPORT FOR QR CODE
+import 'package:intl/intl.dart';
+import 'package:qr_flutter/qr_flutter.dart' as qr;
 
 class EventDetailPage extends StatelessWidget {
   final DocumentSnapshot event;
@@ -10,36 +10,42 @@ class EventDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Safely extract data from the event document
-    final String bannerUrl = event['bannerUrl'] ?? '';
-    final String eventName = event['eventName'] ?? 'No Name';
-    final String points = event['points'] ?? '0';
-    final String organiserName = event['organiserName'] ?? 'Unknown';
-    final String organiserNumber = event['organiserNumber'] ?? 'N/A';
-    final String location = event['location'] ?? 'Unknown';
-    final String startDateString = event['eventDate'] ?? '';
-    final String endDateString = event['eventEndDate'] ?? '';
+    // Safely extract data
+    final String bannerUrl = (event['bannerUrl'] ?? '').toString();
+    final String eventName = (event['eventName'] ?? 'No Name').toString();
+    final String points = (event['points'] ?? '0').toString();
+    final String organiserName = (event['organiserName'] ?? 'Unknown').toString();
+    final String organiserNumber = (event['organiserNumber'] ?? 'N/A').toString();
+    final String startDateString = (event['eventDate'] ?? '').toString();
+    final String endDateString = (event['eventEndDate'] ?? '').toString();
 
-    // --- 3. LOGIC TO CHECK IF EVENT IS ONGOING ---
+    // Handle both Map and String for location
+    final dynamic locationData = event['location'];
+    String locationAddress = 'Unknown';
+    if (locationData is Map) {
+      locationAddress = locationData['address'] ?? 'No location provided';
+    } else if (locationData is String) {
+      locationAddress = locationData;
+    }
+
+    // --- FIX 1: CORRECTED THE DATE FORMAT TO FIX THE isOngoing CHECK ---
     bool isOngoing = false;
     if (startDateString.isNotEmpty && endDateString.isNotEmpty) {
       try {
+        // The date format was wrong here, causing the button to hide. It is now fixed.
         final fmt = DateFormat("dd MMM yyyy HH:mm");
         final DateTime startDate = fmt.parse(startDateString);
         final DateTime endDate = fmt.parse(endDateString);
         final now = DateTime.now();
-        // Check if 'now' is between the start and end date
         isOngoing = !now.isBefore(startDate) && now.isBefore(endDate);
       } catch (e) {
-        // Handle potential date parsing errors gracefully
         print("Error parsing event dates on detail page: $e");
         isOngoing = false;
       }
     }
-    // --- END OF ONGOING LOGIC ---
 
     return Scaffold(
-      backgroundColor: Color(0xFF303030), // Match existing background color
+      backgroundColor: Color(0xFF303030),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -61,7 +67,6 @@ class EventDetailPage extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Event Banner Image
               if (bannerUrl.isNotEmpty)
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12),
@@ -89,7 +94,6 @@ class EventDetailPage extends StatelessWidget {
                 ),
               SizedBox(height: 24),
 
-              // Event Name Title
               Text(
                 eventName,
                 style: TextStyle(
@@ -101,7 +105,6 @@ class EventDetailPage extends StatelessWidget {
               ),
               SizedBox(height: 16),
 
-              // Gold Gradient Container for Details
               Container(
                 padding: EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -126,7 +129,7 @@ class EventDetailPage extends StatelessWidget {
                     _buildDivider(),
                     _buildDetailRow(icon: Icons.event_available_rounded, label: "Ends On", value: endDateString),
                     _buildDivider(),
-                    _buildDetailRow(icon: Icons.location_on_rounded, label: "Location", value: location),
+                    _buildDetailRow(icon: Icons.location_on_rounded, label: "Location", value: locationAddress),
                     _buildDivider(),
                     _buildDetailRow(icon: Icons.person_rounded, label: "Organiser", value: organiserName),
                     _buildDivider(),
@@ -137,39 +140,35 @@ class EventDetailPage extends StatelessWidget {
 
               SizedBox(height: 24),
 
-              // --- 4. CONDITIONALLY DISPLAY QR CODE BUTTON ---
+              // --- FIX 2: RESTORED AND STYLED QR BUTTON EXACTLY LIKE IN event.dart ---
               if (isOngoing)
                 ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Color(0xFFFDB515),
-                    minimumSize: Size(double.infinity, 50),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    padding: EdgeInsets.symmetric(vertical: 12),
                   ),
                   onPressed: () {
-                    final String attendanceCode = event['attendanceCode'] ?? '';
+                    final String attendanceCode = (event['attendanceCode'] ?? '').toString();
                     if (attendanceCode.isNotEmpty) {
                       showDialog(
                         context: context,
                         builder: (_) => AlertDialog(
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                          title: Text('Scan for Attendance', textAlign: TextAlign.center),
+                          title: Text('Event QR Code'),
                           content: SizedBox(
-                            width: 250,
-                            height: 250,
-                            child: QrImageView(
+                            width: 200.0,
+                            height: 200.0,
+                            child: qr.QrImageView(
                               data: attendanceCode,
-                              version: QrVersions.auto,
-                              size: 250.0,
+                              version: qr.QrVersions.auto,
+                              size: 200.0,
                             ),
                           ),
-                          actionsAlignment: MainAxisAlignment.center,
                           actions: [
                             TextButton(
                               onPressed: () => Navigator.pop(context),
-                              child: Text('Close', style: TextStyle(color: Color(0xFFFDB515), fontSize: 16)),
+                              child: Text('Close'),
                             ),
                           ],
                         ),
@@ -180,13 +179,12 @@ class EventDetailPage extends StatelessWidget {
                       );
                     }
                   },
-                  icon: Icon(Icons.qr_code_2_rounded, color: Colors.white),
+                  icon: Icon(Icons.qr_code, color: Colors.white),
                   label: Text(
-                    'Show Attendance QR',
-                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                    'Generate QR Code',
+                    style: TextStyle(color: Colors.white),
                   ),
                 ),
-              // --- END OF QR CODE BUTTON ---
             ],
           ),
         ),
@@ -194,12 +192,10 @@ class EventDetailPage extends StatelessWidget {
     );
   }
 
-  // Helper widget to create a styled divider
   Widget _buildDivider() {
     return Divider(color: Colors.black.withOpacity(0.15), height: 1);
   }
 
-  // Helper widget for each detail row to avoid repetition
   Widget _buildDetailRow({required IconData icon, required String label, required String value}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12.0),

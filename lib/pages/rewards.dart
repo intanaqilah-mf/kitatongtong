@@ -218,7 +218,7 @@ class _RewardsState extends State<Rewards> {
       final String eventEndDateStr = event['eventEndDate'] as String;
       if (eventEndDateStr.isEmpty) return false;
       try {
-        final eventEndDate = DateFormat("dd MMM yyyy").parse(eventEndDateStr);
+        final eventEndDate = DateFormat("dd MMM ").parse(eventEndDateStr);
         final today = DateTime(now.year, now.month, now.day);
         return eventEndDate.isAtSameMomentAs(today) || eventEndDate.isAfter(today);
       } catch (e) {
@@ -504,8 +504,7 @@ class _RewardsState extends State<Rewards> {
         String bannerUrl = getAdminVoucherBanner(voucherGranted);
         String redeemedDateStr = "";
         if (voucher['redeemedAt'] != null) {
-          redeemedDateStr = DateFormat("dd MMM yyyy")
-              .format((voucher['redeemedAt'] as Timestamp).toDate());
+          redeemedDateStr = DateFormat("dd MMM ").format((voucher['redeemedAt'] as Timestamp).toDate());
         }
         int rmValue = int.tryParse(voucherValue) ?? 0;
         String subtitle = "Redeemed on:\n" + redeemedDateStr;
@@ -749,11 +748,13 @@ class _RewardsState extends State<Rewards> {
     if (isRecurring) {
       String recurrencePeriod = voucher['recurrencePeriod'] ?? 'N/A';
       String nextEligibleDateStr = "Now";
-      if (voucher['nextEligibleDate'] != null) {
-        DateTime nextDate = (voucher['nextEligibleDate'] as Timestamp).toDate();
+      // Safely access nextEligibleDate and convert to DateTime
+      final Timestamp? nextEligibleTimestamp = voucher['nextEligibleDate'] as Timestamp?;
+      if (nextEligibleTimestamp != null) {
+        DateTime nextDate = nextEligibleTimestamp.toDate();
         // Only show future date, otherwise it's redeemable now
         if (nextDate.isAfter(DateTime.now())) {
-          nextEligibleDateStr = DateFormat("dd MMM yyyy").format(nextDate);
+          nextEligibleDateStr = DateFormat("dd MMM ").format(nextDate);
         }
       }
       subtitle = "Every: $recurrencePeriod\nRedeemable from: $nextEligibleDateStr";
@@ -763,12 +764,15 @@ class _RewardsState extends State<Rewards> {
 
     return GestureDetector(
       onTap: () {
+        // Create a copy of the voucher map to ensure mutability if needed for redemption
+        final Map<String, dynamic> voucherDataForRedemption = Map<String, dynamic>.from(voucher);
+
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => PackageKasihPage(
-              rmValue: rmValue,
-              voucherReceived: voucher,  // now contains docId and admin voucher details
+            builder: (context) => RedeemVoucherWithItemsPage(
+              voucherValue: rmValue.toDouble(), // Use rmValue from the admin voucher
+              voucherReceived: voucherDataForRedemption, // Pass the whole admin voucher map (which includes 'docId')
             ),
           ),
         );
@@ -1054,137 +1058,137 @@ class _RewardsState extends State<Rewards> {
                         ),
                         SizedBox(height: 10),
                         if (eventList.isNotEmpty)
-                        SizedBox(
-                          height: 260, // match the voucher box height
-                          child: ListView.builder(
-                            scrollDirection: Axis.horizontal,
-                            itemCount: eventList.length,
-                            itemBuilder: (context, index) {
-                              final event = eventList[index];
-                              final bannerUrl = event['bannerUrl'];
-                              final eventName = event['eventName'];
-                              final organiserName = event['organiserName'];
-                              final eventPoints = event['points'];
+                          SizedBox(
+                            height: 260, // match the voucher box height
+                            child: ListView.builder(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: eventList.length,
+                              itemBuilder: (context, index) {
+                                final event = eventList[index];
+                                final bannerUrl = event['bannerUrl'];
+                                final eventName = event['eventName'];
+                                final organiserName = event['organiserName'];
+                                final eventPoints = event['points'];
 
-                              return Container(
-                                width: 200,
-                                margin: EdgeInsets.only(right: 10),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    // Event Banner
-                                    ClipRRect(
-                                      borderRadius: BorderRadius.circular(10),
-                                      child: bannerUrl.isNotEmpty
-                                          ? Image.network(
-                                        bannerUrl,
-                                        fit: BoxFit.cover,
-                                        width: 200,
-                                        height: 110,
-                                      )
-                                          : Container(
-                                        width: 200,
-                                        height: 110,
-                                        color: Colors.grey,
-                                        child: Center(child: Text("No Image")),
-                                      ),
-                                    ),
-                                    // White info box (like vouchers)
-                                    Container(
-                                      width: 200,
-                                      padding: EdgeInsets.symmetric(
-                                          horizontal: 10, vertical: 8),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.only(
-                                          bottomLeft: Radius.circular(10),
-                                          bottomRight: Radius.circular(10),
+                                return Container(
+                                  width: 200,
+                                  margin: EdgeInsets.only(right: 10),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      // Event Banner
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(10),
+                                        child: bannerUrl.isNotEmpty
+                                            ? Image.network(
+                                          bannerUrl,
+                                          fit: BoxFit.cover,
+                                          width: 200,
+                                          height: 110,
+                                        )
+                                            : Container(
+                                          width: 200,
+                                          height: 110,
+                                          color: Colors.grey,
+                                          child: Center(child: Text("No Image")),
                                         ),
                                       ),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          // Event Name
-                                          Text(
-                                            eventName,
-                                            style: TextStyle(
-                                              color: Color(0xFFA67C00),
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 14,
-                                            ),
+                                      // White info box (like vouchers)
+                                      Container(
+                                        width: 200,
+                                        padding: EdgeInsets.symmetric(
+                                            horizontal: 10, vertical: 8),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius: BorderRadius.only(
+                                            bottomLeft: Radius.circular(10),
+                                            bottomRight: Radius.circular(10),
                                           ),
-                                          SizedBox(height: 4),
-                                          // Organiser Name
-                                          Text(
-                                            "by $organiserName",
-                                            style: TextStyle(
-                                              color: Colors.black54,
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                          // Points
-                                          SizedBox(height: 4),
-                                          Row(
-                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                            children: [
-                                              Text(
-                                                "$eventPoints pts",
-                                                style: TextStyle(
-                                                  color: Colors.black,
-                                                  fontWeight: FontWeight.w600,
-                                                  fontSize: 13,
-                                                ),
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            // Event Name
+                                            Text(
+                                              eventName,
+                                              style: TextStyle(
+                                                color: Color(0xFFA67C00),
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 14,
                                               ),
-                                              Row(
-                                                children: [
-                                                  Icon(Icons.calendar_today, color: Colors.red, size: 16),
-                                                  SizedBox(width: 4),
-                                                  Text(
-                                                    event['eventEndDate'],
-                                                    style: TextStyle(
-                                                      color: Colors.black,
-                                                      fontWeight: FontWeight.w600,
-                                                      fontSize: 13,
-                                                    ),
+                                            ),
+                                            SizedBox(height: 4),
+                                            // Organiser Name
+                                            Text(
+                                              "by $organiserName",
+                                              style: TextStyle(
+                                                color: Colors.black54,
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                            // Points
+                                            SizedBox(height: 4),
+                                            Row(
+                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                              children: [
+                                                Text(
+                                                  "$eventPoints pts",
+                                                  style: TextStyle(
+                                                    color: Colors.black,
+                                                    fontWeight: FontWeight.w600,
+                                                    fontSize: 13,
                                                   ),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
-                                          SizedBox(height: 8),
+                                                ),
+                                                Row(
+                                                  children: [
+                                                    Icon(Icons.calendar_today, color: Colors.red, size: 16),
+                                                    SizedBox(width: 4),
+                                                    Text(
+                                                      event['eventEndDate'],
+                                                      style: TextStyle(
+                                                        color: Colors.black,
+                                                        fontWeight: FontWeight.w600,
+                                                        fontSize: 13,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
+                                            SizedBox(height: 8),
 
-                                          // "View" or "Join" button
-                                          SizedBox(
-                                            width: double.infinity,
-                                            child: ElevatedButton(
-                                              onPressed: () {
-                                                // navigate to event details or do something else
-                                              },
-                                              style: ElevatedButton.styleFrom(
-                                                backgroundColor: Color(0xFFFDB515),
-                                                padding:
-                                                EdgeInsets.symmetric(vertical: 10),
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius:
-                                                  BorderRadius.circular(8),
+                                            // "View" or "Join" button
+                                            SizedBox(
+                                              width: double.infinity,
+                                              child: ElevatedButton(
+                                                onPressed: () {
+                                                  // navigate to event details or do something else
+                                                },
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor: Color(0xFFFDB515),
+                                                  padding:
+                                                  EdgeInsets.symmetric(vertical: 10),
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius:
+                                                    BorderRadius.circular(8),
+                                                  ),
+                                                ),
+                                                child: Text(
+                                                  "Join",
+                                                  style: TextStyle(
+                                                      fontSize: 14, color: Colors.white),
                                                 ),
                                               ),
-                                              child: Text(
-                                                "Join",
-                                                style: TextStyle(
-                                                    fontSize: 14, color: Colors.white),
-                                              ),
                                             ),
-                                          ),
-                                        ],
+                                          ],
+                                        ),
                                       ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
-                        )
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                          )
                       ],
                     ),
                   ),

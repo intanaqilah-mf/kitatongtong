@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
-import 'package:qr_flutter/qr_flutter.dart'; // Import the QR package
+import 'package:qr_flutter/qr_flutter.dart';
 import '../pages/redemptionStatus.dart';
 
 class TrackOrderScreen extends StatefulWidget {
@@ -17,25 +17,15 @@ class _TrackOrderScreenState extends State<TrackOrderScreen>
     with SingleTickerProviderStateMixin {
   int _bottomNavSelectedIndex = 1;
   late TabController _tabController;
-  late Stream<QuerySnapshot> _ordersStream;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = "";
-  String _selectedSort = "Date";
+  String _selectedSort = "Date"; // Default sort option
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      _ordersStream = FirebaseFirestore.instance
-          .collection('redeemedKasih')
-          .where('userId', isEqualTo: user.uid)
-          .orderBy('redeemedAt', descending: true)
-          .snapshots();
-    } else {
-      _ordersStream = Stream.empty();
-    }
+    // Add a listener to the search controller to update the UI on text change
     _searchController.addListener(() {
       if (mounted) {
         setState(() {
@@ -60,44 +50,59 @@ class _TrackOrderScreenState extends State<TrackOrderScreen>
     }
   }
 
-  List<DocumentSnapshot> _filterAndSortOrders(
-      List<DocumentSnapshot> docs, int tabIndex) {
-    List<DocumentSnapshot> filteredByTab;
+  // --- OPTIMIZATION 1: Create a function to build Firestore queries dynamically ---
+  // This function creates a specific query for each tab and sorting option.
+  // This ensures we only fetch the necessary documents from Firestore.
+  Stream<QuerySnapshot> _getOrdersStream(int tabIndex) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return Stream.empty();
+    }
 
+    Query query = FirebaseFirestore.instance
+        .collection('redeemedKasih')
+        .where('userId', isEqualTo: user.uid);
+
+    // Apply filters based on the selected tab
     switch (tabIndex) {
-      case 0:
-        filteredByTab = docs;
+      case 1: // To Process
+        query = query.where('processedOrder', isEqualTo: 'no');
         break;
-      case 1:
-        filteredByTab = docs.where((doc) => (doc['processedOrder'] ?? 'no') == 'no').toList();
+      case 2: // To Pickup
+        query = query
+            .where('processedOrder', isEqualTo: 'yes')
+            .where('pickedUp', isEqualTo: 'no');
         break;
-      case 2:
-      // "Processed" tab: processed but not yet picked up
-        filteredByTab = docs.where((doc) => (doc['processedOrder'] ?? 'no') == 'yes' && (doc['pickedUp'] ?? 'no') == 'no').toList();
+      case 3: // Completed
+        query = query.where('pickedUp', isEqualTo: 'yes');
         break;
-      case 3:
-        filteredByTab = docs.where((doc) => (doc['pickedUp'] ?? 'no') == 'yes').toList();
-        break;
-      default:
-        filteredByTab = docs;
+    // Case 0 (All) doesn't need an additional filter.
     }
 
-    if (_searchQuery.isNotEmpty) {
-      filteredByTab = filteredByTab.where((doc) {
-        final code = (doc['pickupCode'] as String? ?? '').toLowerCase();
-        return code.contains(_searchQuery);
-      }).toList();
+    // Apply sorting based on the user's selection
+    // Note: You may need to create corresponding indexes in your Firestore console.
+    if (_selectedSort == "Date") {
+      query = query.orderBy('redeemedAt', descending: true);
+    } else {
+      query = query.orderBy('pickupCode');
     }
 
-    // Sorting logic remains the same
-    if (_selectedSort == "Code") {
-      filteredByTab.sort((a, b) {
-        final codeA = a['pickupCode'] as String? ?? '';
-        final codeB = b['pickupCode'] as String? ?? '';
-        return codeA.compareTo(codeB);
-      });
+    return query.snapshots();
+  }
+
+  // --- OPTIMIZATION 2: Simplify the filtering function ---
+  // This function now only needs to handle the search, as the main filtering
+  // and sorting are done by the highly efficient Firestore query.
+  List<DocumentSnapshot> _filterDocsBySearch(List<DocumentSnapshot> docs) {
+    if (_searchQuery.isEmpty) {
+      return docs; // Return the list as is if search is empty
     }
-    return filteredByTab;
+
+    // Filter the already limited list of documents by the search query
+    return docs.where((doc) {
+      final code = (doc['pickupCode'] as String? ?? '').toLowerCase();
+      return code.contains(_searchQuery);
+    }).toList();
   }
 
   @override
@@ -121,9 +126,10 @@ class _TrackOrderScreenState extends State<TrackOrderScreen>
           tabs: const [
             Tab(text: "All"),
             Tab(text: "To Process"),
-            Tab(text: "To Pickup"), // Changed from "Processed"
-            Tab(text: "Completed"), // Changed from "Rating"
+            Tab(text: "To Pickup"),
+            Tab(text: "Completed"),
           ],
+          // We add a listener to the tab controller itself for state changes
           onTap: (index) {
             if (mounted) setState(() {});
           },
@@ -177,21 +183,25 @@ class _TrackOrderScreenState extends State<TrackOrderScreen>
                     items: ["Date", "Code"]
                         .map((s) => DropdownMenuItem(value: s, child: Text(s)))
                         .toList(),
+                    // When sort option changes, call setState to trigger a rebuild
+                    // which will use the new sort order in the Firestore query.
                     onChanged: (v) {
                       if (v != null && mounted) setState(() => _selectedSort = v);
                     },
-
                   ),
                 ),
               ],
             ),
           ),
           Expanded(
+            // --- OPTIMIZATION 3: Use a separate StreamBuilder for each tab ---
+            // This ensures each tab has its own dedicated, optimized data stream.
             child: TabBarView(
               controller: _tabController,
               children: List.generate(4, (tabIndex) {
                 return StreamBuilder<QuerySnapshot>(
-                  stream: _ordersStream,
+                  // Get the specific stream for the current tab and sort option
+                  stream: _getOrdersStream(tabIndex),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFDB515))));
@@ -203,8 +213,8 @@ class _TrackOrderScreenState extends State<TrackOrderScreen>
                       return const Center(child: Text("No orders found.", style: TextStyle(color: Colors.white70)));
                     }
 
-                    final allDocs = snapshot.data!.docs;
-                    final displayDocs = _filterAndSortOrders(allDocs, tabIndex);
+                    // Perform the client-side search on the much smaller, pre-filtered list
+                    final displayDocs = _filterDocsBySearch(snapshot.data!.docs);
 
                     if (displayDocs.isEmpty) {
                       return Center(
@@ -236,6 +246,9 @@ class _TrackOrderScreenState extends State<TrackOrderScreen>
     );
   }
 
+  // --- NO CHANGES NEEDED BELOW THIS LINE ---
+  // The UI logic for building each card remains the same.
+
   Widget _buildOrderCard(DocumentSnapshot orderDoc) {
     final data = orderDoc.data()! as Map<String, dynamic>;
     final dateFormat = DateFormat("dd MMM yyyy, hh:mm a");
@@ -248,7 +261,6 @@ class _TrackOrderScreenState extends State<TrackOrderScreen>
 
     String statusText;
     Color statusColor;
-    // Condition to show QR code
     bool showQrCode = (processedOrder == 'yes' && pickedUp == 'no');
 
     if (pickedUp == 'yes') {
@@ -305,12 +317,11 @@ class _TrackOrderScreenState extends State<TrackOrderScreen>
                   ],
                 ),
               ),
-              // Show QR code only if the condition is met
               if (showQrCode)
                 Padding(
                   padding: const EdgeInsets.only(left: 12.0),
                   child: QrImageView(
-                    data: code, // The data for the QR code
+                    data: code,
                     version: QrVersions.auto,
                     size: 80.0,
                     backgroundColor: Colors.white,

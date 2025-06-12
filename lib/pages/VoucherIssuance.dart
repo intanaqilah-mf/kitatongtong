@@ -416,7 +416,7 @@ class _VoucherIssuanceState extends State<VoucherIssuance> {
                             border: InputBorder.none,
                             contentPadding: EdgeInsets.all(10),
                           ),
-                          items: ["RM50", "RM150", "RM150", "RM200", "RM250"].map((String value) {
+                          items: ["RM50", "RM100", "RM150", "RM200", "RM250"].map((String value) {
                             return DropdownMenuItem<String>(
                               value: value,
                               child: Text(value),

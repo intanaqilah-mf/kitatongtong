@@ -5,7 +5,7 @@ import 'package:projects/widgets/bottomNavBar.dart';
 import 'package:projects/pages/pickupFail.dart';
 import 'package:intl/intl.dart';
 import 'face_validation_screen.dart';
-import 'qr_scanner_page.dart'; // Import the scanner page
+import 'qr_scanner_page.dart';
 
 class PickUpItem extends StatefulWidget {
   @override
@@ -38,9 +38,12 @@ class _PickUpItemState extends State<PickUpItem> {
 
       if (!mounted) return;
 
+      // This delay prevents camera resource conflicts
+      await Future.delayed(const Duration(milliseconds: 300));
+
       if (qrCode != null && qrCode.isNotEmpty) {
         _pickupCodeController.text = qrCode;
-        _initiateVerification(); // Automatically start verification after scan
+        _initiateVerification();
       }
     } catch (e) {
       _showError("Error opening QR scanner: $e");
@@ -75,18 +78,15 @@ class _PickUpItemState extends State<PickUpItem> {
       final pickupData = pickupSnapshot.docs.first.data();
       docIdToUpdate = pickupSnapshot.docs.first.id;
 
-      // Check if already picked up
       if(pickupData['pickedUp'] == 'yes') {
         _showError("This order has already been picked up.");
         return;
       }
 
-      // Check if order is processed
       if(pickupData['processedOrder'] != 'yes') {
         _showError("This order has not been processed by admin yet.");
         return;
       }
-
 
       final String userId = pickupData['userId'];
       final userDoc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
@@ -207,10 +207,7 @@ class _PickUpItemState extends State<PickUpItem> {
                 textAlign: TextAlign.center,
               ),
               SizedBox(height: 20),
-
-              // New Pickup Code Input Field
               buildPickupCodeField(),
-
               SizedBox(height: 10),
               if (_isLoading)
                 Center(child: CircularProgressIndicator())
@@ -249,7 +246,6 @@ class _PickUpItemState extends State<PickUpItem> {
     );
   }
 
-  // New widget for the combined Text and Scanner button field
   Widget buildPickupCodeField() {
     return Padding(
       padding: EdgeInsets.symmetric(vertical: 8),

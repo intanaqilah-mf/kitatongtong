@@ -4,6 +4,9 @@ import 'package:projects/widgets/bottomNavBar.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:projects/pages/successCheckIn.dart';
 import 'package:projects/pages/qr_scanner_page.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+
 
 final TextEditingController _attendanceCodeController = TextEditingController();
 final TextEditingController _eventNameController = TextEditingController();
@@ -24,6 +27,9 @@ class _checkInState extends State<checkIn> {
   String? _role;
   String? _staffName;
   String? _participantDocId; // New variable to store the participant's document ID
+
+  // New variable to store event location
+  LatLng? _eventLocation;
 
   void _onItemTapped(int index) {
     setState(() {
@@ -46,10 +52,21 @@ class _checkInState extends State<checkIn> {
 
     if (eventDoc.docs.isNotEmpty) {
       final eventData = eventDoc.docs.first.data();
+      // New: Extract location data from the event document
+      final locationData = eventData['location'];
+
 
       setState(() {
         _eventNameController.text = eventData['eventName'] ?? '';
         _pointsController.text = eventData['points'].toString();
+
+        // New: Parse and store the event location coordinates
+        if (locationData is Map && locationData['latitude'] != null && locationData['longitude'] != null) {
+          _eventLocation = LatLng(locationData['latitude'], locationData['longitude']);
+        } else {
+          _eventLocation = null;
+        }
+
 
         if (_role == 'staff') {
           _participantNameController.text = '';
@@ -61,6 +78,47 @@ class _checkInState extends State<checkIn> {
       _clearForm();
     }
   }
+
+  // New: Helper function to get current position and handle permissions
+  Future<Position?> _determinePosition() async {
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Location services are disabled. Please enable them to check in.')),
+        );
+      }
+      return null;
+    }
+
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Location permissions are denied.')),
+          );
+        }
+        return null;
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      if (mounted){
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Location permissions are permanently denied, we cannot request permissions.')),
+        );
+      }
+      return null;
+    }
+
+    return await Geolocator.getCurrentPosition();
+  }
+
 
   Future<void> _scanQRCode() async {
     try {
@@ -75,14 +133,11 @@ class _checkInState extends State<checkIn> {
         _attendanceCodeController.text = qrCode;
         _fetchEventDetails(qrCode); // Fetch event details with the scanned code
       } else {
-        // This can happen if the user navigates back without scanning
-        // or if the scanner page pops with null.
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("QR scan cancelled or no data found.")),
         );
       }
     } catch (e) {
-      // This catch block is for potential errors during navigation or if the scanner page itself has an unhandled error.
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Error opening QR scanner: $e")),
       );
@@ -147,6 +202,7 @@ class _checkInState extends State<checkIn> {
     setState(() {
       _eventNameController.clear();
       _pointsController.clear();
+      _eventLocation = null; // New: Clear event location
 
       if (_role == 'staff') {
         _participantNameController.clear();
@@ -212,11 +268,10 @@ class _checkInState extends State<checkIn> {
                             child: TextField(
                               controller: _attendanceCodeController,
                               onChanged: (value) {
-                                // You might want to add a debounce here if fetching on every keystroke
                                 if (value.isNotEmpty) {
                                   _fetchEventDetails(value);
                                 } else {
-                                  _clearForm(); // Clear related fields if code is erased
+                                  _clearForm();
                                 }
                               },
                               style: TextStyle(color: Colors.black),
@@ -308,33 +363,81 @@ class _checkInState extends State<checkIn> {
                   isReadOnly: true),
               SizedBox(height: 20),
               ElevatedButton(
+                // New: Updated onPressed logic with location verification
                 onPressed: () async {
+                  // 1. Check if event details are loaded
+                  if (_eventNameController.text.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Please enter a valid event code.")),
+                    );
+                    return;
+                  }
+                  if (_eventLocation == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Event location is not available for verification.")),
+                    );
+                    return;
+                  }
+
                   try {
-                    final userId =
-                        FirebaseAuth.instance.currentUser!.uid;
+                    // Show a loading indicator
+                    showDialog(
+                      context: context,
+                      barrierDismissible: false,
+                      builder: (BuildContext context) => const Dialog(
+                        child: Padding(
+                          padding: EdgeInsets.all(20.0),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              CircularProgressIndicator(),
+                              SizedBox(width: 20),
+                              Text("Verifying location..."),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+
+                    // 2. Get current position
+                    final Position? currentPosition = await _determinePosition();
+                    Navigator.pop(context); // Dismiss loading dialog
+
+                    if (currentPosition == null) return; // Error already shown
+
+                    // 3. Calculate distance
+                    final double distanceInMeters = Geolocator.distanceBetween(
+                      currentPosition.latitude,
+                      currentPosition.longitude,
+                      _eventLocation!.latitude,
+                      _eventLocation!.longitude,
+                    );
+
+                    // 4. Check if distance is within 10km (10,000 meters)
+                    if (distanceInMeters > 10000) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text("Check-in failed: You are more than 10km away from the event.")),
+                      );
+                      return;
+                    }
+
+                    // 5. If location is verified, proceed with original check-in logic
+                    final userId = FirebaseAuth.instance.currentUser!.uid;
                     final userDoc = await FirebaseFirestore.instance
                         .collection("users")
                         .doc(userId)
                         .get();
                     final role = userDoc.data()?['role'] ?? 'asnaf';
                     final name = userDoc.data()?['name'] ?? '';
-                    final pointsToAdd =
-                        int.tryParse(_pointsController.text) ?? 0;
+                    final pointsToAdd = int.tryParse(_pointsController.text) ?? 0;
 
                     final submittedBy = role == 'staff'
-                        ? {
-                      "uid": userId,
-                      "name": name,
-                      "role": role,
-                    }
+                        ? {"uid": userId, "name": name, "role": role}
                         : "system";
 
-                    // Fetch event date before storing
                     final eventQuery = await FirebaseFirestore.instance
                         .collection('event')
-                        .where('attendanceCode',
-                        isEqualTo:
-                        _attendanceCodeController.text.trim())
+                        .where('attendanceCode', isEqualTo: _attendanceCodeController.text.trim())
                         .limit(1)
                         .get();
 
@@ -342,10 +445,7 @@ class _checkInState extends State<checkIn> {
                         ? eventQuery.docs.first.data()['eventDate']
                         : "Unknown";
 
-                    // Store the check-in details
-                    await FirebaseFirestore.instance
-                        .collection("checkIn_list")
-                        .add({
+                    await FirebaseFirestore.instance.collection("checkIn_list").add({
                       "attendanceCode": _attendanceCodeController.text,
                       "eventName": _eventNameController.text,
                       "points": pointsToAdd,
@@ -356,9 +456,6 @@ class _checkInState extends State<checkIn> {
                       "submittedBy": submittedBy,
                     });
 
-                    // Update participant points using the exact document ID.
-                    // For staff, if a participant was looked up via NRIC, use that document.
-                    // Otherwise (as asnaf) use the current user's UID.
                     String participantId;
                     if (role == 'staff' && _participantDocId != null) {
                       participantId = _participantDocId!;
@@ -369,18 +466,15 @@ class _checkInState extends State<checkIn> {
                         .collection("users")
                         .doc(participantId)
                         .get();
-                    final participantPoints =
-                        participantSnapshot.data()?['points'] ?? 0;
+                    final participantPoints = participantSnapshot.data()?['points'] ?? 0;
                     await FirebaseFirestore.instance
                         .collection("users")
                         .doc(participantId)
-                        .update(
-                        {'points': participantPoints + pointsToAdd});
+                        .update({'points': participantPoints + pointsToAdd});
 
                     Navigator.pushAndRemoveUntil(
                       context,
-                      MaterialPageRoute(
-                          builder: (context) => successCheckIn()),
+                      MaterialPageRoute(builder: (context) => successCheckIn()),
                           (route) => false,
                     );
 
@@ -388,11 +482,12 @@ class _checkInState extends State<checkIn> {
                       SnackBar(content: Text("Check-in successful!")),
                     );
                   } catch (e) {
+                    if (Navigator.canPop(context)) {
+                      Navigator.pop(context); // Dismiss loading dialog on error
+                    }
                     print("Error storing check-in: $e");
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                          content: Text(
-                              "Failed to check in. Please try again.")),
+                      const SnackBar(content: Text("Failed to check in. Please try again.")),
                     );
                   }
                 },

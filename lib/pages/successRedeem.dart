@@ -1,5 +1,3 @@
-// lib/pages/successRedeem.dart
-
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:projects/pages/redemptionStatus.dart';
@@ -72,7 +70,7 @@ class _SuccessRedeemState extends State<SuccessRedeem> {
                         ),
                         SizedBox(height: 10),
                         Text(
-                          "Congratulations! Your Package A has been successfully redeemed. Your pickup code is",
+                          "Congratulations! You have redeemed the item successfully. Your pickup code is",
                           style: TextStyle(
                             fontSize: 18,
                             color: Colors.grey[400],

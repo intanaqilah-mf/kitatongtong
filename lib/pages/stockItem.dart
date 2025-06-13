@@ -194,6 +194,9 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
 
     List<Map<String, dynamic>> detailedPackageItems = [];
 
+    // MODIFICATION: Added variables to hold both group and category
+    String selectedItemGroup = "";
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -336,10 +339,9 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
                                                   (suggestion['average_price']
                                                   as num)
                                                       .toDouble();
-                                              selectedCategory =
-                                                  suggestion['item_group']
-                                                  as String? ??
-                                                      "";
+                                              // MODIFICATION: This is where the item group/category swap is fixed.
+                                              selectedCategory = suggestion['item_category'] as String? ?? "";
+                                              selectedItemGroup = suggestion['item_group'] as String? ?? "";
                                             });
                                           },
                                         );
@@ -359,10 +361,12 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
                               final int qty = 1;
 
                               setModalState(() {
+                                // MODIFICATION: Added item_group to the map.
                                 detailedPackageItems.add({
                                   "name": name,
                                   "price": selectedPrice,
                                   "category": selectedCategory,
+                                  "item_group": selectedItemGroup, // Storing the group
                                   "number": qty,
                                 });
 
@@ -430,9 +434,11 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
                               "price": totalPrice,
                               "items": detailedPackageItems
                                   .map((item) => {
+                                // MODIFICATION: Storing item_group in Firestore
                                 "name": item["name"],
                                 "price": item["price"],
                                 "category": item["category"],
+                                "item_group": item["item_group"],
                               })
                                   .toList(),
                               "bannerUrl": bannerUrl,

@@ -13,20 +13,22 @@ class StockItem extends StatefulWidget {
 }
 
 class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
-  File? _selectedImage;
-  String? _selectedImageUrl;
-  List<String> packageItems = [];
-  String? selectedPackageItem;
-  TextEditingController packageItemController = TextEditingController();
+  // UI State
+  bool isPackageKasihSelected = true;
   int _selectedIndex = 0;
-  List<Map<String, dynamic>> detailedPackageItems = [];
-  TextEditingController itemNameController = TextEditingController();
-  TextEditingController itemNumberController = TextEditingController();
-  String selectedCategory = "";
-  List<Map<String, dynamic>> itemSuggestions = [];
 
-  String? selectedItemId; // Firestore document ID of the chosen item
-  double selectedPrice = 0.0; // “average_price” from your price catcher
+  // Shared Controllers & State
+  TextEditingController itemNameController = TextEditingController();
+  List<Map<String, dynamic>> itemSuggestions = [];
+  String? selectedItemId;
+  double selectedPrice = 0.0;
+  String selectedCategory = "";
+
+  // Package Hamper Specific State
+  final TextEditingController hamperNameController = TextEditingController();
+  List<Map<String, dynamic>> detailedHamperItems = [];
+  int selectedHamperVoucherValue = 50; // Default value
+  final List<int> hamperVoucherOptions = [50, 100, 150, 200, 250];
 
   // Animation Controller for the loading indicator
   late AnimationController _animationController;
@@ -40,7 +42,6 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
       duration: const Duration(seconds: 4),
     );
 
-    // Color palette for the loading indicator animation
     _colorAnimation = _animationController.drive(
       ColorTween(
         begin: Color(0xFFF9F295),
@@ -60,9 +61,8 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
   @override
   void dispose() {
     itemNameController.dispose();
-    itemNumberController.dispose();
-    packageItemController.dispose();
-    _animationController.dispose(); // Dispose the animation controller
+    hamperNameController.dispose();
+    _animationController.dispose();
     super.dispose();
   }
 
@@ -70,11 +70,12 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
   void _showLoadingDialog() {
     showDialog(
       context: context,
-      barrierDismissible: false, // User cannot dismiss by tapping outside
+      barrierDismissible: false,
       builder: (BuildContext context) {
         return Dialog(
           backgroundColor: Colors.black54,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           child: Padding(
             padding: const EdgeInsets.all(24.0),
             child: Column(
@@ -112,23 +113,47 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
   void _hideLoadingDialog() {
     Navigator.of(context, rootNavigator: true).pop();
   }
+  // --- Helper function for Warning Dialog ---
+  Future<void> _showWarningDialog(String title, String message) async {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false, // User must tap button to close
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Color(0xFF3F3F3F),
+          title: Text(title, style: TextStyle(color: Color(0xFFFDB515))),
+          content: SingleChildScrollView(
+            child: ListBody(
+              children: <Widget>[
+                Text(message, style: TextStyle(color: Colors.white)),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: Text('OK', style: TextStyle(color: Color(0xFFFDB515), fontWeight: FontWeight.bold)),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
 
-  // --- EDIT PACKAGE NAME DIALOG ---
-  Future<void> _editPackageName(DocumentSnapshot doc) async {
-    final Map<String, dynamic> pkg = doc.data() as Map<String, dynamic>;
-    final List<dynamic> items = pkg['items'] as List<dynamic>? ?? [];
-
-    if (items.isEmpty) return; // Cannot edit if there are no items
-
-    final String currentName = items.first['name'] as String? ?? '';
-    final TextEditingController editController = TextEditingController(text: currentName);
+  // --- EDIT PACKAGE NAME DIALOG (Kasih)---
+  Future<void> _editPackageName(DocumentSnapshot doc, String currentName) async {
+    final TextEditingController editController =
+    TextEditingController(text: currentName);
 
     return showDialog<void>(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
           backgroundColor: Color(0xFF3F3F3F),
-          title: Text('Edit Package Name', style: TextStyle(color: Color(0xFFFDB515))),
+          title: Text('Edit Package Name',
+              style: TextStyle(color: Color(0xFFFDB515))),
           content: TextField(
             controller: editController,
             autofocus: true,
@@ -152,17 +177,13 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
               },
             ),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Color(0xFFFDB515)),
+              style:
+              ElevatedButton.styleFrom(backgroundColor: Color(0xFFFDB515)),
               child: Text('Update', style: TextStyle(color: Colors.black)),
               onPressed: () async {
                 final String newName = editController.text.trim();
                 if (newName.isNotEmpty && newName != currentName) {
-                  // Create a new list with the updated name
-                  List<Map<String, dynamic>> updatedItems = List<Map<String, dynamic>>.from(items.map((item) => Map<String, dynamic>.from(item)));
-                  updatedItems[0]['name'] = newName;
-
-                  // Update the document in Firestore
-                  await doc.reference.update({'items': updatedItems});
+                  await doc.reference.update({'name': newName});
                 }
                 Navigator.of(context).pop();
               },
@@ -173,29 +194,13 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
     );
   }
 
-
-  Future<double> fetchExpectedTotalRemote(
-      List<Map<String, dynamic>> items) async {
-    final resp = await http.post(
-      Uri.parse(
-          "https://us-central1-kita-tongtong.cloudfunctions.net/getPackagePrice"),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode({"items": items}),
-    );
-    final body = jsonDecode(resp.body);
-    if (resp.statusCode != 200) {
-      throw Exception(body["error"] ?? "Price lookup failed");
-    }
-    return (body["expectedTotal"] as num).toDouble();
-  }
-
-  void _AddPackageKasih() {
-    TextEditingController itemNameController = TextEditingController();
-
-    List<Map<String, dynamic>> detailedPackageItems = [];
-
-    // MODIFICATION: Added variables to hold both group and category
-    String selectedItemGroup = "";
+  // --- ADD PACKAGE KASIH (Single Item) ---
+  void _addPackageKasih() {
+    print("---EXECUTING _addPackageKasih FUNCTION---");
+    itemNameController.clear();
+    itemSuggestions = [];
+    selectedPrice = 0.0;
+    selectedCategory = "";
 
     showModalBottomSheet(
       context: context,
@@ -231,40 +236,273 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
                           style: TextStyle(
                               fontWeight: FontWeight.bold,
                               color: Color(0xFFF1D789))),
+                      SizedBox(height: 8),
                       Column(
-                        children:
-                        List.generate(detailedPackageItems.length, (index) {
-                          final item = detailedPackageItems[index];
-                          return Container(
-                            margin: EdgeInsets.symmetric(vertical: 5),
-                            padding: EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Color(0xFFFFCF40),
-                              borderRadius: BorderRadius.circular(8),
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TextField(
+                            controller: itemNameController,
+                            decoration: InputDecoration(
+                              filled: true,
+                              fillColor: Color(0xFFFFCF40),
+                              hintText: "Type to search item…",
+                              border: OutlineInputBorder(),
                             ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                    child: Text(item["name"],
-                                        style: TextStyle(color: Colors.black))),
-                                SizedBox(width: 8),
-                                GestureDetector(
-                                  onTap: () {
-                                    setModalState(() {
-                                      detailedPackageItems.removeAt(index);
-                                    });
-                                  },
-                                  child: Icon(Icons.delete, color: Colors.red),
-                                ),
-                              ],
+                            onChanged: (pattern) async {
+                              if (pattern.trim().isEmpty) {
+                                setModalState(() => itemSuggestions = []);
+                                return;
+                              }
+                              try {
+                                final results =
+                                await SearchService.searchItems(pattern);
+                                setModalState(() => itemSuggestions = results);
+                              } catch (e) {
+                                setModalState(() => itemSuggestions = []);
+                              }
+                            },
+                          ),
+                          if (itemSuggestions.isNotEmpty)
+                            Container(
+                              constraints: BoxConstraints(maxHeight: 200),
+                              margin: const EdgeInsets.only(top: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                border: Border.all(color: Colors.grey),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: ListView.builder(
+                                shrinkWrap: true,
+                                itemCount: itemSuggestions.length,
+                                itemBuilder: (context, index) {
+                                  final suggestion = itemSuggestions[index];
+                                  return ListTile(
+                                    title: Text(suggestion['item_name']),
+                                    subtitle: Text(
+                                        "RM ${suggestion['average_price'].toStringAsFixed(2)}"),
+                                    onTap: () {
+                                      setModalState(() {
+                                        itemNameController.text =
+                                        suggestion['item_name'];
+                                        selectedPrice =
+                                        suggestion['average_price'];
+                                        selectedCategory =
+                                            suggestion['item_category'] ?? "";
+                                        itemSuggestions = [];
+                                      });
+                                    },
+                                  );
+                                },
+                              ),
                             ),
-                          );
-                        }),
+                        ],
                       ),
+                      SizedBox(height: 24),
+                      ElevatedButton(
+                        onPressed: () async {
+                          final String itemName = itemNameController.text.trim();
+                          if (itemName.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                  content: Text(
+                                      "Please select an item before submitting.")),
+                            );
+                            return;
+                          }
+
+                          _showLoadingDialog();
+
+                          final singleItem = {
+                            "name": itemName,
+                            "price": selectedPrice,
+                            "category": selectedCategory,
+                            "number": 1,
+                          };
+
+                          try {
+                            final bannerResponse = await http.post(
+                              Uri.parse(
+                                  "https://us-central1-kita-tongtong.cloudfunctions.net/generatePackageKasihImage"),
+                              headers: {"Content-Type": "application/json"},
+                              body: jsonEncode({
+                                "items": [singleItem]
+                              }),
+                            );
+
+                            if (bannerResponse.statusCode != 200) {
+                              throw Exception(
+                                  "Image generation failed: ${bannerResponse.body}");
+                            }
+
+                            final bannerData = jsonDecode(bannerResponse.body);
+                            final String bannerUrl = bannerData["image_url"];
+
+                            await FirebaseFirestore.instance
+                                .collection('package_kasih')
+                                .add({
+                              "price": selectedPrice,
+                              "name": itemName,
+                              "items": [singleItem], // Still store as a list
+                              "bannerUrl": bannerUrl,
+                              "createdAt": Timestamp.now(),
+                            });
+
+                            Navigator.pop(context); // Close the bottom sheet
+                          } catch (e) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                  content: Text(
+                                      'Error creating package: ${e.toString()}')),
+                            );
+                          } finally {
+                            _hideLoadingDialog();
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Color(0xFFFDB515),
+                          minimumSize: Size(double.infinity, 48),
+                        ),
+                        child: Text("Submit Package",
+                            style:
+                            TextStyle(fontSize: 16, color: Colors.black)),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+  void _addPackageHamper() {
+    hamperNameController.clear();
+    itemNameController.clear();
+    detailedHamperItems = [];
+    itemSuggestions = [];
+    selectedHamperVoucherValue = 50;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Color(0xFF3F3F3F),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).viewInsets.bottom),
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Text(
+                          "Add Package Hamper",
+                          style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFFFDB515)),
+                        ),
+                      ),
+                      SizedBox(height: 16),
+                      Text("Package Name",
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFFF1D789))),
+                      SizedBox(height: 8),
+                      TextField(
+                        controller: hamperNameController,
+                        decoration: InputDecoration(
+                          filled: true,
+                          fillColor: Color(0xFFFFCF40),
+                          hintText: "e.g., Hamper Raya Aidilfitri",
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      SizedBox(height: 16),
+                      Text("Voucher Value",
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFFF1D789))),
+                      SizedBox(height: 8),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Color(0xFFFFCF40),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        padding: EdgeInsets.symmetric(horizontal: 12),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<int>(
+                            value: selectedHamperVoucherValue,
+                            isExpanded: true,
+                            dropdownColor: Color(0xFFFFCF40),
+                            items: hamperVoucherOptions.map((int value) {
+                              return DropdownMenuItem<int>(
+                                value: value,
+                                child: Text("RM $value",
+                                    style: TextStyle(color: Colors.black)),
+                              );
+                            }).toList(),
+                            onChanged: (int? newValue) {
+                              setModalState(() {
+                                if (newValue != null) {
+                                  selectedHamperVoucherValue = newValue;
+                                }
+                              });
+                            },
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: 16),
+                      Text("Items",
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFFF1D789))),
+                      SizedBox(height: 8),
+                      Column(
+                        children: List.generate(detailedHamperItems.length,
+                                (index) {
+                              final item = detailedHamperItems[index];
+                              return Container(
+                                margin: EdgeInsets.symmetric(vertical: 4),
+                                padding: EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Color(0xFFFFCF40),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                        child: Text(
+                                            "${item["name"]} (RM ${item["price"].toStringAsFixed(2)})",
+                                            style:
+                                            TextStyle(color: Colors.black))),
+                                    GestureDetector(
+                                      onTap: () {
+                                        setModalState(() {
+                                          detailedHamperItems.removeAt(index);
+                                        });
+                                      },
+                                      child: Icon(Icons.delete, color: Colors.red),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }),
+                      ),
+                      SizedBox(height: 8),
                       Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(
-                            flex: 4,
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -278,42 +516,31 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
                                   ),
                                   onChanged: (pattern) async {
                                     if (pattern.trim().isEmpty) {
-                                      setModalState(() {
-                                        itemSuggestions = [];
-                                      });
+                                      setModalState(
+                                              () => itemSuggestions = []);
                                       return;
                                     }
                                     try {
-                                      final results =
-                                      await SearchService.searchItems(
-                                          pattern);
-                                      setModalState(() {
-                                        itemSuggestions = results;
-                                      });
+                                      final results = await SearchService
+                                          .searchItems(pattern);
+                                      setModalState(
+                                              () => itemSuggestions = results);
                                     } catch (e) {
-                                      print("Error in searchItems: $e");
-                                      setModalState(() {
-                                        itemSuggestions = [];
-                                      });
+                                      setModalState(
+                                              () => itemSuggestions = []);
                                     }
                                   },
                                 ),
                                 if (itemSuggestions.isNotEmpty)
                                   Container(
                                     constraints:
-                                    BoxConstraints(maxHeight: 200),
+                                    BoxConstraints(maxHeight: 150),
                                     margin: const EdgeInsets.only(top: 4),
                                     decoration: BoxDecoration(
                                       color: Colors.white,
                                       border: Border.all(color: Colors.grey),
-                                      borderRadius: BorderRadius.circular(16),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black26,
-                                          blurRadius: 4,
-                                          offset: Offset(0, 2),
-                                        ),
-                                      ],
+                                      borderRadius:
+                                      BorderRadius.circular(16),
                                     ),
                                     child: ListView.builder(
                                       shrinkWrap: true,
@@ -325,8 +552,7 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
                                           title: Text(suggestion['item_name']
                                           as String),
                                           subtitle: Text(
-                                            "RM ${(suggestion['average_price'] as num).toStringAsFixed(2)}",
-                                          ),
+                                              "RM ${(suggestion['average_price'] as num).toStringAsFixed(2)}"),
                                           onTap: () {
                                             setModalState(() {
                                               itemNameController.text =
@@ -335,138 +561,143 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
                                               itemSuggestions = [];
                                               selectedItemId =
                                               suggestion['id'] as String;
-                                              selectedPrice =
-                                                  (suggestion['average_price']
-                                                  as num)
-                                                      .toDouble();
-                                              // MODIFICATION: This is where the item group/category swap is fixed.
-                                              selectedCategory = suggestion['item_category'] as String? ?? "";
-                                              selectedItemGroup = suggestion['item_group'] as String? ?? "";
+                                              selectedPrice = (suggestion[
+                                              'average_price'] as num)
+                                                  .toDouble();
+                                              selectedCategory = suggestion[
+                                              'item_group']
+                                              as String? ??
+                                                  "";
                                             });
                                           },
                                         );
                                       },
                                     ),
                                   ),
-                                SizedBox(height: 16),
                               ],
                             ),
                           ),
-
                           SizedBox(width: 8),
                           IconButton(
                             icon: Icon(Icons.add, color: Colors.white),
                             onPressed: () {
                               final name = itemNameController.text.trim();
-                              final int qty = 1;
-
-                              setModalState(() {
-                                // MODIFICATION: Added item_group to the map.
-                                detailedPackageItems.add({
-                                  "name": name,
-                                  "price": selectedPrice,
-                                  "category": selectedCategory,
-                                  "item_group": selectedItemGroup, // Storing the group
-                                  "number": qty,
+                              if (name.isNotEmpty && selectedPrice > 0) {
+                                setModalState(() {
+                                  detailedHamperItems.add({
+                                    "name": name,
+                                    "price": selectedPrice,
+                                    "category": selectedCategory,
+                                    "number": 1,
+                                  });
+                                  itemNameController.clear();
+                                  selectedPrice = 0.0;
+                                  selectedCategory = "";
                                 });
-
-                                itemNameController.clear();
-                              });
+                              }
                             },
                           ),
                         ],
                       ),
-
-                      SizedBox(height: 16),
+                      SizedBox(height: 24),
                       ElevatedButton(
                         onPressed: () async {
-                          if (detailedPackageItems.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                  content: Text(
-                                      "Please add at least one item to the package first.")),
-                            );
+                          final String hamperName =
+                          hamperNameController.text.trim();
+                          if (hamperName.isEmpty) {
+                            _showWarningDialog("Validation Error", "Please enter a package name.");
+                            return;
+                          }
+                          if (detailedHamperItems.isEmpty) {
+                            _showWarningDialog("Validation Error", "Please add at least one item to the hamper.");
                             return;
                           }
 
-                          _showLoadingDialog(); // Show loading overlay
+                          _showLoadingDialog();
 
                           try {
-                            double totalPrice = 0.0;
-                            for (var item in detailedPackageItems) {
-                              final double p =
-                              (item["price"] as num).toDouble();
-                              final int qty = item["number"] as int;
-                              totalPrice += p * qty;
-                            }
                             final priceResponse = await http.post(
                               Uri.parse(
                                   "https://us-central1-kita-tongtong.cloudfunctions.net/getPackagePrice"),
                               headers: {"Content-Type": "application/json"},
-                              body: jsonEncode({"items": detailedPackageItems}),
-                            );
+                              body: jsonEncode({"items": detailedHamperItems}),
+                            ).timeout(const Duration(seconds: 90));
+
                             if (priceResponse.statusCode != 200) {
                               throw Exception(
-                                  "getPackagePrice failed: ${priceResponse.body}");
+                                  "Server price check failed. Status: ${priceResponse.statusCode}");
                             }
-                            final priceData = jsonDecode(priceResponse.body)
-                            as Map<String, dynamic>;
-                            final double expectedTotal =
-                            (priceData["expectedTotal"] as num).toDouble();
+
+                            final responseData = jsonDecode(priceResponse.body);
+                            final double serverSideTotalPrice =
+                            (responseData['expectedTotal'] as num)
+                                .toDouble();
+
+                            final double voucherValue =
+                            selectedHamperVoucherValue.toDouble();
+                            final double maxAllowedPrice = voucherValue * 1.20;
+                            final double minAllowedPrice = voucherValue * 0.80;
+
+                            if (serverSideTotalPrice < minAllowedPrice) {
+                              _hideLoadingDialog();
+                              final double difference = minAllowedPrice - serverSideTotalPrice;
+                              _showWarningDialog("Validation Failed", "Price too low (RM ${serverSideTotalPrice.toStringAsFixed(2)}). Need to add at least RM ${difference.toStringAsFixed(2)} more.");
+                              return;
+                            }
+
+                            if (serverSideTotalPrice > maxAllowedPrice) {
+                              _hideLoadingDialog();
+                              final double difference = serverSideTotalPrice - maxAllowedPrice;
+                              _showWarningDialog("Validation Failed", "Item price too high (RM ${serverSideTotalPrice.toStringAsFixed(2)}). Need to decrease item at least RM ${difference.toStringAsFixed(2)}.");
+                              return;
+                            }
+
                             final bannerResponse = await http.post(
                               Uri.parse(
                                   "https://us-central1-kita-tongtong.cloudfunctions.net/generatePackageKasihImage"),
                               headers: {"Content-Type": "application/json"},
-                              body: jsonEncode({"items": detailedPackageItems}),
-                            );
+                              body:
+                              jsonEncode({"items": detailedHamperItems}),
+                            ).timeout(const Duration(seconds: 90));
+
                             if (bannerResponse.statusCode != 200) {
                               throw Exception(
-                                  "generatePackageKasihImage failed: ${bannerResponse.body}");
+                                  "Image generation failed. Status: ${bannerResponse.statusCode}");
                             }
-                            final bannerData = jsonDecode(bannerResponse.body)
-                            as Map<String, dynamic>;
-                            final String bannerUrl =
-                            bannerData["image_url"] as String;
 
-                            final packagesRef = FirebaseFirestore.instance
-                                .collection('package_kasih');
-                            await packagesRef.add({
-                              "price": totalPrice,
-                              "items": detailedPackageItems
-                                  .map((item) => {
-                                // MODIFICATION: Storing item_group in Firestore
-                                "name": item["name"],
-                                "price": item["price"],
-                                "category": item["category"],
-                                "item_group": item["item_group"],
-                              })
-                                  .toList(),
+                            final bannerData =
+                            jsonDecode(bannerResponse.body);
+                            final String bannerUrl = bannerData["image_url"];
+
+                            await FirebaseFirestore.instance
+                                .collection('package_hamper')
+                                .add({
+                              "name": hamperName,
+                              "voucherValue": selectedHamperVoucherValue,
+                              "totalPrice": serverSideTotalPrice,
+                              "items": detailedHamperItems,
                               "bannerUrl": bannerUrl,
                               "createdAt": Timestamp.now(),
                             });
 
-                            Navigator.pop(context); // Close the bottom sheet
+                            _hideLoadingDialog();
+                            Navigator.pop(context); // Close the modal sheet
+
+                            // Show success dialog on the main screen
+                            _showWarningDialog("Success", "Package Hamper '$hamperName' has been successfully submitted.");
+
                           } catch (e) {
-                            print("❌ ERROR inserting package: $e");
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                  content: Text(
-                                      'Error creating package: ${e.toString()}')),
-                            );
-                          } finally {
-                            _hideLoadingDialog(); // Hide loading overlay
+                            _hideLoadingDialog();
+                            _showWarningDialog("An Error Occurred", e.toString());
                           }
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Color(0xFFFDB515),
-                          padding: EdgeInsets.symmetric(
-                              vertical: 12, horizontal: 24),
+                          minimumSize: Size(double.infinity, 48),
                         ),
-                        child: Center(
-                          child: Text("Submit Package",
-                              style:
-                              TextStyle(fontSize: 16, color: Colors.black)),
-                        ),
+                        child: Text("Submit Hamper",
+                            style: TextStyle(
+                                fontSize: 16, color: Colors.black)),
                       ),
                     ],
                   ),
@@ -478,7 +709,6 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
       },
     );
   }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -486,206 +716,430 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
       body: SingleChildScrollView(
         child: Column(
           children: [
+            // Toggle Switch
             Padding(
-              padding: EdgeInsets.only(top: 70, left: 16, right: 16),
+              padding: const EdgeInsets.only(top: 70.0, left: 16, right: 16),
               child: Container(
                 height: 50,
                 decoration: BoxDecoration(
                   color: Color(0xFFFDB515),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                alignment: Alignment.center,
-                child: Text(
-                  "Package Kasih",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-            Container(
-              margin: EdgeInsets.symmetric(horizontal: 5, vertical: 10),
-              padding: EdgeInsets.symmetric(horizontal: 15, vertical: 20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  stops: [0.16, 0.38, 0.58, 0.88],
-                  colors: [
-                    Color(0xFFF9F295),
-                    Color(0xFFE0AA3E),
-                    Color(0xFFF9F295),
-                    Color(0xFFB88A44),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () =>
+                            setState(() => isPackageKasihSelected = true),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: isPackageKasihSelected
+                                ? Colors.white
+                                : Color(0xFFFDB515),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            "Package Kasih",
+                            style: TextStyle(
+                              color: isPackageKasihSelected
+                                  ? Color(0xFFFDB515)
+                                  : Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () =>
+                            setState(() => isPackageKasihSelected = false),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: !isPackageKasihSelected
+                                ? Colors.white
+                                : Color(0xFFFDB515),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            "Package Hamper",
+                            style: TextStyle(
+                              color: !isPackageKasihSelected
+                                  ? Color(0xFFFDB515)
+                                  : Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Package Kasih",
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
-                  ),
-                  SizedBox(height: 10),
-                  StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection("package_kasih")
-                        .orderBy("price", descending: false)
-                        .snapshots(),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return Center(child: CircularProgressIndicator());
-                      }
-                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                        return Center(
-                          child: Text(
-                            "No Package Kasih available",
-                            style: TextStyle(fontSize: 16, color: Colors.black),
-                          ),
-                        );
-                      }
-
-                      final docs = snapshot.data!.docs;
-
-                      return Column(
-                        children: docs.map((doc) {
-                          final pkg = doc.data() as Map<String, dynamic>;
-                          final bannerUrl = pkg["bannerUrl"] ?? "";
-                          final value = pkg["price"] ?? 0.0;
-
-                          final items = pkg['items'] as List<dynamic>? ?? [];
-                          final String title = items.isNotEmpty ? items.first['name'] as String? ?? 'Unnamed Package' : 'Unnamed Package';
-                          final String category = items.isNotEmpty ? items.first['category'] as String? ?? 'No Category' : 'No Category';
-
-                          // --- SWIPE-TO-DELETE IMPLEMENTED ---
-                          return Dismissible(
-                            key: Key(doc.id), // Unique key for each item
-                            direction: DismissDirection.endToStart, // Swipe left
-                            onDismissed: (direction) async {
-                              // Delete from Firestore
-                              await doc.reference.delete();
-
-                              // Show confirmation SnackBar
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('"$title" has been deleted.'),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
-                            },
-                            // Background shown during swipe
-                            background: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.red,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              margin: EdgeInsets.symmetric(vertical: 8),
-                              padding: EdgeInsets.symmetric(horizontal: 20),
-                              alignment: Alignment.centerRight,
-                              child: Icon(
-                                Icons.delete,
-                                color: Colors.white,
-                              ),
-                            ),
-                            // The actual card content
-                            child: Container(
-                              margin: EdgeInsets.symmetric(vertical: 8),
-                              padding: EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: Colors.transparent,
-                                border: Border.all(color: Colors.black),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [
-                                  bannerUrl.isNotEmpty
-                                      ? ClipRRect(
-                                    borderRadius: BorderRadius.circular(10),
-                                    child: Image.network(
-                                      bannerUrl,
-                                      height: 140,
-                                      width: double.infinity,
-                                      fit: BoxFit.cover,
-                                    ),
-                                  )
-                                      : Container(
-                                    height: 100,
-                                    color: Colors.grey[300],
-                                    child: Center(
-                                      child: Icon(Icons.image,
-                                          color: Colors.grey),
-                                    ),
-                                  ),
-                                  GestureDetector(
-                                    onTap: () => _editPackageName(doc),
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(vertical: 4.0),
-                                      child: Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          Flexible(
-                                            child: Text(
-                                              title,
-                                              style: TextStyle(
-                                                fontSize: 18,
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.black,
-                                              ),
-                                              textAlign: TextAlign.center,
-                                            ),
-                                          ),
-                                          SizedBox(width: 8),
-                                          Icon(Icons.edit, size: 16, color: Colors.black54),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                  Text(
-                                    "Category: $category",
-                                    style: TextStyle(
-                                        color: Colors.grey[800],
-                                        fontStyle: FontStyle.italic,
-                                        fontSize: 12),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                  SizedBox(height: 10),
-                                  Text(
-                                    "Price: RM ${value.toStringAsFixed(2)}",
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.black,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      );
-                    },
-                  ),
-                ],
               ),
             ),
+
+            // Conditional List View
+            if (isPackageKasihSelected)
+              buildPackageKasihList()
+            else
+              buildPackageHamperList(),
           ],
         ),
       ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: Color(0xFFFDB515),
         child: Icon(Icons.add, color: Colors.black),
-        onPressed: _AddPackageKasih,
+        onPressed:
+        isPackageKasihSelected ? _addPackageKasih : _addPackageHamper,
       ),
       bottomNavigationBar: BottomNavBar(
         selectedIndex: _selectedIndex,
         onItemTapped: _onItemTapped,
+      ),
+    );
+  }
+
+  // --- WIDGET BUILDER for Package Kasih List ---
+  Widget buildPackageKasihList() {
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 5, vertical: 10),
+      padding: EdgeInsets.symmetric(horizontal: 15, vertical: 20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFFF9F295),
+            Color(0xFFE0AA3E),
+            Color(0xFFF9F295),
+            Color(0xFFB88A44),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "Available Packages Kasih",
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
+          SizedBox(height: 10),
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection("package_kasih")
+                .orderBy("price", descending: false)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return Center(child: CircularProgressIndicator());
+              }
+              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                return Center(
+                  child: Text(
+                    "No packages available",
+                    style: TextStyle(fontSize: 16, color: Colors.black),
+                  ),
+                );
+              }
+
+              final docs = snapshot.data!.docs;
+
+              return Column(
+                children: docs.map((doc) {
+                  final pkg = doc.data() as Map<String, dynamic>;
+                  final bannerUrl = pkg["bannerUrl"] ?? "";
+                  final value = pkg["price"] ?? 0.0;
+                  // This is the correct line
+                  final title = (pkg['items'] as List<dynamic>? ?? []).isNotEmpty ? pkg['items'][0]['name'] ?? 'Unnamed Package' : 'Unnamed Package';
+                  final items = pkg['items'] as List<dynamic>? ?? [];
+                  final category = items.isNotEmpty
+                      ? items.first['category'] ?? 'No Category'
+                      : 'No Category';
+
+                  return Dismissible(
+                    key: Key(doc.id),
+                    direction: DismissDirection.endToStart,
+                    onDismissed: (direction) async {
+                      await doc.reference.delete();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('"$title" has been deleted.'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    },
+                    background: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      margin: EdgeInsets.symmetric(vertical: 8),
+                      padding: EdgeInsets.symmetric(horizontal: 20),
+                      alignment: Alignment.centerRight,
+                      child: Icon(Icons.delete, color: Colors.white),
+                    ),
+                    child: Container(
+                      margin: EdgeInsets.symmetric(vertical: 8),
+                      padding: EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.transparent,
+                        border: Border.all(color: Colors.black),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          if (bannerUrl.isNotEmpty)
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: Image.network(
+                                bannerUrl,
+                                height: 140,
+                                width: double.infinity,
+                                fit: BoxFit.cover,
+                              ),
+                            )
+                          else
+                            Container(
+                              height: 100,
+                              color: Colors.grey[300],
+                              child: Center(
+                                  child: Icon(Icons.image, color: Colors.grey)),
+                            ),
+                          GestureDetector(
+                            onTap: () => _editPackageName(doc, title),
+                            child: Padding(
+                              padding:
+                              const EdgeInsets.symmetric(vertical: 4.0),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      title,
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.black,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+                                  SizedBox(width: 8),
+                                  Icon(Icons.edit,
+                                      size: 16, color: Colors.black54),
+                                ],
+                              ),
+                            ),
+                          ),
+                          Text(
+                            "Category: $category",
+                            style: TextStyle(
+                                color: Colors.grey[800],
+                                fontStyle: FontStyle.italic,
+                                fontSize: 12),
+                            textAlign: TextAlign.center,
+                          ),
+                          SizedBox(height: 10),
+                          Text(
+                            "Price: RM ${value.toStringAsFixed(2)}",
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- WIDGET BUILDER for Package Hamper List ---
+  Widget buildPackageHamperList() {
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 5, vertical: 10),
+      padding: EdgeInsets.symmetric(horizontal: 15, vertical: 20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFFF9F295),
+            Color(0xFFE0AA3E),
+            Color(0xFFF9F295),
+            Color(0xFFB88A44),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "Available Packages Hamper",
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
+          SizedBox(height: 10),
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection("package_hamper")
+                .orderBy("createdAt", descending: true)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return Center(child: CircularProgressIndicator());
+              }
+              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                return Center(
+                  child: Text(
+                    "No hampers available",
+                    style: TextStyle(fontSize: 16, color: Colors.black),
+                  ),
+                );
+              }
+
+              final docs = snapshot.data!.docs;
+
+              return Column(
+                children: docs.map((doc) {
+                  final pkg = doc.data() as Map<String, dynamic>;
+                  final bannerUrl = pkg["bannerUrl"] ?? "";
+                  final title = pkg['name'] ?? 'Unnamed Hamper';
+                  final voucherValue = pkg['voucherValue'] ?? 0;
+                  final items = pkg['items'] as List<dynamic>? ?? [];
+
+                  return Dismissible(
+                    key: Key(doc.id),
+                    direction: DismissDirection.endToStart,
+                    onDismissed: (direction) async {
+                      await doc.reference.delete();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('"$title" has been deleted.'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    },
+                    background: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      margin: EdgeInsets.symmetric(vertical: 8),
+                      padding: EdgeInsets.symmetric(horizontal: 20),
+                      alignment: Alignment.centerRight,
+                      child: Icon(Icons.delete, color: Colors.white),
+                    ),
+                    child: Container(
+                      margin: EdgeInsets.symmetric(vertical: 8),
+                      padding: EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.transparent,
+                        border: Border.all(color: Colors.black),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          if (bannerUrl.isNotEmpty)
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: Image.network(
+                                bannerUrl,
+                                height: 140,
+                                width: double.infinity,
+                                fit: BoxFit.cover,
+                              ),
+                            )
+                          else
+                            Container(
+                              height: 100,
+                              color: Colors.grey[300],
+                              child: Center(
+                                  child: Icon(Icons.image, color: Colors.grey)),
+                            ),
+                          SizedBox(height: 10),
+                          GestureDetector(
+                            onTap: () => _editPackageName(doc, title),
+                            child: Padding(
+                              padding:
+                              const EdgeInsets.symmetric(vertical: 4.0),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      title,
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.black,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+                                  SizedBox(width: 8),
+                                  Icon(Icons.edit,
+                                      size: 16, color: Colors.black54),
+                                ],
+                              ),
+                            ),
+                          ),
+                          SizedBox(height: 10),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text("Items:", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
+                                  ...items.asMap().entries.map((entry) {
+                                    int idx = entry.key;
+                                    Map item = entry.value;
+                                    return Text("${idx + 1}. ${item['name']}");
+                                  }).toList(),
+                                ],
+                              ),
+                            ),
+                          ),
+                          SizedBox(height: 10),
+                          Text(
+                            "Voucher Value: RM $voucherValue",
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              );
+            },
+          ),
+        ],
       ),
     );
   }

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:projects/pages/applyAid.dart'; // Import the ApplyAid page
+import 'package:projects/pages/applyAid.dart';
 import 'package:projects/pages/event.dart';
 import 'package:projects/pages/verifyApplications.dart';
 import 'package:projects/pages/issueReward.dart';
+import 'package:projects/localization/app_localizations.dart';
+
 class StaffDashboard extends StatelessWidget {
   Widget build(BuildContext context) {
     return GridView.count(
@@ -10,7 +12,6 @@ class StaffDashboard extends StatelessWidget {
       physics: NeverScrollableScrollPhysics(),
       crossAxisCount: 4,
       shrinkWrap: true,
-
       children: [
         for (int i = 1; i < 5; i++)
           Column(
@@ -30,20 +31,21 @@ class StaffDashboard extends StatelessWidget {
                         context,
                         MaterialPageRoute(builder: (context) => ApplyAid()),
                       );
-                  } else if (i == 2) {
+                    } else if (i == 2) {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => IssueReward()), // Navigate to EventPage
+                        MaterialPageRoute(builder: (context) => IssueReward()),
                       );
-                    }else if (i == 3) {
+                    } else if (i == 3) {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => VerifyApplicationsScreen()), // Navigate to EventPage
+                        MaterialPageRoute(
+                            builder: (context) => VerifyApplicationsScreen()),
                       );
-                    }else if (i == 4) {
+                    } else if (i == 4) {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => EventPage()), // Navigate to EventPage
+                        MaterialPageRoute(builder: (context) => EventPage()),
                       );
                     }
                   },
@@ -55,9 +57,9 @@ class StaffDashboard extends StatelessWidget {
                 ),
               ),
               Container(
-                width: 85, // Limit the width of the text
+                width: 85,
                 child: Text(
-                  getTextForIndex(i),
+                  getTextForIndex(context, i), // Pass context here
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.normal,
@@ -76,16 +78,18 @@ class StaffDashboard extends StatelessWidget {
   }
 }
 
-String getTextForIndex(int index) {
+// Updated function to accept context and use AppLocalizations
+String getTextForIndex(BuildContext context, int index) {
+  final localizations = AppLocalizations.of(context);
   switch (index) {
     case 1:
-      return "Submit Application";
+      return localizations.translate('dashboard_submit_application');
     case 2:
-      return "Asnaf Vouchers";
+      return localizations.translate('dashboard_asnaf_vouchers');
     case 3:
-      return "Monitor Applications";
+      return localizations.translate('dashboard_monitor_applications');
     case 4:
-      return "Manage Events";
+      return localizations.translate('dashboard_manage_events');
     default:
       return "";
   }

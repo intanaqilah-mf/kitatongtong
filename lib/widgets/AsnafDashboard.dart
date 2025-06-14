@@ -3,6 +3,7 @@ import 'package:projects/pages/applyAid.dart';
 import 'package:projects/pages/applications.dart';
 import 'package:projects/pages/rewards.dart';
 import 'package:projects/pages/helpAsnaf.dart';
+import 'package:projects/localization/app_localizations.dart';
 
 class AsnafDashboard extends StatelessWidget {
   Widget build(BuildContext context) {
@@ -11,7 +12,6 @@ class AsnafDashboard extends StatelessWidget {
       physics: NeverScrollableScrollPhysics(),
       crossAxisCount: 4,
       shrinkWrap: true,
-
       children: [
         for (int i = 1; i < 5; i++)
           Column(
@@ -37,12 +37,12 @@ class AsnafDashboard extends StatelessWidget {
                         MaterialPageRoute(builder: (context) => ApplyAid()),
                       );
                     } else if (i == 3) {
-                    Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => ApplicationsScreen()),
-                    );
-                    }
-                    else if (i == 4) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => ApplicationsScreen()),
+                      );
+                    } else if (i == 4) {
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (context) => Rewards()),
@@ -57,9 +57,9 @@ class AsnafDashboard extends StatelessWidget {
                 ),
               ),
               Container(
-                width: 85, // Limit the width of the text
+                width: 85,
                 child: Text(
-                  getTextForIndex(i),
+                  getTextForIndex(context, i), // Pass context here
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.normal,
@@ -78,16 +78,18 @@ class AsnafDashboard extends StatelessWidget {
   }
 }
 
-String getTextForIndex(int index) {
+// Updated function to accept context and use AppLocalizations
+String getTextForIndex(BuildContext context, int index) {
+  final localizations = AppLocalizations.of(context);
   switch (index) {
     case 1:
-      return "Help Asnaf";
+      return localizations.translate('dashboard_help_asnaf');
     case 2:
-      return "Apply Aid";
+      return localizations.translate('dashboard_apply_aid');
     case 3:
-      return "Application Status";
+      return localizations.translate('dashboard_application_status');
     case 4:
-      return "Redeem Rewards";
+      return localizations.translate('dashboard_redeem_rewards');
     default:
       return "";
   }

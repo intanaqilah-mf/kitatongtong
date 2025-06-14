@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart'; // Added for date formatting
-import '../widgets/HomeAppBar.dart';
+import 'package:intl/intl.dart';
 import '../widgets/AsnafDashboard.dart';
 import '../widgets/AdminDashboard.dart';
 import '../widgets/StaffDashboard.dart';
@@ -10,7 +9,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:projects/pages/EventDetailPage.dart';
 import 'package:url_launcher/url_launcher.dart';
-
+import 'package:projects/localization/app_localizations.dart';
+import '../../main.dart'; // Import main.dart to access MyApp.setLocale
 
 class HomePage extends StatefulWidget {
   @override
@@ -21,12 +21,19 @@ class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
   String? userRole;
   Map<String, List<DocumentSnapshot>> sectionEvents = {};
+  Locale _currentLocale = Locale('en');
 
   @override
   void initState() {
     super.initState();
     _getUserRole();
     _fetchSections();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _currentLocale = Localizations.localeOf(context);
   }
 
   Future<void> _getUserRole() async {
@@ -47,13 +54,13 @@ class _HomePageState extends State<HomePage> {
     await FirebaseFirestore.instance.collection("event").get();
 
     for (var doc in snapshot.docs) {
-      String section = doc["sectionEvent"] ?? "Upcoming Activities"; // Default to "Upcoming Activities"
+      String section = doc["sectionEvent"] ?? "Upcoming Activities";
       if (!sectionEvents.containsKey(section)) {
         sectionEvents[section] = [];
       }
       sectionEvents[section]!.add(doc);
     }
-    setState(() {}); // Refresh the UI with the new data
+    setState(() {});
   }
 
   void _onItemTapped(int index) {
@@ -76,7 +83,6 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    // --- Start of modification for Upcoming Activities ---
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
 
@@ -93,7 +99,7 @@ class _HomePageState extends State<HomePage> {
           return false;
         }
       }
-      return true; // Keep events without an end date
+      return true;
     }).toList();
 
     validUpcomingEvents.sort((a, b) {
@@ -101,11 +107,20 @@ class _HomePageState extends State<HomePage> {
       Timestamp bTimestamp = b["updatedAt"];
       return bTimestamp.compareTo(aTimestamp);
     });
-    // --- End of modification ---
+
+    String getSearchHint() {
+      switch (userRole) {
+        case 'admin':
+          return AppLocalizations.of(context).translate('search_hint_admin');
+        case 'staff':
+          return AppLocalizations.of(context).translate('search_hint_staff');
+        default:
+          return AppLocalizations.of(context).translate('search_hint_asnaf');
+      }
+    }
 
     final _widgetOptions = <Widget>[
       SingleChildScrollView(
-        // Wrap the content in SingleChildScrollView for scrolling
         child: Column(
           children: [
             Container(
@@ -128,11 +143,7 @@ class _HomePageState extends State<HomePage> {
                             child: TextFormField(
                               decoration: InputDecoration(
                                 border: InputBorder.none,
-                                hintText: userRole == 'admin'
-                                    ? "Admin here..."
-                                    : userRole == 'staff'
-                                    ? "Staff here..."
-                                    : "Asnaf here...",
+                                hintText: getSearchHint(),
                               ),
                             ),
                           ),
@@ -157,6 +168,33 @@ class _HomePageState extends State<HomePage> {
                             color: Colors.white,
                           ),
                         ),
+                        SizedBox(width: 10),
+                        // Language Toggle
+                        Row(
+                          children: [
+                            GestureDetector(
+                              onTap: () => MyApp.setLocale(context, const Locale('en', '')),
+                              child: Text(
+                                'ENG',
+                                style: TextStyle(
+                                  color: _currentLocale.languageCode == 'en' ? Colors.blue : Colors.grey,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            const Text(' | ', style: TextStyle(color: Colors.grey)),
+                            GestureDetector(
+                              onTap: () => MyApp.setLocale(context, const Locale('ms', '')),
+                              child: Text(
+                                'BM',
+                                style: TextStyle(
+                                  color: _currentLocale.languageCode == 'ms' ? Colors.blue : Colors.grey,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        )
                       ],
                     ),
                   ),
@@ -185,7 +223,7 @@ class _HomePageState extends State<HomePage> {
                         Padding(
                           padding: const EdgeInsets.symmetric(vertical: 8),
                           child: Text(
-                            "Upcoming Activities",
+                            AppLocalizations.of(context).translate('upcoming_activities'),
                             style: TextStyle(
                               fontSize: 25,
                               fontWeight: FontWeight.bold,
@@ -193,12 +231,11 @@ class _HomePageState extends State<HomePage> {
                             ),
                           ),
                         ),
-                        // Display the event list horizontally
                         Container(
                           height: 230,
                           child: ListView.builder(
                             scrollDirection: Axis.horizontal,
-                            itemCount: validUpcomingEvents.length, // Changed here
+                            itemCount: validUpcomingEvents.length,
                             itemBuilder: (context, index) {
                               var eventData = validUpcomingEvents[index].data() as Map<String, dynamic>;
                               var eventDoc = validUpcomingEvents[index];
@@ -219,7 +256,6 @@ class _HomePageState extends State<HomePage> {
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        // Event Image
                                         ClipRRect(
                                           borderRadius: BorderRadius.circular(8),
                                           child: Image.network(
@@ -231,7 +267,6 @@ class _HomePageState extends State<HomePage> {
                                           ),
                                         ),
                                         SizedBox(height: 4),
-                                        // Event Name
                                         SizedBox(
                                           height: 36,
                                           child: Text(
@@ -246,9 +281,8 @@ class _HomePageState extends State<HomePage> {
                                           ),
                                         ),
                                         SizedBox(height: 4),
-                                        // Points
                                         Text(
-                                          "Get ${eventData["points"] ?? "0"} pts",
+                                          AppLocalizations.of(context).translateWithArgs('get_points', {'points': eventData["points"]?.toString() ?? "0"}),
                                           style: TextStyle(
                                             fontWeight: FontWeight.bold,
                                             fontSize: 13,
@@ -256,7 +290,6 @@ class _HomePageState extends State<HomePage> {
                                           ),
                                         ),
                                         SizedBox(height: 4),
-                                        // Date
                                         Row(
                                           children: [
                                             Icon(Icons.calendar_today, color: Colors.red, size: 14),
@@ -275,7 +308,6 @@ class _HomePageState extends State<HomePage> {
                                           ],
                                         ),
                                         SizedBox(height: 4),
-                                        // Location
                                         _buildLocationRow(eventData['location']),
                                       ],
                                     ),
@@ -297,10 +329,10 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
       ),
-      Center(child: Text('Search Page')),
-      Center(child: Text('Shopping Page')),
-      Center(child: Text('Inbox Page')),
-      Center(child: Text('Profile Page')),
+      Center(child: Text(AppLocalizations.of(context).translate('search_page'))),
+      Center(child: Text(AppLocalizations.of(context).translate('shopping_page'))),
+      Center(child: Text(AppLocalizations.of(context).translate('inbox_page'))),
+      Center(child: Text(AppLocalizations.of(context).translate('profile_page'))),
     ];
 
     return Scaffold(
@@ -313,11 +345,11 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildLocationRow(dynamic locationData) {
-    String address = "No location";
+    String address = AppLocalizations.of(context).translate('no_location');
     bool isTappable = false;
 
     if (locationData is Map) {
-      address = locationData['address'] ?? 'No location';
+      address = locationData['address'] ?? AppLocalizations.of(context).translate('no_location');
       isTappable = locationData['latitude'] != null && locationData['longitude'] != null;
     } else if (locationData is String && locationData.isNotEmpty) {
       address = locationData;
@@ -445,7 +477,7 @@ class _HomePageState extends State<HomePage> {
                           ),
                           SizedBox(height: 4),
                           Text(
-                            "Get ${eventData["points"] ?? "0"} pts",
+                            AppLocalizations.of(context).translateWithArgs('get_points', {'points': eventData["points"]?.toString() ?? "0"}),
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 13,

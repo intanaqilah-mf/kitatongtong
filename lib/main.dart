@@ -5,17 +5,17 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'dart:async';
-
-import 'package:app_links/app_links.dart'; // For mobile deep linking
-import 'package:flutter/foundation.dart' show kIsWeb; // For platform checking
+import 'package:app_links/app_links.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 import '../pages/loginPage.dart';
 import '../pages/profilePage.dart';
 import '../pages/successPay.dart';
 import '../pages/failPay.dart';
 import '../pages/notifications.dart';
-
 import 'firebase_options.dart';
+import '../localization/app_localizations.dart'; // Import the new file
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -41,11 +41,24 @@ void main() async {
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
+  static void setLocale(BuildContext context, Locale newLocale) {
+    _MyAppState? state = context.findAncestorStateOfType<_MyAppState>();
+    state?.setLocale(newLocale);
+  }
+
   @override
   State<MyApp> createState() => _MyAppState();
 }
 
 class _MyAppState extends State<MyApp> {
+  Locale _locale = const Locale('en', ''); // Default to English
+
+  void setLocale(Locale locale) {
+    setState(() {
+      _locale = locale;
+    });
+  }
+
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
   late AppLinks _appLinks;
   StreamSubscription<Uri>? _linkSubscription;
@@ -54,7 +67,7 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     _initFCM();
-    if (!kIsWeb) { // Initialize deep links only for mobile
+    if (!kIsWeb) {
       _initDeepLinks();
     }
   }
@@ -125,7 +138,7 @@ class _MyAppState extends State<MyApp> {
     }
   }
 
-  Future<void> _initDeepLinks() async { // This will only be called if !kIsWeb
+  Future<void> _initDeepLinks() async {
     _appLinks = AppLinks();
     try {
       final Uri? initialUri = await _appLinks.getInitialLink();
@@ -144,12 +157,10 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
-  void _handleMobileDeepLink(Uri uri) { // Renamed for clarity
+  void _handleMobileDeepLink(Uri uri) {
     print('Handling mobile deep link: $uri');
     if (uri.scheme == 'myapp' && uri.host == 'payment-result') {
       final status = uri.queryParameters['status'];
-      // For mobile, we don't usually pass large data via deep links.
-      // The PaymentWebView already has `donationData` if needed.
       Map<String, dynamic> argumentsForNavigation = {};
       if (status == 'success') {
         navigatorKey.currentState?.pushNamedAndRemoveUntil(
@@ -177,8 +188,19 @@ class _MyAppState extends State<MyApp> {
       theme: ThemeData(
         scaffoldBackgroundColor: const Color(0xFF303030),
       ),
+      locale: _locale,
+      supportedLocales: [
+        Locale('en', ''),
+        Locale('ms', ''),
+      ],
+      localizationsDelegates: [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       initialRoute: kIsWeb && Uri.base.path.isNotEmpty ? Uri.base.path + (Uri.base.hasQuery ? '?${Uri.base.query}' : '') : '/',
-      onGenerateRoute: (settings) { // settings already IS a RouteSettings object
+      onGenerateRoute: (settings) {
         Uri? routeUri;
         if (settings.name != null) {
           if (kIsWeb) {
@@ -194,37 +216,36 @@ class _MyAppState extends State<MyApp> {
           final billcode = routeUri.queryParameters['billcode'];
           print("[Web] Payment redirect detected: status=$status, refno=$refno, billcode=$billcode");
 
-          Map<String, dynamic> paymentResultArgs = { // Changed to Map<String, dynamic>
+          Map<String, dynamic> paymentResultArgs = {
             'status': status,
             'refno': refno,
             'billcode': billcode,
-            'source': 'web_redirect' // Useful for your Success/Fail pages
+            'source': 'web_redirect'
           };
 
           if (status == '1') {
             return MaterialPageRoute(
-              builder: (_) => const SuccessPay(), // No 'arguments:' here
-              settings: RouteSettings(arguments: paymentResultArgs), // Pass args via settings
+              builder: (_) => const SuccessPay(),
+              settings: RouteSettings(arguments: paymentResultArgs),
             );
-          } else { // Includes '3' (failure) and potentially others like '2' (pending)
+          } else {
             return MaterialPageRoute(
-              builder: (_) => const FailPay(), // No 'arguments:' here
-              settings: RouteSettings(arguments: paymentResultArgs), // Pass args via settings
+              builder: (_) => const FailPay(),
+              settings: RouteSettings(arguments: paymentResultArgs),
             );
           }
         }
 
-        // Fallback to named routes if not a web payment redirect
         switch (settings.name) {
           case '/successPay':
             return MaterialPageRoute(
-              builder: (_) => const SuccessPay(), // No 'arguments:' here
-              settings: settings, // Pass the original settings object which contains arguments
+              builder: (_) => const SuccessPay(),
+              settings: settings,
             );
           case '/failPay':
             return MaterialPageRoute(
-              builder: (_) => const FailPay(), // No 'arguments:' here
-              settings: settings, // Pass the original settings object
+              builder: (_) => const FailPay(),
+              settings: settings,
             );
           case '/notifications':
             return MaterialPageRoute(builder: (_) => NotificationsScreen());
@@ -264,21 +285,3 @@ class AuthWrapper extends StatelessWidget {
     );
   }
 }
-
-// Ensure SuccessPay, FailPay, and NotificationsScreen widgets are correctly defined
-// and can handle the 'arguments' parameter if you intend to pass data.
-// Example structure for SuccessPay/FailPay:
-//
-// class SuccessPay extends StatelessWidget {
-//   final Map<String, dynamic>? arguments; // Can be Map<String, String?> for web
-//   const SuccessPay({Key? key, this.arguments}) : super(key: key);
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     // Use arguments to display info
-//     return Scaffold(
-//       appBar: AppBar(title: Text("Payment Success")),
-//       body: Center(child: Text("Payment successful! Details: ${arguments.toString()}")),
-//     );
-//   }
-// }

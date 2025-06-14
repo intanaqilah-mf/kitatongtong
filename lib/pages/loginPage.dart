@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../pages/profilePage.dart';
-// import '../pages/HomePage.dart'; // HomePage import was present but not used in the build method or sign-in logic.
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:projects/localization/app_localizations.dart';
+import 'package:http/http.dart' as http;
+import 'package:firebase_storage/firebase_storage.dart';
 
 class LoginPage extends StatelessWidget {
-  // signInWithGoogle method remains the same as you provided
   Future<UserCredential?> signInWithGoogle() async {
     try {
       final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
@@ -16,14 +17,16 @@ class LoginPage extends StatelessWidget {
         return null;
       }
 
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final GoogleSignInAuthentication googleAuth =
+      await googleUser.authentication;
 
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 
-      final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
+      final userCredential =
+      await FirebaseAuth.instance.signInWithCredential(credential);
 
       if (userCredential.user != null) {
         print("User signed in: ${userCredential.user!.uid}");
@@ -38,61 +41,44 @@ class LoginPage extends StatelessWidget {
     }
   }
 
-  // checkUserRoleAndNavigate method remains the same
-  Future<void> checkUserRoleAndNavigate(BuildContext context, User user) async {
-    try {
-      final userRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
-      final docSnapshot = await userRef.get();
-      if (!docSnapshot.exists) {
-        print("Creating Firestore document for user: ${user.uid}");
-        await userRef.set({
-          'email': user.email,
-          'name': user.displayName ?? "No Name",
-          'role': 'asnaf', // Default role
-          'created_at': FieldValue.serverTimestamp(),
-          'last_login': FieldValue.serverTimestamp(),
-        });
-        print("User document created for UID: ${user.uid}");
-      } else {
-        print("User document already exists for UID: ${user.uid}");
-        // If document exists, you might still want to update last_login here
-        // or ensure it's handled by updateLastLogin called separately.
-      }
-    } catch (e) {
-      print("Error creating or checking user in Firestore: $e");
+  Future<void> createOrUpdateUserInFirestore(User user) async {
+    final userRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
+    final snap    = await userRef.get();
+
+    // 1) Grab provider info
+    final profile    = user.providerData
+        .firstWhere((p) => p.providerId == 'google.com', orElse: () => user.providerData[0]);
+    final email       = profile.email;
+    final googlePhoto = profile.photoURL;
+
+    // 2) Download & re-upload into Storage/profile_pictures/uid.jpg
+    String storagePhotoUrl = googlePhoto!;
+    if (googlePhoto.isNotEmpty) {
+      final resp = await http.get(Uri.parse(googlePhoto));
+      final ref  = FirebaseStorage.instance
+          .ref()
+          .child('profile_pictures')
+          .child('${user.uid}.jpg');
+      await ref.putData(resp.bodyBytes, SettableMetadata(contentType: 'image/jpeg'));
+      storagePhotoUrl = await ref.getDownloadURL();
     }
+    await user.updatePhotoURL(storagePhotoUrl);
+
+    // 3) Merge into Firestore
+    final data = {
+      'uid':        user.uid,
+      'email':      email,
+      'photoUrl':   storagePhotoUrl,
+      'name':       user.displayName ?? 'No Name',
+      'role':       'asnaf',
+      'last_login': FieldValue.serverTimestamp(),
+      if (!snap.exists) 'created_at': FieldValue.serverTimestamp(),
+    };
+    await userRef.set(data, SetOptions(merge: true));
   }
 
-  // createUserInFirestore method remains the same
-  Future<void> createUserInFirestore(User user) async {
-    try {
-      final userRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
-      final docSnapshot = await userRef.get();
-      if (!docSnapshot.exists) {
-        print("Creating Firestore document for user: ${user.uid}");
-        await userRef.set({
-          'email': user.email,
-          'name': user.displayName ?? "No Name",
-          'role': 'asnaf',
-          'created_at': FieldValue.serverTimestamp(),
-          'last_login': FieldValue.serverTimestamp(),
-        });
-        print("User document created for UID: ${user.uid}");
-      } else {
-        print("User document already exists for UID: ${user.uid}");
-      }
-    } catch (e) {
-      print("Error creating user in Firestore: $e");
-    }
-  }
-
-  // updateLastLogin method remains the same
   Future<void> updateLastLogin(User user) async {
     final userRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
-
-    // It's good practice to ensure the document exists before updating,
-    // or use SetOptions(merge: true) if creating/updating.
-    // However, since createUserInFirestore is called before this, it should usually exist.
     await userRef.update({
       'last_login': FieldValue.serverTimestamp(),
     });
@@ -139,20 +125,14 @@ class LoginPage extends StatelessWidget {
               ),
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
-                // ✨ MAIN CHANGE: Wrap the Column with SingleChildScrollView ✨
                 child: SingleChildScrollView(
                   child: Column(
-                    // When inside SingleChildScrollView, MainAxisAlignment.spaceBetween
-                    // might not behave as expected if the content is shorter than the view.
-                    // Consider using MainAxisAlignment.start and adding Spacer() or SizedBox
-                    // if specific spacing is needed at the bottom.
-                    // For simply preventing overflow, this is fine.
-                    mainAxisAlignment: MainAxisAlignment.start, // Adjusted for scrolling
+                    mainAxisAlignment: MainAxisAlignment.start,
                     children: [
                       Column(
                         children: [
                           Text(
-                            "Sign up or log in",
+                            AppLocalizations.of(context).translate('login_title'),
                             style: TextStyle(
                               fontSize: 24,
                               fontWeight: FontWeight.bold,
@@ -161,20 +141,23 @@ class LoginPage extends StatelessWidget {
                           ),
                           SizedBox(height: 8),
                           Text(
-                            "Select your preferred method to continue",
+                            AppLocalizations.of(context)
+                                .translate('login_subtitle'),
                             style: TextStyle(
                               fontSize: 16,
                               color: Colors.black,
                             ),
-                            textAlign: TextAlign.center, // Added for better text wrapping
+                            textAlign: TextAlign.center,
                           ),
                           SizedBox(height: 20),
                           ElevatedButton.icon(
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.black,
                               foregroundColor: Colors.white,
-                              minimumSize: Size(MediaQuery.of(context).size.width * 0.9, 50),
-                              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                              minimumSize: Size(
+                                  MediaQuery.of(context).size.width * 0.9, 50),
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 20, vertical: 12),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(10),
                               ),
@@ -184,7 +167,8 @@ class LoginPage extends StatelessWidget {
                               height: 20,
                             ),
                             label: Text(
-                              "Continue with Google",
+                              AppLocalizations.of(context)
+                                  .translate('login_google'),
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w300,
@@ -193,35 +177,40 @@ class LoginPage extends StatelessWidget {
                             onPressed: () async {
                               try {
                                 final userCredential = await signInWithGoogle();
-                                if (userCredential != null && userCredential.user != null) { // Added null check for userCredential.user
+                                if (userCredential != null &&
+                                    userCredential.user != null) {
                                   final user = userCredential.user!;
-                                  await createUserInFirestore(user); // Ensures user doc is created/checked
-                                  await updateLastLogin(user); // Updates last login
-                                  // checkUserRoleAndNavigate is redundant if createUserInFirestore handles creation
-                                  // and you're navigating to ProfilePage regardless of new/existing for this button.
-                                  // If checkUserRoleAndNavigate had specific navigation logic based on role
-                                  // that differs from ProfilePage, then it would be needed.
-                                  // For now, assuming ProfilePage is the destination.
-                                  // await checkUserRoleAndNavigate(context, user);
-                                  if (context.mounted) { // Check if widget is still in the tree
+                                  await createOrUpdateUserInFirestore(user);
+                                  await updateLastLogin(user);
+                                  print("Email: ${user.email}");
+
+                                  if (context.mounted) {
                                     Navigator.pushReplacement(
                                       context,
                                       MaterialPageRoute(
-                                        builder: (context) => ProfilePage(user: userCredential.user),
+                                        builder: (context) =>
+                                            ProfilePage(user: userCredential.user),
                                       ),
                                     );
                                   }
                                 } else {
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text("Google sign-in canceled or failed.")),
+                                      SnackBar(
+                                          content: Text(
+                                              AppLocalizations.of(context)
+                                                  .translate('login_failed'))),
                                     );
                                   }
                                 }
                               } catch (e) {
                                 if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text("Google sign-in error: $e")),
+                                    SnackBar(
+                                        content: Text(AppLocalizations.of(
+                                            context)
+                                            .translateWithArgs('login_error',
+                                            {'error': e.toString()}))),
                                   );
                                 }
                                 print("Sign-in process error: $e");
@@ -233,8 +222,10 @@ class LoginPage extends StatelessWidget {
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.black,
                               foregroundColor: Colors.white,
-                              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                              minimumSize: Size(MediaQuery.of(context).size.width * 0.9, 50),
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 20, vertical: 12),
+                              minimumSize: Size(
+                                  MediaQuery.of(context).size.width * 0.9, 50),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(10),
                               ),
@@ -244,28 +235,29 @@ class LoginPage extends StatelessWidget {
                               height: 20,
                             ),
                             label: Text(
-                              "Continue with Email",
+                              AppLocalizations.of(context)
+                                  .translate('login_email'),
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w300,
                               ),
                             ),
                             onPressed: () {
-                              // Navigate to email sign-in page or logic
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text("Email sign-in not implemented yet.")),
+                                  SnackBar(
+                                      content: Text(AppLocalizations.of(context)
+                                          .translate('login_not_implemented'))),
                                 );
                               }
                             },
                           ),
                         ],
                       ),
-                      SizedBox(height: 30), // Added SizedBox for spacing before the bottom image
+                      SizedBox(height: 30),
                       Image.asset(
                         'assets/student2.png',
-                        height: 300, // This height is quite large and a primary cause of overflow.
-                        // Consider reducing it or making it more flexible if possible.
+                        height: 300,
                         fit: BoxFit.contain,
                       ),
                     ],
@@ -280,13 +272,6 @@ class LoginPage extends StatelessWidget {
   }
 }
 
-// The standalone signInWithGoogle function you had at the end of the file
-// is already part of the LoginPage class, so it's redundant here.
-// If it was meant to be a global function, ensure it's defined outside any class.
-// For this solution, I'm assuming the one within the class is the one being used.
-
-// The main function should typically be in your main.dart file.
-// If this is your main file for testing this page, it's okay.
 void main() {
   runApp(MaterialApp(
     debugShowCheckedModeBanner: false,

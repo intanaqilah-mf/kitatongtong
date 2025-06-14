@@ -8,10 +8,10 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:projects/pages/PaymentWebview.dart';
-import 'package:projects/config/app_config.dart'; // Import AppConfig
-
-import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
+import 'package:projects/config/app_config.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:url_launcher/url_launcher.dart';
+import 'package:projects/localization/app_localizations.dart';
 
 class AmountPage extends StatefulWidget {
   const AmountPage({super.key});
@@ -35,7 +35,6 @@ class _AmountPageState extends State<AmountPage> {
   String? _emailError;
   String? _contactError;
   String? _nameError;
-
 
   final List<String> salutations = ['Mr.', 'Ms.', 'Mrs.', 'Dr.', 'Prof.'];
 
@@ -62,10 +61,25 @@ class _AmountPageState extends State<AmountPage> {
     super.dispose();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Re-run validation when dependencies change (like locale)
+    // to update error messages with the correct language.
+    _validateName();
+    _validateEmail();
+    _validateContact();
+    _validateAmount();
+  }
+
   void _loadUserData() {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      FirebaseFirestore.instance.collection('users').doc(user.uid).get().then((doc) {
+      FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get()
+          .then((doc) {
         if (doc.exists) {
           final data = doc.data()!;
           setState(() {
@@ -81,7 +95,8 @@ class _AmountPageState extends State<AmountPage> {
   void _validateName() {
     setState(() {
       if (nameController.text.trim().isEmpty) {
-        _nameError = 'Full name is required';
+        _nameError =
+            AppLocalizations.of(context).translate('full_name_required');
       } else {
         _nameError = null;
       }
@@ -92,9 +107,10 @@ class _AmountPageState extends State<AmountPage> {
     setState(() {
       final email = emailController.text.trim();
       if (email.isEmpty) {
-        _emailError = 'Email is required';
+        _emailError = AppLocalizations.of(context).translate('email_required');
       } else if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(email)) {
-        _emailError = 'Enter a valid email address';
+        _emailError =
+            AppLocalizations.of(context).translate('valid_email_prompt');
       } else {
         _emailError = null;
       }
@@ -105,9 +121,11 @@ class _AmountPageState extends State<AmountPage> {
     setState(() {
       final contact = contactController.text.trim();
       if (contact.isEmpty) {
-        _contactError = 'Contact number is required';
+        _contactError =
+            AppLocalizations.of(context).translate('contact_required');
       } else if (!RegExp(r'^\d{9,10}$').hasMatch(contact)) {
-        _contactError = 'Must be 9-10 digits';
+        _contactError =
+            AppLocalizations.of(context).translate('contact_must_be_digits');
       } else {
         _contactError = null;
       }
@@ -119,9 +137,10 @@ class _AmountPageState extends State<AmountPage> {
       if (selectedAmount == 'Other') {
         final amount = double.tryParse(otherAmountController.text.trim());
         if (amount == null) {
-          _amountError = 'Please enter a number';
+          _amountError =
+              AppLocalizations.of(context).translate('amount_must_be_number');
         } else if (amount <= 1.0) {
-          _amountError = 'Amount must be greater than RM1';
+          _amountError = AppLocalizations.of(context).translate('amount_gt_one');
         } else {
           _amountError = null;
         }
@@ -130,7 +149,6 @@ class _AmountPageState extends State<AmountPage> {
       }
     });
   }
-
 
   Future<void> processPaymentAndRedirect({
     required BuildContext context,
@@ -143,7 +161,8 @@ class _AmountPageState extends State<AmountPage> {
     final String webAppDomain = AppConfig.getWebAppDomain();
     final String toyyibpaySecretKey = AppConfig.getToyyibPaySecretKey();
     final String toyyibpayCategoryCode = AppConfig.getToyyibPayCategoryCode();
-    final String billExternalRef = 'TXN${DateTime.now().millisecondsSinceEpoch}';
+    final String billExternalRef =
+        'TXN${DateTime.now().millisecondsSinceEpoch}';
 
     String billReturnUrl;
     String billCallbackUrl;
@@ -159,7 +178,8 @@ class _AmountPageState extends State<AmountPage> {
     if (toyyibpaySecretKey.isEmpty || toyyibpayCategoryCode.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Payment configuration error. Please contact support.")),
+          const SnackBar(
+              content: Text("Payment configuration error. Please contact support.")),
         );
       }
       return;
@@ -206,7 +226,8 @@ class _AmountPageState extends State<AmountPage> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => PaymentWebView(paymentUrl: paymentGatewayUrl, donationData: donationData),
+                builder: (_) => PaymentWebView(
+                    paymentUrl: paymentGatewayUrl, donationData: donationData),
               ),
             );
           }
@@ -214,7 +235,8 @@ class _AmountPageState extends State<AmountPage> {
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Payment initiation error. Please try again.")),
+            const SnackBar(
+                content: Text("Payment initiation error. Please try again.")),
           );
         }
       }
@@ -227,22 +249,21 @@ class _AmountPageState extends State<AmountPage> {
     }
   }
 
-
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
     });
   }
 
-
   Widget buildAmountBox(String label) {
-    final isOther = label == 'Other';
-    final isSelected = selectedAmount == label;
+    final isOther = label == AppLocalizations.of(context).translate('other');
+    final isSelected = selectedAmount == label ||
+        (isOther && selectedAmount == 'Other');
 
     return GestureDetector(
       onTap: () {
         setState(() {
-          selectedAmount = label;
+          selectedAmount = isOther ? 'Other' : label;
           _validateAmount();
         });
       },
@@ -251,10 +272,13 @@ class _AmountPageState extends State<AmountPage> {
         width: 100,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFFDB515) : const Color(0xFFFFCF40),
+          color:
+          isSelected ? const Color(0xFFFDB515) : const Color(0xFFFFCF40),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: isSelected && isOther && _amountError != null ? Colors.red : Colors.transparent,
+            color: isSelected && isOther && _amountError != null
+                ? Colors.red
+                : Colors.transparent,
             width: 2,
           ),
         ),
@@ -263,16 +287,23 @@ class _AmountPageState extends State<AmountPage> {
           padding: const EdgeInsets.symmetric(horizontal: 8.0),
           child: TextField(
             controller: otherAmountController,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            keyboardType:
+            const TextInputType.numberWithOptions(decimal: true),
             textAlign: TextAlign.center,
             autofocus: true,
-            style: const TextStyle(color: Color(0xFFA67C00), fontWeight: FontWeight.bold, fontSize: 18),
+            style: const TextStyle(
+                color: Color(0xFFA67C00),
+                fontWeight: FontWeight.bold,
+                fontSize: 18),
             decoration: InputDecoration(
               border: InputBorder.none,
-              hintText: 'Amount',
-              hintStyle: const TextStyle(color: Color(0xFFA67C00), fontWeight: FontWeight.normal),
+              hintText: AppLocalizations.of(context).translate('other'),
+              hintStyle: const TextStyle(
+                  color: Color(0xFFA67C00),
+                  fontWeight: FontWeight.normal),
               errorText: _amountError,
-              errorStyle: const TextStyle(fontSize: 0.1, color: Colors.transparent),
+              errorStyle: const TextStyle(
+                  fontSize: 0.1, color: Colors.transparent),
             ),
           ),
         )
@@ -313,11 +344,14 @@ class _AmountPageState extends State<AmountPage> {
     );
   }
 
-
-  Future<Uint8List> generatePdfBytes({required String name, required String email, required String amount}) async {
+  Future<Uint8List> generatePdfBytes(
+      {required String name,
+        required String email,
+        required String amount}) async {
     final pdf = pw.Document();
     final now = DateTime.now();
-    final String formattedAmount = double.tryParse(amount)?.toStringAsFixed(2) ?? amount;
+    final String formattedAmount =
+        double.tryParse(amount)?.toStringAsFixed(2) ?? amount;
 
     pdf.addPage(
       pw.Page(
@@ -325,14 +359,19 @@ class _AmountPageState extends State<AmountPage> {
           child: pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Text("Tax Exemption Receipt", style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold)),
+              pw.Text("Tax Exemption Receipt",
+                  style:
+                  pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold)),
               pw.SizedBox(height: 20),
               pw.Text("To: $name"),
               pw.Text("Email: $email"),
-              pw.Text("Date: ${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}"),
+              pw.Text(
+                  "Date: ${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}"),
               pw.SizedBox(height: 20),
-              pw.Text("Thank you for your kind donation of RM $formattedAmount."),
-              pw.Text("This letter serves as official acknowledgment for tax exemption purposes."),
+              pw.Text(
+                  "Thank you for your kind donation of RM $formattedAmount."),
+              pw.Text(
+                  "This letter serves as official acknowledgment for tax exemption purposes."),
               pw.SizedBox(height: 40),
               pw.Text("Issued by: Kita Tongtong Organization"),
               pw.SizedBox(height: 10),
@@ -345,7 +384,6 @@ class _AmountPageState extends State<AmountPage> {
     );
     return pdf.save();
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -360,9 +398,9 @@ class _AmountPageState extends State<AmountPage> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            const Text(
-              'Help Asnaf by Amount',
-              style: TextStyle(
+            Text(
+              AppLocalizations.of(context).translate('help_asnaf_by_amount'),
+              style: const TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
                 color: Color(0xFFFDB515),
@@ -374,11 +412,16 @@ class _AmountPageState extends State<AmountPage> {
               spacing: 12,
               runSpacing: 12,
               alignment: WrapAlignment.center,
-              children: ['10', '20', '30', '50', 'Other']
-                  .map((label) => buildAmountBox(label))
-                  .toList(),
+              children: [
+                '10',
+                '20',
+                '30',
+                '50',
+                AppLocalizations.of(context).translate('other')
+              ].map((label) => buildAmountBox(label)).toList(),
             ),
-            if (_amountError != null && selectedAmount == 'Other')
+            if (_amountError != null &&
+                selectedAmount == AppLocalizations.of(context).translate('other'))
               Padding(
                 padding: const EdgeInsets.only(top: 8.0),
                 child: Text(
@@ -387,11 +430,10 @@ class _AmountPageState extends State<AmountPage> {
                   textAlign: TextAlign.center,
                 ),
               ),
-
             const SizedBox(height: 20),
-            const Text(
-              "Donor’s information",
-              style: TextStyle(
+            Text(
+              AppLocalizations.of(context).translate('donor_info'),
+              style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
                 color: Color(0xFFFDB515),
@@ -401,11 +443,11 @@ class _AmountPageState extends State<AmountPage> {
             const SizedBox(height: 20),
             Row(
               children: [
-                const Expanded(
+                Expanded(
                   flex: 2,
                   child: Text(
-                    "Would you like a tax exemption letter to be sent to you?",
-                    style: TextStyle(color: Color(0xFFF1D789)),
+                    AppLocalizations.of(context).translate('tax_exemption_q'),
+                    style: const TextStyle(color: Color(0xFFF1D789)),
                   ),
                 ),
                 Row(
@@ -418,7 +460,8 @@ class _AmountPageState extends State<AmountPage> {
                         setState(() => wantsTaxExemption = true);
                       },
                     ),
-                    const Text("Yes", style: TextStyle(color: Colors.white)),
+                    Text(AppLocalizations.of(context).translate('yes'),
+                        style: const TextStyle(color: Colors.white)),
                     Radio<bool>(
                       value: false,
                       groupValue: wantsTaxExemption,
@@ -427,13 +470,14 @@ class _AmountPageState extends State<AmountPage> {
                         setState(() => wantsTaxExemption = false);
                       },
                     ),
-                    const Text("No", style: TextStyle(color: Colors.white)),
+                    Text(AppLocalizations.of(context).translate('no'),
+                        style: const TextStyle(color: Colors.white)),
                   ],
                 )
               ],
             ),
             buildFormInput(
-              'Designation',
+              AppLocalizations.of(context).translate('designation'),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
@@ -442,7 +486,8 @@ class _AmountPageState extends State<AmountPage> {
                 ),
                 child: DropdownButton<String>(
                   value: selectedSalutation,
-                  hint: const Text("Select", style: TextStyle(color: Colors.black54)),
+                  hint: Text(AppLocalizations.of(context).translate('select'),
+                      style: const TextStyle(color: Colors.black54)),
                   isExpanded: true,
                   underline: Container(),
                   dropdownColor: const Color(0xFFFFCF40),
@@ -450,7 +495,8 @@ class _AmountPageState extends State<AmountPage> {
                   items: salutations.map((val) {
                     return DropdownMenuItem(
                       value: val,
-                      child: Text(val, style: const TextStyle(color: Colors.black)),
+                      child:
+                      Text(val, style: const TextStyle(color: Colors.black)),
                     );
                   }).toList(),
                   onChanged: (value) {
@@ -460,7 +506,7 @@ class _AmountPageState extends State<AmountPage> {
               ),
             ),
             buildFormInput(
-              'Full Name',
+              AppLocalizations.of(context).translate('full_name'),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
@@ -474,24 +520,26 @@ class _AmountPageState extends State<AmountPage> {
                 child: TextField(
                   controller: nameController,
                   style: const TextStyle(color: Colors.black),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     border: InputBorder.none,
-                    hintText: 'Enter full name',
-                    hintStyle: TextStyle(color: Colors.black54),
+                    hintText:
+                    AppLocalizations.of(context).translate('enter_full_name'),
+                    hintStyle: const TextStyle(color: Colors.black54),
                   ),
                 ),
               ),
               errorText: _nameError,
             ),
             buildFormInput(
-              'Email',
+              AppLocalizations.of(context).translate('email'),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFCF40),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: _emailError != null ? Colors.red : Colors.transparent,
+                    color:
+                    _emailError != null ? Colors.red : Colors.transparent,
                     width: 2,
                   ),
                 ),
@@ -499,24 +547,26 @@ class _AmountPageState extends State<AmountPage> {
                   controller: emailController,
                   keyboardType: TextInputType.emailAddress,
                   style: const TextStyle(color: Colors.black),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     border: InputBorder.none,
-                    hintText: 'Enter email',
-                    hintStyle: TextStyle(color: Colors.black54),
+                    hintText:
+                    AppLocalizations.of(context).translate('enter_email'),
+                    hintStyle: const TextStyle(color: Colors.black54),
                   ),
                 ),
               ),
               errorText: _emailError,
             ),
             buildFormInput(
-              'Contact Number',
+              AppLocalizations.of(context).translate('contact_number'),
               Container(
                 height: 50,
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFCF40),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: _contactError != null ? Colors.red : Colors.transparent,
+                    color:
+                    _contactError != null ? Colors.red : Colors.transparent,
                     width: 2,
                   ),
                 ),
@@ -535,19 +585,21 @@ class _AmountPageState extends State<AmountPage> {
                     ),
                     Container(
                         height: 30,
-                        child: const VerticalDivider(color: Colors.black54, thickness: 1)
-                    ),
+                        child: const VerticalDivider(
+                            color: Colors.black54, thickness: 1)),
                     Expanded(
                       child: Padding(
                         padding: const EdgeInsets.only(left: 8.0, right: 12.0),
                         child: TextField(
                           controller: contactController,
                           keyboardType: TextInputType.phone,
-                          style: const TextStyle(color: Colors.black, fontSize: 16),
-                          decoration: const InputDecoration(
+                          style:
+                          const TextStyle(color: Colors.black, fontSize: 16),
+                          decoration: InputDecoration(
                             border: InputBorder.none,
-                            hintText: "Enter mobile number",
-                            hintStyle: TextStyle(color: Colors.black54),
+                            hintText: AppLocalizations.of(context)
+                                .translate('enter_mobile_number'),
+                            hintStyle: const TextStyle(color: Colors.black54),
                           ),
                         ),
                       ),
@@ -557,14 +609,12 @@ class _AmountPageState extends State<AmountPage> {
               ),
               errorText: _contactError,
             ),
-
-
             const SizedBox(height: 20),
             const Divider(color: Colors.white, thickness: 2),
             const SizedBox(height: 20),
-            const Text(
-              "Payment Method",
-              style: TextStyle(
+            Text(
+              AppLocalizations.of(context).translate('payment_method'),
+              style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
                 color: Color(0xFFFDB515),
@@ -586,8 +636,8 @@ class _AmountPageState extends State<AmountPage> {
                     children: [
                       Image.asset('assets/bankcard.png', height: 40),
                       const SizedBox(height: 8),
-                      const Text('Card',
-                          style: TextStyle(
+                      Text(AppLocalizations.of(context).translate('card'),
+                          style: const TextStyle(
                             color: Color(0xFFA67C00),
                             fontWeight: FontWeight.bold,
                           )),
@@ -606,8 +656,8 @@ class _AmountPageState extends State<AmountPage> {
                     children: [
                       Image.asset('assets/fpx.png', height: 40),
                       const SizedBox(height: 8),
-                      const Text('FPX',
-                          style: TextStyle(
+                      Text(AppLocalizations.of(context).translate('fpx'),
+                          style: const TextStyle(
                             color: Color(0xFFA67C00),
                             fontWeight: FontWeight.bold,
                           )),
@@ -627,22 +677,29 @@ class _AmountPageState extends State<AmountPage> {
                   _validateContact();
                   _validateAmount();
 
-
-                  if (_nameError != null || _emailError != null || _contactError != null || _amountError != null) {
+                  if (_nameError != null ||
+                      _emailError != null ||
+                      _contactError != null ||
+                      _amountError != null) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Please fix the errors before submitting.')),
+                      SnackBar(
+                          content: Text(AppLocalizations.of(context)
+                              .translate('fix_errors_prompt'))),
                     );
                     return;
                   }
 
-                  final String rawAmountString = selectedAmount == 'Other'
+                  final String rawAmountString =
+                  selectedAmount == AppLocalizations.of(context).translate('other')
                       ? otherAmountController.text.trim()
                       : selectedAmount ?? "";
 
                   if (rawAmountString.isEmpty) {
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Please select or enter an amount.')),
+                        SnackBar(
+                            content: Text(AppLocalizations.of(context)
+                                .translate('select_amount_prompt'))),
                       );
                     }
                     return;
@@ -652,7 +709,9 @@ class _AmountPageState extends State<AmountPage> {
                   if (parsedAmount == null || parsedAmount <= 0) {
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Please enter a valid amount.')),
+                        SnackBar(
+                            content: Text(AppLocalizations.of(context)
+                                .translate('valid_amount_prompt'))),
                       );
                     }
                     return;
@@ -669,14 +728,17 @@ class _AmountPageState extends State<AmountPage> {
                     'timestamp': FieldValue.serverTimestamp(),
                   };
 
-                  await FirebaseFirestore.instance.collection('donation').add(donationData);
+                  await FirebaseFirestore.instance
+                      .collection('donation')
+                      .add(donationData);
 
                   await FirebaseFirestore.instance
                       .collection('notifications')
                       .add({
                     'createdAt': FieldValue.serverTimestamp(),
                     'recipientRole': 'Admin',
-                    'message': 'Donor ${nameController.text.trim()} donated RM ${parsedAmount.toStringAsFixed(2)}',
+                    'message':
+                    'Donor ${nameController.text.trim()} donated RM ${parsedAmount.toStringAsFixed(2)}',
                   });
 
                   if (wantsTaxExemption) {
@@ -707,7 +769,9 @@ class _AmountPageState extends State<AmountPage> {
 
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Donation processing... Please follow payment instructions.')),
+                      SnackBar(
+                          content: Text(AppLocalizations.of(context)
+                              .translate('donation_processing'))),
                     );
                   }
                 },
@@ -717,9 +781,9 @@ class _AmountPageState extends State<AmountPage> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                child: const Text(
-                  'Donate Now',
-                  style: TextStyle(
+                child: Text(
+                  AppLocalizations.of(context).translate('donate_now'),
+                  style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
                   ),

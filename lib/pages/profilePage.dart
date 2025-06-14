@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:projects/localization/app_localizations.dart';
 
 class ProfilePage extends StatefulWidget {
   final User? user;
@@ -21,9 +22,9 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   User? currentUser;
   File? _selectedImage;
-  String? _firestorePhotoUrl; // To store the fetched photo URL
+  String? _firestorePhotoUrl;
+  String? _firestoreEmail;
 
-  // Text controllers for editable fields
   TextEditingController nameController = TextEditingController();
   TextEditingController phoneController = TextEditingController();
   TextEditingController nricController = TextEditingController();
@@ -34,8 +35,9 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   void initState() {
     super.initState();
+
     currentUser = widget.user ?? FirebaseAuth.instance.currentUser;
-    _loadCachedData(); // Load cached data, including profile picture URL
+    _loadCachedData();
     _initializeListeners();
 
     nameController.text = currentUser?.displayName ?? '';
@@ -48,13 +50,14 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _pickImage() async {
     final ImagePicker picker = ImagePicker();
-    final XFile? pickedImage = await picker.pickImage(source: ImageSource.gallery);
+    final XFile? pickedImage =
+    await picker.pickImage(source: ImageSource.gallery);
 
     if (pickedImage != null) {
       setState(() {
         _selectedImage = File(pickedImage.path);
       });
-      _saveData(isImageUpdated: true); // Save data when image is updated
+      _saveData(isImageUpdated: true);
     }
   }
 
@@ -67,7 +70,6 @@ class _ProfilePageState extends State<ProfilePage> {
     }
     await googleSignIn.signOut();
 
-    // Clear cached data for the current user only
     final prefs = await SharedPreferences.getInstance();
     String userId = FirebaseAuth.instance.currentUser?.uid ?? '';
     print("SharedPreferences for $userId: ${prefs.getString('name_$userId')}");
@@ -94,24 +96,22 @@ class _ProfilePageState extends State<ProfilePage> {
       final prefs = await SharedPreferences.getInstance();
 
       if (isImageUpdated && _selectedImage != null) {
-        String fileName = "${userId}_${DateTime.now().millisecondsSinceEpoch}.jpg";
-        final storageRef = FirebaseStorage.instance.ref().child('profile_pictures/$fileName');
+        String fileName =
+            "${userId}_${DateTime.now().millisecondsSinceEpoch}.jpg";
+        final storageRef =
+        FirebaseStorage.instance.ref().child('profile_pictures/$fileName');
 
         final TaskSnapshot snapshot = await storageRef.putFile(_selectedImage!);
         imageUrl = await snapshot.ref.getDownloadURL();
 
-        // Save new image URL in Firestore
         await FirebaseFirestore.instance
             .collection('users')
             .doc(userId)
             .set({'photoUrl': imageUrl}, SetOptions(merge: true));
 
-        // Cache updated image
         prefs.setString('photoUrl_$userId', imageUrl);
-
       }
 
-      // Save the updated user data
       final userData = {
         'name': nameController.text,
         'phone': phoneController.text,
@@ -127,14 +127,16 @@ class _ProfilePageState extends State<ProfilePage> {
           .doc(userId)
           .set(userData, SetOptions(merge: true));
 
-      // Cache user-specific data
       prefs.setString('name_$userId', nameController.text);
       prefs.setString('phone_$userId', phoneController.text);
       prefs.setString('nric_$userId', nricController.text);
       prefs.setString('address_$userId', addressController.text);
       prefs.setString('city_$userId', cityController.text);
       prefs.setString('postcode_$userId', postcodeController.text);
-      prefs.setString('photoUrl_$userId', _firestorePhotoUrl!);
+      if (_firestorePhotoUrl != null) {
+        prefs.setString('photoUrl_$userId', _firestorePhotoUrl!);
+      }
+
 
       setState(() {
         if (imageUrl != null) {
@@ -148,17 +150,14 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-
   Future<void> _loadCachedData() async {
     final prefs = await SharedPreferences.getInstance();
     String userId = FirebaseAuth.instance.currentUser?.uid ?? "";
 
-    if (userId.isEmpty) return; // Ensure we have a logged-in user
+    if (userId.isEmpty) return;
 
-    final docSnapshot = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(userId)
-        .get();
+    final docSnapshot =
+    await FirebaseFirestore.instance.collection('users').doc(userId).get();
 
     if (docSnapshot.exists) {
       final userData = docSnapshot.data();
@@ -171,8 +170,8 @@ class _ProfilePageState extends State<ProfilePage> {
         cityController.text = userData?['city'] ?? '';
         postcodeController.text = userData?['postcode'] ?? '';
         _firestorePhotoUrl = userData?['photoUrl'];
+        _firestoreEmail = userData?['email'];
 
-        // Save user-specific data in SharedPreferences
         prefs.setString('name_$userId', nameController.text);
         prefs.setString('phone_$userId', phoneController.text);
         prefs.setString('nric_$userId', nricController.text);
@@ -220,7 +219,8 @@ class _ProfilePageState extends State<ProfilePage> {
                               ? FileImage(_selectedImage!)
                               : (_firestorePhotoUrl != null
                               ? NetworkImage(_firestorePhotoUrl!)
-                              : AssetImage('assets/profileNotLogin.png')) as ImageProvider,
+                              : AssetImage('assets/profileNotLogin.png'))
+                          as ImageProvider,
                         ),
                       ),
                       Stack(
@@ -232,7 +232,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             child: TextField(
                               controller: nameController,
                               onChanged: (text) {
-                                setState(() {}); // Recalculate layout on text change
+                                setState(() {});
                               },
                               style: TextStyle(
                                 fontSize: 18,
@@ -241,7 +241,8 @@ class _ProfilePageState extends State<ProfilePage> {
                               ),
                               decoration: InputDecoration(
                                 border: InputBorder.none,
-                                hintText: "Set your name",
+                                hintText: AppLocalizations.of(context)
+                                    .translate('profile_set_name_hint'),
                                 hintStyle: TextStyle(color: Colors.grey),
                               ),
                               maxLines: 2,
@@ -280,18 +281,48 @@ class _ProfilePageState extends State<ProfilePage> {
                                   _pickImage();
                                 },
                                 child: Text(
-                                  'Change profile photo',
+                                  AppLocalizations.of(context)
+                                      .translate('profile_change_photo'),
                                   style: TextStyle(color: Colors.white),
                                 ),
                               ),
                             ),
-                            buildEmailRow('assets/profileIcon9.png', currentUser?.email ?? 'No Email Available'),
-                            buildNonEditableRow('assets/profileicon2.png', currentUser?.displayName ?? 'Set username'),
-                            buildEditableRow('assets/profileicon3.png', 'Mobile Number', phoneController),
-                            buildEditableRow('assets/profileicon4.png', 'NRIC', nricController),
-                            buildEditableRow('assets/profileicon5.png', 'Home Address', addressController),
-                            buildEditableRow('assets/profileicon6.png', 'City', cityController),
-                            buildEditableRow('assets/profileicon7.png', 'Postcode', postcodeController),
+                            buildEmailRow(
+                              'assets/profileIcon9.png',
+                              _firestoreEmail != null && _firestoreEmail!.isNotEmpty
+                                  ? _firestoreEmail!
+                                  : AppLocalizations.of(context).translate('profile_no_email'),
+                            ),
+                            buildNonEditableRow(
+                                'assets/profileicon2.png',
+                                currentUser?.displayName ??
+                                    AppLocalizations.of(context)
+                                        .translate('profile_set_username')),
+                            buildEditableRow(
+                                'assets/profileicon3.png',
+                                AppLocalizations.of(context)
+                                    .translate('profile_mobile_number'),
+                                phoneController),
+                            buildEditableRow(
+                                'assets/profileicon4.png',
+                                AppLocalizations.of(context)
+                                    .translate('profile_nric'),
+                                nricController),
+                            buildEditableRow(
+                                'assets/profileicon5.png',
+                                AppLocalizations.of(context)
+                                    .translate('profile_home_address'),
+                                addressController),
+                            buildEditableRow(
+                                'assets/profileicon6.png',
+                                AppLocalizations.of(context)
+                                    .translate('profile_city'),
+                                cityController),
+                            buildEditableRow(
+                                'assets/profileicon7.png',
+                                AppLocalizations.of(context)
+                                    .translate('profile_postcode'),
+                                postcodeController),
                           ],
                         ),
                       ),
@@ -299,28 +330,36 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 5.0), // Existing padding
+                  padding: const EdgeInsets.only(bottom: 5.0),
                   child: Column(
                     children: [
                       SizedBox(height: 12),
                       ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: currentUser != null ? Colors.red : Color(0xFFFFCF40),
+                          backgroundColor: currentUser != null
+                              ? Colors.red
+                              : Color(0xFFFFCF40),
                           foregroundColor: Colors.black,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          padding: EdgeInsets.symmetric(horizontal: 80, vertical: 12),
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 80, vertical: 12),
                         ),
                         onPressed: () async {
                           await clearAuthCache();
                           Navigator.pushReplacement(
                             context,
-                            MaterialPageRoute(builder: (context) => LoginPage()),
+                            MaterialPageRoute(
+                                builder: (context) => LoginPage()),
                           );
                         },
                         child: Text(
-                          currentUser != null ? "Logout" : "Login",
+                          currentUser != null
+                              ? AppLocalizations.of(context)
+                              .translate('profile_logout')
+                              : AppLocalizations.of(context)
+                              .translate('profile_login'),
                           style: TextStyle(fontSize: 16),
                         ),
                       ),
@@ -359,7 +398,8 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget buildEditableRow(String iconPath, String label, TextEditingController controller) {
+  Widget buildEditableRow(
+      String iconPath, String label, TextEditingController controller) {
     return ListTile(
       leading: Image.asset(
         iconPath,

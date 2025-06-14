@@ -3,6 +3,7 @@ import 'package:projects/pages/verifyApplications.dart';
 import 'package:projects/pages/issueReward.dart';
 import 'package:projects/pages/manageStaffs.dart';
 import 'package:projects/pages/viewReports.dart';
+import 'package:projects/localization/app_localizations.dart';
 
 class AdminDashboard extends StatelessWidget {
   Widget build(BuildContext context) {
@@ -11,7 +12,6 @@ class AdminDashboard extends StatelessWidget {
       physics: NeverScrollableScrollPhysics(),
       crossAxisCount: 4,
       shrinkWrap: true,
-
       children: [
         for (int i = 1; i < 5; i++)
           Column(
@@ -29,25 +29,25 @@ class AdminDashboard extends StatelessWidget {
                     if (i == 1) {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => VerifyApplicationsScreen()),
+                        MaterialPageRoute(
+                            builder: (context) => VerifyApplicationsScreen()),
                       );
-                    }
-                    else if (i ==2) {
+                    } else if (i == 2) {
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (context) => IssueReward()),
                       );
-                    }
-                    else if (i ==3) {
+                    } else if (i == 3) {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => ViewReportsScreen()),
+                        MaterialPageRoute(
+                            builder: (context) => ViewReportsScreen()),
                       );
-                    }
-                    else if (i ==4) {
+                    } else if (i == 4) {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => ManageStaffsScreen()),
+                        MaterialPageRoute(
+                            builder: (context) => ManageStaffsScreen()),
                       );
                     }
                   },
@@ -59,9 +59,9 @@ class AdminDashboard extends StatelessWidget {
                 ),
               ),
               Container(
-                width: 85, // Limit the width of the text
+                width: 85,
                 child: Text(
-                  getTextForIndex(i),
+                  getTextForIndex(context, i), // Pass context here
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.normal,
@@ -80,16 +80,18 @@ class AdminDashboard extends StatelessWidget {
   }
 }
 
-String getTextForIndex(int index) {
+// Updated function to accept context and use AppLocalizations
+String getTextForIndex(BuildContext context, int index) {
+  final localizations = AppLocalizations.of(context);
   switch (index) {
     case 1:
-      return "Verify Applications";
+      return localizations.translate('dashboard_verify_applications');
     case 2:
-      return "Issue Reward";
+      return localizations.translate('dashboard_issue_reward');
     case 3:
-      return "View Reports";
+      return localizations.translate('dashboard_view_reports');
     case 4:
-      return "Manage User";
+      return localizations.translate('dashboard_manage_user');
     default:
       return "";
   }

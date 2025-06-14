@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:projects/pages/HomePage.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
+import 'package:projects/localization/app_localizations.dart';
 
 class ApplicationReviewScreen extends StatefulWidget {
   @override
@@ -11,7 +12,6 @@ class ApplicationReviewScreen extends StatefulWidget {
 class _ApplicationReviewScreenState extends State<ApplicationReviewScreen> {
   int _selectedIndex = 0;
 
-  // Function to handle BottomNavBar taps
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
@@ -20,6 +20,7 @@ class _ApplicationReviewScreenState extends State<ApplicationReviewScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context);
     return Scaffold(
       body: Column(
         children: [
@@ -31,25 +32,25 @@ class _ApplicationReviewScreenState extends State<ApplicationReviewScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Image.asset(
-                      'assets/hourglass.png', // Replace with your hourglass asset
+                      'assets/hourglass.png',
                       height: 100,
                     ),
                     SizedBox(height: 20),
                     Text(
-                      "Your application is under review!",
+                      localizations.translate('app_review_title'),
                       style: TextStyle(
                         fontSize: 35,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFFFFCF40), // Yellow color
+                        color: Color(0xFFFFCF40),
                       ),
                       textAlign: TextAlign.center,
                     ),
                     SizedBox(height: 10),
                     Text(
-                      "We're currently reviewing your application.\nWe'll notify your result within 6-7 business days.",
+                      localizations.translate('app_review_subtitle'),
                       style: TextStyle(
                         fontSize: 18,
-                        color: Colors.grey[400], // Light gray color
+                        color: Colors.grey[400],
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -62,22 +63,22 @@ class _ApplicationReviewScreenState extends State<ApplicationReviewScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: Color(0xFFFFCF40), // Button background color
-                foregroundColor: Colors.black, // Text color
+                backgroundColor: Color(0xFFFFCF40),
+                foregroundColor: Colors.black,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10), // Rounded corners
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                minimumSize: Size(300, 45), // Full-width button
+                minimumSize: Size(300, 45),
               ),
               onPressed: () {
                 Navigator.pushAndRemoveUntil(
                   context,
                   MaterialPageRoute(builder: (context) => HomePage()),
-                      (route) => false, // Clears the navigation stack
+                      (route) => false,
                 );
               },
               child: Text(
-                "OK",
+                localizations.translate('ok'),
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,

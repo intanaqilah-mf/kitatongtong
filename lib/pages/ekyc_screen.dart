@@ -6,7 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:path/path.dart' as path;
+import 'package:projects/localization/app_localizations.dart';
 
 class EkycScreen extends StatefulWidget {
   const EkycScreen({Key? key}) : super(key: key);
@@ -24,7 +24,6 @@ class _EkycScreenState extends State<EkycScreen> {
   String _nricNumber = '';
   String _nricName = '';
 
-  // Initialize ML Kit detectors
   final FaceDetector _faceDetector = FaceDetector(
     options: FaceDetectorOptions(
       performanceMode: FaceDetectorMode.accurate,
@@ -32,7 +31,6 @@ class _EkycScreenState extends State<EkycScreen> {
   );
   final TextRecognizer _textRecognizer = TextRecognizer();
 
-  // Function to capture NRIC photo
   Future<void> _captureNricPhoto() async {
     final XFile? image = await _picker.pickImage(source: ImageSource.camera);
     if (image != null) {
@@ -42,11 +40,10 @@ class _EkycScreenState extends State<EkycScreen> {
     }
   }
 
-  // Function to capture Selfie photo
   Future<void> _captureSelfie() async {
     final XFile? image = await _picker.pickImage(
       source: ImageSource.camera,
-      preferredCameraDevice: CameraDevice.front, // Prefer the front camera
+      preferredCameraDevice: CameraDevice.front,
     );
     if (image != null) {
       setState(() {
@@ -55,10 +52,9 @@ class _EkycScreenState extends State<EkycScreen> {
     }
   }
 
-  // The main validation and upload logic
   Future<void> _validateAndUpload() async {
     if (_nricImageFile == null || _selfieImageFile == null) {
-      _showErrorDialog("Please capture both NRIC and Selfie images.");
+      _showErrorDialog(AppLocalizations.of(context).translate('ekyc_error_missing_images'));
       return;
     }
 
@@ -67,92 +63,123 @@ class _EkycScreenState extends State<EkycScreen> {
     });
 
     try {
-      // 1. Validate images using ML Kit
       final bool isNricValid = await _validateNricImage(_nricImageFile!);
       if (!isNricValid) {
-        _showErrorDialog("NRIC validation failed. Please ensure the photo is clear, includes a face, and has readable text.");
-        setState(() { _isLoading = false; });
+        _showErrorDialog(AppLocalizations.of(context).translate('ekyc_error_nric_validation_failed'));
+        if(mounted) setState(() { _isLoading = false; });
         return;
       }
 
       final bool isSelfieValid = await _validateSelfieImage(_selfieImageFile!);
       if (!isSelfieValid) {
-        _showErrorDialog("Selfie validation failed. Please ensure your face is clearly visible in the selfie.");
-        setState(() { _isLoading = false; });
+        _showErrorDialog(AppLocalizations.of(context).translate('ekyc_error_selfie_validation_failed'));
+        if(mounted) setState(() { _isLoading = false; });
         return;
       }
 
-      // 2. Upload images to Firebase Storage
       final String userId = FirebaseAuth.instance.currentUser!.uid;
       final String nricImageUrl = await _uploadFile(_nricImageFile!, 'users/$userId/nric.jpg');
       final String selfieImageUrl = await _uploadFile(_selfieImageFile!, 'users/$userId/selfie.jpg');
 
-      // 3. Update user data in Firestore
-      await FirebaseFirestore.instance.collection('users').doc(userId).update({
-        'nric': _nricNumber, // Extracted NRIC number
-        'name': _nricName,   // Extracted Name
+      await FirebaseFirestore.instance.collection('users').doc(userId).set({
+        'nric': _nricNumber,
+        'name': _nricName,
         'nricImageUrl': nricImageUrl,
         'selfieImageUrl': selfieImageUrl,
         'ekycVerifiedOn': FieldValue.serverTimestamp(),
-      });
+      }, SetOptions(merge: true));
 
-      // If successful, pop the screen and return true
-      Navigator.of(context).pop(true);
+      if(mounted) Navigator.of(context).pop(true);
 
     } catch (e) {
-      _showErrorDialog("An error occurred during eKYC process: ${e.toString()}");
+      _showErrorDialog(AppLocalizations.of(context).translateWithArgs('ekyc_error_generic', {'error': e.toString()}));
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if(mounted){
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
-  // ML Kit validation for NRIC
   Future<bool> _validateNricImage(File image) async {
     final inputImage = InputImage.fromFile(image);
 
-    // Run face detection
     final List<Face> faces = await _faceDetector.processImage(inputImage);
     if (faces.isEmpty) {
       print("Validation failed: No face detected in NRIC image.");
-      return false; // Fail if no face is on the NRIC
-    }
-
-    // Run text recognition
-    final RecognizedText recognizedText = await _textRecognizer.processImage(inputImage);
-    if (recognizedText.text.isEmpty) {
-      print("Validation failed: No text detected in NRIC image.");
-      return false; // Fail if no text is found
-    }
-
-    // Attempt to extract NRIC and Name (this part may need adjustment based on NRIC format)
-    // This is a simplified example. You might need more robust parsing logic.
-    final nricRegex = RegExp(r'\d{6}-\d{2}-\d{4}');
-    final nameRegex = RegExp(r'Name\s*:\s*(.*)', caseSensitive: false);
-
-    setState(() {
-      _nricNumber = nricRegex.firstMatch(recognizedText.text)?.group(0) ?? 'Not Found';
-      _nricName = nameRegex.firstMatch(recognizedText.text)?.group(1) ?? 'Not Found';
-    });
-
-    if (_nricNumber == 'Not Found') {
-      print("Validation failed: Could not extract NRIC number.");
       return false;
     }
 
+    final RecognizedText recognizedText = await _textRecognizer.processImage(inputImage);
+    final String fullText = recognizedText.text;
+    final List<String> lines = fullText.split('\n');
+
+    if (fullText.isEmpty) {
+      print("Validation failed: No text detected in NRIC image.");
+      return false;
+    }
+
+    final nricRegex = RegExp(r'(\d{6}-\d{2}-\d{4})');
+    final nricMatch = nricRegex.firstMatch(fullText);
+
+    if (nricMatch == null) {
+      print("Validation failed: Could not extract NRIC number.");
+      return false;
+    }
+    _nricNumber = nricMatch.group(0)!;
+    print("✅ Extracted NRIC: $_nricNumber");
+
+    String foundName = '';
+
+    for (int i = 0; i < lines.length; i++) {
+      if (RegExp(r'\bNAMA\b', caseSensitive: false).hasMatch(lines[i])) {
+        if (i + 1 < lines.length) {
+          String potentialName = lines[i + 1].trim();
+          if (potentialName.isNotEmpty && potentialName.split(' ').length >= 2) {
+            foundName = potentialName;
+            break;
+          }
+        }
+      }
+    }
+
+    if (foundName.isEmpty) {
+      List<String> candidates = [];
+      for (String line in lines) {
+        final trimmedLine = line.trim();
+        if (trimmedLine.toUpperCase() == trimmedLine &&
+            trimmedLine.split(' ').length >= 2 &&
+            !trimmedLine.contains(RegExp(r'\d')) &&
+            !RegExp(r'KAD PENGENALAN|MALAYSIA|NAMA|ALAMAT', caseSensitive: false).hasMatch(trimmedLine))
+        {
+          candidates.add(trimmedLine);
+        }
+      }
+      if (candidates.isNotEmpty) {
+        candidates.sort((a, b) => b.length.compareTo(a.length));
+        foundName = candidates.first;
+      }
+    }
+
+    if (foundName.isEmpty) {
+      print("Validation failed: Could not extract Name.");
+      return false;
+    }
+
+    _nricName = foundName;
+    print("✅ Extracted Name: $_nricName");
+
+    if(mounted) setState(() {});
     return true;
   }
 
-  // ML Kit validation for Selfie
   Future<bool> _validateSelfieImage(File image) async {
     final inputImage = InputImage.fromFile(image);
     final List<Face> faces = await _faceDetector.processImage(inputImage);
-    // Ensure exactly one face is detected in the selfie
     return faces.length == 1;
   }
 
-  // Helper to upload a file to Firebase Storage
   Future<String> _uploadFile(File file, String path) async {
     final ref = FirebaseStorage.instance.ref().child(path);
     final uploadTask = ref.putFile(file);
@@ -160,16 +187,17 @@ class _EkycScreenState extends State<EkycScreen> {
     return await snapshot.ref.getDownloadURL();
   }
 
-  // Helper to show an error dialog
   void _showErrorDialog(String message) {
+    if (!mounted) return;
+    final localizations = AppLocalizations.of(context);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Validation Error'),
+        title: Text(localizations.translate('ekyc_validation_error_title')),
         content: Text(message),
         actions: <Widget>[
           TextButton(
-            child: Text('Okay'),
+            child: Text(localizations.translate('ok')),
             onPressed: () {
               Navigator.of(ctx).pop();
             },
@@ -188,9 +216,10 @@ class _EkycScreenState extends State<EkycScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: Text("eKYC Verification"),
+        title: Text(localizations.translate('ekyc_title')),
         backgroundColor: Color(0xFFFDB515),
       ),
       body: SingleChildScrollView(
@@ -198,23 +227,18 @@ class _EkycScreenState extends State<EkycScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // NRIC Capture Section
             _buildImageCaptureBox(
-              title: "1. Capture NRIC Photo",
+              title: localizations.translate('ekyc_capture_nric_title'),
               imageFile: _nricImageFile,
               onTap: _captureNricPhoto,
             ),
             SizedBox(height: 24),
-
-            // Selfie Capture Section
             _buildImageCaptureBox(
-              title: "2. Take a Selfie",
+              title: localizations.translate('ekyc_capture_selfie_title'),
               imageFile: _selfieImageFile,
               onTap: _captureSelfie,
             ),
             SizedBox(height: 40),
-
-            // Submit Button
             if (!_isLoading)
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
@@ -223,8 +247,8 @@ class _EkycScreenState extends State<EkycScreen> {
                   padding: EdgeInsets.symmetric(vertical: 16),
                   textStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
-                onPressed: _validateAndUpload,
-                child: Text("Verify & Submit"),
+                onPressed: (_nricImageFile != null && _selfieImageFile != null) ? _validateAndUpload : null,
+                child: Text(localizations.translate('ekyc_verify_submit_button')),
               ),
             if (_isLoading)
               Center(
@@ -241,6 +265,7 @@ class _EkycScreenState extends State<EkycScreen> {
     required File? imageFile,
     required VoidCallback onTap,
   }) {
+    final localizations = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -266,7 +291,7 @@ class _EkycScreenState extends State<EkycScreen> {
                 children: [
                   Icon(Icons.camera_alt, color: Color(0xFFFFCF40), size: 50),
                   SizedBox(height: 8),
-                  Text("Tap to open camera", style: TextStyle(color: Colors.white70)),
+                  Text(localizations.translate('ekyc_tap_to_open_camera'), style: TextStyle(color: Colors.white70)),
                 ],
               ),
             )

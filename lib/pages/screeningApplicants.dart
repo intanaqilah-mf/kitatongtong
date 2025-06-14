@@ -135,8 +135,7 @@ class _ScreeningApplicantsState extends State<ScreeningApplicants> {
                 if (!snapshot.hasData || !snapshot.data!.exists) {
                   return Center(child: Text('No data found for this applicant.'));
                 }
-
-                var applicationData = snapshot.data!;
+                final applicationData = snapshot.data!.data() as Map<String, dynamic>;
                 var fullname = applicationData['fullname'] ?? 'N/A';
                 var mobileNumber = applicationData['mobileNumber'] ?? 'No phone number available';
                 var email = applicationData['email'] ?? 'No email available';

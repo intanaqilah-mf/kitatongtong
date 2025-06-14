@@ -1,9 +1,9 @@
-// lib/pages/applicationStatus.dart
-
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
 import '../pages/HomePage.dart';
+import 'package:intl/intl.dart';
+import 'package:projects/localization/app_localizations.dart';
 
 class ApplicationStatusPage extends StatefulWidget {
   final String documentId;
@@ -20,9 +20,19 @@ class _ApplicationStatusPageState extends State<ApplicationStatusPage> {
   void _onItemTapped(int index) {
     setState(() => _selectedIndex = index);
   }
+  String _formatDate(String? dateString) {
+    if (dateString == null) return AppLocalizations.of(context).translate('status_unknown_date');
+    try {
+      final dateTime = DateTime.parse(dateString);
+      return DateFormat.yMMMMd().add_jm().format(dateTime);
+    } catch (e) {
+      return dateString;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context);
     return Scaffold(
       body: StreamBuilder<DocumentSnapshot>(
         stream: FirebaseFirestore.instance
@@ -35,25 +45,39 @@ class _ApplicationStatusPageState extends State<ApplicationStatusPage> {
           if (!snapshot.hasData || !snapshot.data!.exists)
             return Center(
               child: Text(
-                "No application found.",
+                localizations.translate('status_no_app_found'),
                 style: TextStyle(color: Colors.red),
               ),
             );
 
           final data = snapshot.data!.data()! as Map<String, dynamic>;
-          final fullName = data['fullname'] ?? "Unknown";
-          final appCode = data['applicationCode'] ?? "N/A";
-          final statusApplication = data['statusApplication'] ?? "Submitted";
+          final fullName = data['fullname'] ?? localizations.translate('status_unknown_name');
+          final appCode = data['applicationCode'] ?? localizations.translate('status_unknown_code');
+          final statusApplication = data['statusApplication'] ?? localizations.translate('applications_status_pending');
           final statusReward = data['statusReward'] as String?;
+          final date = data['date'] as String?;
+          final reasonStatus = data['reasonStatus'] ?? localizations.translate('status_no_reason');
+          final reward = data['reward'] ?? localizations.translate('status_default_reward');
 
-          // colors for each stage
+          String completedSubtitle;
+          if (statusApplication == "Approve") {
+            completedSubtitle = localizations.translateWithArgs('status_accepted_subtitle', {'reason': reasonStatus});
+          } else if (statusApplication == "Reject") {
+            completedSubtitle = localizations.translateWithArgs('status_rejected_subtitle', {'reason': reasonStatus});
+          } else {
+            completedSubtitle = localizations.translate('status_reviewing_subtitle');
+          }
+
+          String rewardSubtitle = statusReward == "Issued"
+              ? localizations.translateWithArgs('status_reward_issued_subtitle', {'reward': reward})
+              : localizations.translate('status_reward_pending_subtitle');
+
           final color1 = _getStatusColor(stage: 1, statusApp: statusApplication, statusReward: statusReward);
           final color2 = _getStatusColor(stage: 2, statusApp: statusApplication, statusReward: statusReward);
           final color3 = _getStatusColor(stage: 3, statusApp: statusApplication, statusReward: statusReward);
 
           return Column(
             children: [
-              // Header
               Container(
                 width: double.infinity,
                 padding: EdgeInsets.symmetric(vertical: 25, horizontal: 16),
@@ -61,7 +85,7 @@ class _ApplicationStatusPageState extends State<ApplicationStatusPage> {
                   children: [
                     SizedBox(height: 50),
                     Text(
-                      "Application Status",
+                      localizations.translate('status_page_title'),
                       style: TextStyle(
                         color: Color(0xFFFDB515),
                         fontSize: 22,
@@ -76,7 +100,7 @@ class _ApplicationStatusPageState extends State<ApplicationStatusPage> {
                           child: Column(
                             children: [
                               Text(
-                                "Application Code",
+                                localizations.translate('status_label_app_code'),
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 14,
@@ -85,7 +109,7 @@ class _ApplicationStatusPageState extends State<ApplicationStatusPage> {
                               ),
                               SizedBox(height: 4),
                               Text(
-                                "#$appCode",
+                                "$appCode",
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 16,
@@ -99,7 +123,7 @@ class _ApplicationStatusPageState extends State<ApplicationStatusPage> {
                           child: Column(
                             children: [
                               Text(
-                                "Full Name",
+                                localizations.translate('status_label_full_name'),
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 14,
@@ -141,34 +165,27 @@ class _ApplicationStatusPageState extends State<ApplicationStatusPage> {
                 ),
               ),
 
-              // Stage 1: Submitted (connector always green)
               statusTile(
-                title: "Application Submitted",
-                subtitle: "We received your application.",
+                title: localizations.translate('status_title_submitted'),
+                subtitle: localizations.translateWithArgs('status_subtitle_submitted', {'date': _formatDate(date)}),
                 iconPath: "assets/applicationStatus1.png",
                 circleColor: color1,
                 showLine: true,
-                lineColor: color1, // CONNECTOR to next ALWAYS green
+                lineColor: color1,
               ),
 
-              // Stage 2: Completed
               statusTile(
-                title: "Completed",
-                subtitle: statusApplication == "Disapprove"
-                    ? "Your application was rejected."
-                    : "Your application has been accepted.",
+                title: localizations.translate('status_title_reviewed'),
+                subtitle: completedSubtitle,
                 iconPath: "assets/applicationStatus3.png",
                 circleColor: color2,
                 showLine: true,
-                lineColor: color3, // CONNECTOR follows reward status
+                lineColor: color3,
               ),
 
-              // Stage 3: Rewards Issued
               statusTile(
-                title: "Rewards Issued",
-                subtitle: statusReward == "Issued"
-                    ? "Your reward has been issued."
-                    : "Pending reward issuance.",
+                title: localizations.translate('status_title_rewards_issued'),
+                subtitle: rewardSubtitle,
                 iconPath: "assets/reward.png",
                 circleColor: color3,
                 showLine: false,
@@ -176,7 +193,6 @@ class _ApplicationStatusPageState extends State<ApplicationStatusPage> {
 
               SizedBox(height: 100),
 
-              // OK button full-width
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: ElevatedButton(
@@ -194,7 +210,7 @@ class _ApplicationStatusPageState extends State<ApplicationStatusPage> {
                     ),
                   ),
                   child: Text(
-                    "OK",
+                    localizations.translate('ok'),
                     style: TextStyle(fontSize: 16, color: Colors.white),
                   ),
                 ),
@@ -219,16 +235,21 @@ class _ApplicationStatusPageState extends State<ApplicationStatusPage> {
       return Colors.green;
     }
     if (stage == 2) {
-      if (statusApp == "Disapprove") return Colors.red;
-      if (statusApp == "Approve" || statusApp == "Approved") return Colors.green;
+      if (statusApp == "Reject") return Colors.red;
+      if (statusApp == "Approve") return Colors.green;
       return Colors.grey;
     }
-    // stage == 3
-    if (statusApp == "Disapprove") {
-      return Colors.red;
-    }
-    if (statusReward == "Issued") {
-      return Colors.green;
+    if (stage == 3) {
+      if (statusApp == "Reject") {
+        return Colors.red;
+      }
+      if (statusReward == "Issued") {
+        return Colors.green;
+      }
+      if(statusApp == "Approve"){
+        return Colors.grey;
+      }
+      return Colors.grey;
     }
     return Colors.grey;
   }

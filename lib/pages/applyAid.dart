@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
 import 'package:file_picker/file_picker.dart';
 import '../pages/PDFViewerScreen.dart';
@@ -8,6 +9,9 @@ import '../pages/applicationReviewScreen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:math';
 import 'package:projects/pages/ekyc_screen.dart';
+import 'package:flutter/services.dart' show rootBundle;
+import 'package:csv/csv.dart';
+import 'package:projects/localization/app_localizations.dart';
 
 class ApplyAid extends StatefulWidget {
   @override
@@ -15,103 +19,148 @@ class ApplyAid extends StatefulWidget {
 }
 
 class _ApplyAidState extends State<ApplyAid> {
-  // Added state variable to store user role
   String? userRole;
   bool _isEkycComplete = false;
+  List<List<dynamic>> _postcodeData = [];
 
+  @override
   void initState() {
     super.initState();
     _fetchUserData();
+    _loadPostcodeData();
+    postcodeController.addListener(_onPostcodeChanged);
   }
-  int currentStep = 1; // Tracks the current step (e.g., 1/5)
-  final int totalSteps = 5; // Total number of steps
+
+  @override
+  void dispose() {
+    postcodeController.removeListener(_onPostcodeChanged);
+    nricController.dispose();
+    fullnameController.dispose();
+    emailController.dispose();
+    mobileNumberController.dispose();
+    add1Controller.dispose();
+    add2Controller.dispose();
+    cityController.dispose();
+    postcodeController.dispose();
+    stateController.dispose();
+    justificationController.dispose();
+    occupationController.dispose();
+    incomeController.dispose();
+    asnafInController.dispose();
+    super.dispose();
+  }
+
+  int currentStep = 1;
+  final int totalSteps = 5;
   int _selectedIndex = 0;
-  TextEditingController nricController = TextEditingController();
-  TextEditingController fullnameController = TextEditingController();
+
+  // Page 1 Controllers
+  TextEditingController nricController = TextEditingController(); // Kept for data handling
+  TextEditingController fullnameController = TextEditingController(); // Kept for data handling
   TextEditingController emailController = TextEditingController();
   TextEditingController mobileNumberController = TextEditingController();
   TextEditingController add1Controller = TextEditingController();
   TextEditingController add2Controller = TextEditingController();
   TextEditingController cityController = TextEditingController();
   TextEditingController postcodeController = TextEditingController();
-  TextEditingController residencyController = TextEditingController();
-  TextEditingController employmentController = TextEditingController();
+  TextEditingController stateController = TextEditingController();
+
+  // Page 2 State & Controllers
+  String? _selectedResidency;
+  String? _selectedEmployment;
+  String? _selectedAsnaf;
+  TextEditingController occupationController = TextEditingController();
   TextEditingController incomeController = TextEditingController();
+  TextEditingController asnafInController = TextEditingController();
   TextEditingController justificationController = TextEditingController();
 
   final Map<String, dynamic> formData = {};
-
-  String generateUniqueCode() {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    Random random = Random();
-    return "#" + String.fromCharCodes(Iterable.generate(
-        6, (_) => chars.codeUnitAt(random.nextInt(chars.length))));
-  }
-
-  void updateFormData(String key, dynamic value) {
-    setState(() {
-      formData[key] = value;
-    });
-  }
-
-  String? fileName1;
   String? fileName2;
   String? fileName3;
 
-  void _onItemTapped(int index) {
+  Future<void> _loadPostcodeData() async {
+    final rawData = await rootBundle.loadString('assets/postcode_my.csv');
+    List<List<dynamic>> listData = const CsvToListConverter().convert(rawData);
     setState(() {
-      _selectedIndex = index;
+      _postcodeData = listData;
     });
+  }
+  void _onPostcodeChanged() {
+    final userInputPostcode = postcodeController.text;
+
+    if (userInputPostcode.length >= 4 && userInputPostcode.length <= 5) {
+      final userInputAsInt = int.tryParse(userInputPostcode);
+      if (userInputAsInt == null) {
+        return;
+      }
+
+      for (var i = 1; i < _postcodeData.length; i++) {
+        final csvPostcodeString = _postcodeData[i][3].toString();
+        final csvPostcodeAsInt = int.tryParse(csvPostcodeString);
+
+        if (csvPostcodeAsInt != null && csvPostcodeAsInt == userInputAsInt) {
+          setState(() {
+            cityController.text = _postcodeData[i][2].toString();
+            stateController.text = _postcodeData[i][4].toString();
+          });
+          return;
+        }
+      }
+    }
+
+    setState(() {
+      cityController.clear();
+      stateController.clear();
+    });
+  }
+
+  String generateUniqueCode() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    Random random = Random();
+    return "#" + String.fromCharCodes(Iterable.generate(6, (_) => chars.codeUnitAt(random.nextInt(chars.length))));
   }
 
   void uploadToFirebase(Map<String, dynamic> data) async {
     try {
       final String userId = FirebaseAuth.instance.currentUser!.uid;
-      final DateTime now = DateTime.now(); // Get current date & time
+      final DateTime now = DateTime.now();
 
       String applicationCode = generateUniqueCode();
-      data['date'] = now.toIso8601String(); // Store date as ISO8601 string
-      data['userId'] = userId; // Store user ID for reference
-      data['applicationCode'] = applicationCode; // Store the unique application code
-      data['statusApplication'] = "Pending"; // Set status to Pending
+      data['date'] = now.toIso8601String();
+      data['userId'] = userId;
+      data['applicationCode'] = applicationCode;
+      data['statusApplication'] = "Pending";
 
-      // Add the new submittedBy field based on user role
       if (userRole != null && userRole!.toLowerCase() == 'asnaf') {
         data['submittedBy'] = 'system';
       } else if (userRole != null && userRole!.toLowerCase() == 'staff') {
-        // For staff, fetch the name from the users collection; fullnameController is populated in _fetchUserData
         data['submittedBy'] = fullnameController.text;
       } else {
-        data['submittedBy'] = ''; // Default value if role is not defined
+        data['submittedBy'] = fullnameController.text;
       }
 
       await FirebaseFirestore.instance.collection("applications").add(data);
       await FirebaseFirestore.instance.collection("notifications").add({
-        'recipientRole':    'Admin',
-        'applicantId':      userId,
-        'applicantName':    fullnameController.text,
-        'applicationCode':  applicationCode,
-        'createdAt':        now,
+        'recipientRole': 'Admin',
+        'applicantId': userId,
+        'applicantName': fullnameController.text,
+        'applicationCode': applicationCode,
+        'createdAt': now,
       });
-      print("🔔 Notification sent for $applicationCode to Admin at $now");
 
-
-      Navigator.push(
+      if (!mounted) return;
+      Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => ApplicationReviewScreen()),
       );
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Application submitted successfully!")),
+        SnackBar(content: Text(AppLocalizations.of(context).translate('apply_aid_submit_success'))),
       );
 
-      // Reset form after submission
-      setState(() {
-        formData.clear();
-      });
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Failed to submit application. Please try again.")),
+        SnackBar(content: Text(AppLocalizations.of(context).translate('apply_aid_submit_fail'))),
       );
     }
   }
@@ -120,51 +169,70 @@ class _ApplyAidState extends State<ApplyAid> {
     try {
       final String userId = FirebaseAuth.instance.currentUser!.uid;
 
-      DocumentSnapshot userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .get();
+      DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
 
       if (userDoc.exists) {
         final userData = userDoc.data() as Map<String, dynamic>;
 
-        // Fetch the role from the users collection and assign it to userRole
         userRole = userData['role'] ?? '';
 
-        // Split address into two lines
         final fullAddress = userData['address'] ?? '';
         final addressParts = fullAddress.split(',');
 
-        // Populate the controllers
         setState(() {
           nricController.text = userData['nric'] ?? '';
           fullnameController.text = userData['name'] ?? '';
           emailController.text = FirebaseAuth.instance.currentUser!.email ?? '';
           mobileNumberController.text = userData['phone'] ?? '';
-          add1Controller.text = addressParts.length > 0 ? addressParts[0].trim() : '';
-          add2Controller.text = addressParts.length > 1 ? addressParts[1].trim() : '';
+          add1Controller.text = addressParts.isNotEmpty ? addressParts[0].trim() : '';
+          add2Controller.text = addressParts.length > 1 ? addressParts.sublist(1).join(',').trim() : '';
           cityController.text = userData['city'] ?? '';
           postcodeController.text = userData['postcode'] ?? '';
+          stateController.text = userData['state'] ?? '';
+          if (nricController.text.isNotEmpty) {
+            _isEkycComplete = true;
+          }
         });
       }
     } catch (e) {
       debugPrint("Error fetching user data: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Failed to fetch user details. Please try again.")),
-      );
+    }
+  }
+
+  Future<void> _updateUserProfile() async {
+    try {
+      final String userId = FirebaseAuth.instance.currentUser!.uid;
+      final String mergedAddress = [add1Controller.text.trim(), add2Controller.text.trim()]
+          .where((s) => s.isNotEmpty)
+          .join(', ');
+
+      await FirebaseFirestore.instance.collection('users').doc(userId).set({
+        'name': fullnameController.text,
+        'nric': nricController.text,
+        'phone': mobileNumberController.text,
+        'address': mergedAddress,
+        'city': cityController.text,
+        'postcode': postcodeController.text,
+        'state': stateController.text,
+      }, SetOptions(merge: true));
+
+      print("✅ User profile updated from ApplyAid form.");
+    } catch (e) {
+      print("❌ Error updating user profile: $e");
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    double progressValue = currentStep / totalSteps; // Calculate progress percentage
+    double progressValue = currentStep / totalSteps;
+    final localizations = AppLocalizations.of(context);
 
     return Scaffold(
       appBar: PreferredSize(
         preferredSize: Size.fromHeight(80.0),
         child: AppBar(
           automaticallyImplyLeading: false,
-          backgroundColor: Color(0xFF303030), // Dark background for app bar
+          backgroundColor: Color(0xFF303030),
           flexibleSpace: Padding(
             padding: const EdgeInsets.only(top: 20.0, left: 16.0, right: 16.0),
             child: Column(
@@ -174,20 +242,15 @@ class _ApplyAidState extends State<ApplyAid> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    GestureDetector(
-                      onTap: () {
+                    IconButton(
+                      icon: Icon(Icons.arrow_back, color: Colors.white),
+                      onPressed: () {
                         if (currentStep > 1) {
-                          setState(() {
-                            currentStep--;
-                          });
+                          setState(() => currentStep--);
                         } else {
-                          Navigator.pop(context); // Exit the page if on the first step
+                          Navigator.pop(context);
                         }
                       },
-                      child: Icon(
-                        Icons.arrow_back,
-                        color: Colors.white,
-                      ),
                     ),
                     Expanded(
                       child: Padding(
@@ -196,32 +259,19 @@ class _ApplyAidState extends State<ApplyAid> {
                           children: [
                             Container(
                               height: 23,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
+                              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)),
                             ),
                             AnimatedContainer(
                               duration: Duration(milliseconds: 300),
-                              curve: Curves.easeInOut,
                               width: MediaQuery.of(context).size.width * 0.74 * progressValue,
-                              height: 23, // Same height as background
-                              decoration: BoxDecoration(
-                                color: Colors.green,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
+                              height: 23,
+                              decoration: BoxDecoration(color: Colors.green, borderRadius: BorderRadius.circular(10)),
                             ),
                           ],
                         ),
                       ),
                     ),
-                    Text(
-                      "$currentStep/$totalSteps",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    Text("$currentStep/$totalSteps", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   ],
                 ),
               ],
@@ -231,238 +281,330 @@ class _ApplyAidState extends State<ApplyAid> {
       ),
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0),
-        // Add horizontal padding to the entire form
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            SizedBox(height: 20), // Padding between progress tracker and title
-            Center(
-              child: Column(
-                children: [
-                  Text(
-                    currentStep == 1
-                        ? "Share your personal details"
-                        : currentStep == 2
-                        ? "Check your eligibility"
-                        : currentStep == 3
-                        ? "Upload required documents"
-                        : currentStep == 4
-                        ? "Upload required Documents"
-                        : "Kita Tongtong Agreement",
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFFFDB515),
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    currentStep == 1
-                        ? "Fill in your personal details to begin your application"
-                        : currentStep == 2
-                        ? "Answer a few simple questions to see if you meet our eligibility criteria"
-                        : currentStep == 3
-                        ? "We need to verify your identity and financial status. Please upload the required documents"
-                        : currentStep == 4
-                        ? "We need to verify your identity and financial status. Please upload the required documents"
-                        : "By submitting your application for financial aid through the Kita Tongtong platform, you acknowledge and agree to the following Terms and Conditions. Please read these terms carefully before proceeding.",
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.yellow[200],
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
+            SizedBox(height: 20),
+            Center(child: _buildStepHeader()),
             SizedBox(height: 16),
-            // Display form fields based on the current step
             Expanded(
               child: ListView(
-                children: currentStep == 1
-                    ? buildPersonalDetailsForm()
-                    : currentStep == 2
-                    ? buildEligibilityForm()
-                    : currentStep == 3
-                    ? buildUploadDocumentsForm()
-                    : currentStep == 4
-                    ? buildFourthPage()
-                    : buildAgreementPage(),
+                children: _buildCurrentStepForm(),
               ),
             ),
-            Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.end,
-                // Push the content upwards from the bottom
-                children: [
-                  Divider(
-                    color: Colors.white,
-                    thickness: 1,
-                  ),
-                  SizedBox(height: 2), // Space between divider and button
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 20.0),
-                    // Add space from the bottom
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Color(0xFFFFCF40), // Button background color
-                        foregroundColor: Colors.black, // Text color
-                      ),
-                      onPressed: () {
-                        if (currentStep < totalSteps) {
-                          setState(() {
-                            currentStep++;
-                          });
-                        } else if (currentStep == totalSteps) {
-                          consolidateAndUploadData(); // Upload the data to Firebase
-                        }
-                      },
-                      child: Text(
-                          currentStep == totalSteps ? "Submit" : "Next"),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            _buildNavigationControls(),
           ],
         ),
       ),
       bottomNavigationBar: BottomNavBar(
-        selectedIndex: _selectedIndex, // Pass the selected index
-        onItemTapped: _onItemTapped, // Pass the tap handler
+        selectedIndex: _selectedIndex,
+        onItemTapped: (index) => setState(() => _selectedIndex = index),
       ),
     );
   }
 
-  // Define the forms here
+  Widget _buildStepHeader() {
+    String title = "";
+    String subtitle = "";
+    final localizations = AppLocalizations.of(context);
+    switch (currentStep) {
+      case 1:
+        title = localizations.translate('apply_aid_step1_title');
+        subtitle = localizations.translate('apply_aid_step1_subtitle');
+        break;
+      case 2:
+        title = localizations.translate('apply_aid_step2_title');
+        subtitle = localizations.translate('apply_aid_step2_subtitle');
+        break;
+      case 3:
+        title = localizations.translate('apply_aid_step3_title');
+        subtitle = localizations.translate('apply_aid_step3_subtitle');
+        break;
+      case 4:
+        title = localizations.translate('apply_aid_step4_title');
+        subtitle = localizations.translate('apply_aid_step4_subtitle');
+        break;
+      case 5:
+        title = localizations.translate('apply_aid_step5_title');
+        subtitle = localizations.translate('apply_aid_step5_subtitle');
+        break;
+    }
+    return Column(
+      children: [
+        Text(title, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFFFDB515)), textAlign: TextAlign.center),
+        SizedBox(height: 8),
+        Text(subtitle, style: TextStyle(fontSize: 14, color: Colors.yellow[200]), textAlign: TextAlign.center),
+      ],
+    );
+  }
+
+  List<Widget> _buildCurrentStepForm() {
+    switch (currentStep) {
+      case 1: return buildPersonalDetailsForm();
+      case 2: return buildEligibilityForm();
+      case 3: return buildUploadDocumentsForm();
+      case 4: return buildReviewDocumentsForm();
+      case 5: return buildAgreementPage();
+      default: return [];
+    }
+  }
+
+  Widget _buildNavigationControls() {
+    final localizations = AppLocalizations.of(context);
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        Divider(color: Colors.white, thickness: 1),
+        SizedBox(height: 2),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 20.0),
+          child: ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Color(0xFFFFCF40),
+              foregroundColor: Colors.black,
+            ),
+            onPressed: _onNextPressed,
+            child: Text(currentStep == totalSteps ? localizations.translate('submit') : localizations.translate('next')),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _onNextPressed() async {
+    bool isPageValid = false;
+    switch(currentStep) {
+      case 1: isPageValid = _validatePage1(); break;
+      case 2: isPageValid = _validatePage2(); break;
+      case 3: isPageValid = _validatePage3(); break;
+      case 4: isPageValid = true; break;
+      case 5:
+        consolidateAndUploadData();
+        return;
+    }
+
+    if (!isPageValid) {
+      return;
+    }
+
+    if (currentStep == 1 || currentStep == 2){
+      await _updateUserProfile();
+    }
+
+    if (currentStep < totalSteps) {
+      setState(() => currentStep++);
+    }
+  }
+
+  void showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: Colors.red));
+  }
+
+  bool _validatePage1() {
+    final localizations = AppLocalizations.of(context);
+    if (mobileNumberController.text.isEmpty || !RegExp(r'^(1|01)\d{8,9}$').hasMatch(mobileNumberController.text)) {
+      showSnackBar(localizations.translate('apply_aid_validation_mobile'));
+      return false;
+    }
+    if (add1Controller.text.isEmpty) {
+      showSnackBar(localizations.translate('apply_aid_validation_addr1'));
+      return false;
+    }
+    if (postcodeController.text.isEmpty || !RegExp(r'^\d{5}$').hasMatch(postcodeController.text)) {
+      showSnackBar(localizations.translate('apply_aid_validation_postcode'));
+      return false;
+    }
+    if (cityController.text.isEmpty || stateController.text.isEmpty) {
+      showSnackBar(localizations.translate('apply_aid_validation_city_state'));
+      return false;
+    }
+    return true;
+  }
+
+  bool _validatePage2() {
+    final localizations = AppLocalizations.of(context);
+    if (_selectedResidency == null) {
+      showSnackBar(localizations.translate('apply_aid_validation_residency'));
+      return false;
+    }
+    if (_selectedEmployment == null) {
+      showSnackBar(localizations.translate('apply_aid_validation_employment'));
+      return false;
+    }
+    if (_selectedEmployment == "Employed") {
+      if (occupationController.text.isEmpty) {
+        showSnackBar(localizations.translate('apply_aid_validation_occupation'));
+        return false;
+      }
+      if (incomeController.text.isEmpty) {
+        showSnackBar(localizations.translate('apply_aid_validation_income'));
+        return false;
+      }
+      final income = double.tryParse(incomeController.text);
+      if (income == null) {
+        showSnackBar(localizations.translate('apply_aid_validation_income_numeric'));
+        return false;
+      }
+      if (income > 8000) {
+        showSnackBar(localizations.translate('apply_aid_validation_income_limit'));
+        return false;
+      }
+    }
+    if (_selectedEmployment == "Unemployed") {
+      if (_selectedAsnaf == null) {
+        showSnackBar(localizations.translate('apply_aid_validation_is_asnaf'));
+        return false;
+      }
+      if (_selectedAsnaf == "Yes" && asnafInController.text.isEmpty) {
+        showSnackBar(localizations.translate('apply_aid_validation_asnaf_in'));
+        return false;
+      }
+    }
+    if (justificationController.text.isEmpty) {
+      showSnackBar(localizations.translate('apply_aid_validation_justification'));
+      return false;
+    }
+    return true;
+  }
+
+  bool _validatePage3() {
+    final localizations = AppLocalizations.of(context);
+    if (!_isEkycComplete) {
+      showSnackBar(localizations.translate('apply_aid_validation_ekyc_incomplete'));
+      return false;
+    }
+    if (fileName2 == null) {
+      showSnackBar(localizations.translate('apply_aid_validation_proof_address'));
+      return false;
+    }
+    if (_selectedEmployment == "Employed" && fileName3 == null) {
+      showSnackBar(localizations.translate('apply_aid_validation_proof_income'));
+      return false;
+    }
+    return true;
+  }
+
+
   List<Widget> buildPersonalDetailsForm() {
+    final localizations = AppLocalizations.of(context);
     return [
-      buildTextField("NRIC", "nric", nricController),
-      SizedBox(height: 10),
-      buildTextField("Full Name", "fullname", fullnameController),
-      SizedBox(height: 10),
-      buildTextField("Email", "email", emailController),
+      buildTextField(localizations.translate('apply_aid_label_email'), "email", emailController, hint: localizations.translate('apply_aid_hint_email'), readOnly: true),
       SizedBox(height: 10),
       buildMobileNumberField("mobileNumber", mobileNumberController),
       SizedBox(height: 10),
-      buildTextField("Address Line 1", "addressLine1", add1Controller),
+      buildTextField(localizations.translate('apply_aid_label_addr1'), "addressLine1", add1Controller, hint: localizations.translate('apply_aid_hint_addr1')),
       SizedBox(height: 10),
-      buildTextField("Address Line 2", "addressLine2", add2Controller),
+      buildTextField(localizations.translate('apply_aid_label_addr2'), "addressLine2", add2Controller, hint: localizations.translate('apply_aid_hint_addr2')),
       SizedBox(height: 10),
-      buildTextField("City", "city", cityController),
+      buildTextField(localizations.translate('apply_aid_label_postcode'), "postcode", postcodeController, hint: localizations.translate('apply_aid_hint_postcode'), keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(5)]),
       SizedBox(height: 10),
-      buildTextField("Postcode", "postcode", postcodeController),
+      buildTextField(localizations.translate('apply_aid_label_city'), "city", cityController, hint: localizations.translate('apply_aid_hint_city'), readOnly: true),
+      SizedBox(height: 10),
+      buildTextField(localizations.translate('apply_aid_label_state'), "state", stateController, hint: localizations.translate('apply_aid_hint_state'), readOnly: true),
     ];
   }
 
   List<Widget> buildEligibilityForm() {
+    final localizations = AppLocalizations.of(context);
+    final residencyMap = {
+      "Malaysian": localizations.translate('apply_aid_residency_malaysian'),
+      "Non-Malaysian": localizations.translate('apply_aid_residency_non_malaysian'),
+    };
+    final employmentMap = {
+      "Employed": localizations.translate('apply_aid_employment_employed'),
+      "Unemployed": localizations.translate('apply_aid_employment_unemployed'),
+    };
+    final asnafMap = {
+      "Yes": localizations.translate('yes'),
+      "No": localizations.translate('no'),
+    };
+
     return [
-      buildTextField("Residency Status", "residencyStatus", residencyController),
+      buildDropdownField(localizations.translate('apply_aid_label_residency'), "residencyStatus", residencyMap.values.toList(), _selectedResidency != null ? residencyMap[_selectedResidency] : null, (newValue) {
+        setState(() { _selectedResidency = residencyMap.entries.firstWhere((entry) => entry.value == newValue).key; });
+      }, hint: localizations.translate('apply_aid_hint_residency')),
       SizedBox(height: 10),
-      buildTextField("Employment Status", "employmentStatus", employmentController),
+      buildDropdownField(localizations.translate('apply_aid_label_employment'), "employmentStatus", employmentMap.values.toList(), _selectedEmployment != null ? employmentMap[_selectedEmployment] : null, (newValue) {
+        setState(() {
+          _selectedEmployment = employmentMap.entries.firstWhere((entry) => entry.value == newValue).key;
+          if (_selectedEmployment == "Unemployed") incomeController.clear();
+        });
+      }, hint: localizations.translate('apply_aid_hint_employment')),
       SizedBox(height: 10),
-      buildTextField("Monthly Income", "monthlyIncome", incomeController),
-      SizedBox(height: 10),
-      buildLongTextField("Justification of Application", "justificationApplication", justificationController),
+      if (_selectedEmployment == "Employed") ...[
+        buildTextField(localizations.translate('apply_aid_label_occupation'), "occupation", occupationController, hint: localizations.translate('apply_aid_hint_occupation')),
+        SizedBox(height: 10),
+        buildTextField(localizations.translate('apply_aid_label_income'), "monthlyIncome", incomeController, hint: localizations.translate('apply_aid_hint_income'), keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly]),
+        SizedBox(height: 10),
+      ],
+      if (_selectedEmployment == "Unemployed") ...[
+        buildDropdownField(localizations.translate('apply_aid_label_is_asnaf'), "isAsnaf", asnafMap.values.toList(), _selectedAsnaf != null ? asnafMap[_selectedAsnaf] : null, (newValue) {
+          setState(() { _selectedAsnaf = asnafMap.entries.firstWhere((entry) => entry.value == newValue).key; });
+        }, hint: localizations.translate('apply_aid_hint_is_asnaf')),
+        SizedBox(height: 10),
+        if (_selectedAsnaf == "Yes") ...[
+          buildTextField(localizations.translate('apply_aid_label_asnaf_in'), "asnafIn", asnafInController, hint: localizations.translate('apply_aid_hint_asnaf_in')),
+          SizedBox(height: 10),
+        ]
+      ],
+      buildLongTextField(localizations.translate('apply_aid_label_justification'), "justificationApplication", justificationController, hint: localizations.translate('apply_aid_hint_justification')),
     ];
   }
 
   List<Widget> buildUploadDocumentsForm() {
+    final localizations = AppLocalizations.of(context);
     return [
-      buildEkycVerificationField(
-        "Verify Your Identity (eKYC)",
-        "Required for application",
-      ),
-      buildFileUploadField(
-        "Proof of Address (e.g. Utility Bill)",
-        "Proof of address",
-        "Format: jpeg/jpg/pdf",
-        "proofOfAddress",
-        2,
-      ),
+      buildEkycVerificationField(localizations.translate('apply_aid_label_ekyc'), localizations.translate('apply_aid_subtitle_ekyc')),
       SizedBox(height: 10),
-      buildFileUploadField(
-        "Proof of Income",
-        "Proof of income",
-        "Format: jpeg/jpg/pdf",
-        "proofOfIncome",
-        3,
-      ),
+      buildFileUploadField(localizations.translate('apply_aid_label_proof_address'), localizations.translate('apply_aid_upload_proof_address'), localizations.translate('apply_aid_upload_format'), "proofOfAddress", 2),
+      SizedBox(height: 10),
+      if (_selectedEmployment == "Employed")
+        buildFileUploadField(localizations.translate('apply_aid_label_proof_income'), localizations.translate('apply_aid_upload_proof_income'), localizations.translate('apply_aid_upload_format'), "proofOfIncome", 3),
+    ];
+  }
+
+  List<Widget> buildReviewDocumentsForm() {
+    final localizations = AppLocalizations.of(context);
+    return [
+      buildFileDisplayField(localizations.translate('apply_aid_label_proof_address'), fileName2),
+      SizedBox(height: 10),
+      if (_selectedEmployment == "Employed")
+        buildFileDisplayField(localizations.translate('apply_aid_label_proof_income'), fileName3),
     ];
   }
 
   Widget buildEkycVerificationField(String title, String subtitle) {
+    final localizations = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
+        Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
         SizedBox(height: 8),
         GestureDetector(
           onTap: () async {
-            // Navigate to the EkycScreen and wait for a result
-            final result = await Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => EkycScreen()),
-            );
-
-            // The EkycScreen will pop with `true` if successful
+            final result = await Navigator.push(context, MaterialPageRoute(builder: (context) => EkycScreen()));
             if (result == true) {
-              setState(() {
-                _isEkycComplete = true;
-              });
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text("eKYC Verification Successful!"),
-                  backgroundColor: Colors.green,
-                ),
-              );
-              // Optionally, you can now re-fetch user data to populate the NRIC
-              // and Name fields on the first page if the user goes back.
-              _fetchUserData();
+              await _fetchUserData();
+              setState(() => _isEkycComplete = true);
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(localizations.translate('apply_aid_ekyc_success')), backgroundColor: Colors.green));
             }
           },
           child: Container(
             width: double.infinity,
             padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-            decoration: BoxDecoration(
-              color: _isEkycComplete ? Colors.green : Color(0xFFFFCF40),
-              borderRadius: BorderRadius.circular(10),
-            ),
+            decoration: BoxDecoration(color: _isEkycComplete ? Colors.green : Color(0xFFFFCF40), borderRadius: BorderRadius.circular(10)),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      _isEkycComplete ? "Verification Complete" : "Start eKYC Verification",
-                      style: TextStyle(
-                        color: Colors.black,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        color: Colors.black87,
-                        fontSize: 12,
-                      ),
-                    ),
+                    Text(_isEkycComplete ? localizations.translate('apply_aid_ekyc_complete') : localizations.translate('apply_aid_ekyc_start'), style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
+                    Text(subtitle, style: TextStyle(color: Colors.black87, fontSize: 12)),
                   ],
                 ),
-                Icon(
-                  _isEkycComplete ? Icons.check_circle : Icons.arrow_forward_ios,
-                  color: Colors.black,
-                ),
+                Icon(_isEkycComplete ? Icons.check_circle : Icons.arrow_forward_ios, color: Colors.black),
               ],
             ),
           ),
@@ -471,17 +613,12 @@ class _ApplyAidState extends State<ApplyAid> {
     );
   }
 
-  List<Widget> buildFourthPage() {
-    return [
-      buildFileDisplayField("Proof of Address (e.g. Utility Bill)", fileName2),
-      SizedBox(height: 10),
-      buildFileDisplayField("Proof of Income", fileName3),
-    ];
-  }
-
-  // This method now updates all text field values into formData before uploading
   void consolidateAndUploadData() {
-    // Update formData with the current text values from controllers
+    if (!_validatePage1() || !_validatePage2() || !_validatePage3()) {
+      showSnackBar(AppLocalizations.of(context).translate('apply_aid_validation_all_fields'));
+      return;
+    }
+
     formData["nric"] = nricController.text;
     formData["fullname"] = fullnameController.text;
     formData["email"] = emailController.text;
@@ -490,131 +627,44 @@ class _ApplyAidState extends State<ApplyAid> {
     formData["addressLine2"] = add2Controller.text;
     formData["city"] = cityController.text;
     formData["postcode"] = postcodeController.text;
-    formData["residencyStatus"] = residencyController.text;
-    formData["employmentStatus"] = employmentController.text;
-    formData["monthlyIncome"] = incomeController.text;
+    formData["state"] = stateController.text;
+
+    formData["residencyStatus"] = _selectedResidency;
+    formData["employmentStatus"] = _selectedEmployment;
+    if(_selectedEmployment == "Employed") {
+      formData["occupation"] = occupationController.text;
+      formData["monthlyIncome"] = incomeController.text;
+    } else {
+      formData["isAsnaf"] = _selectedAsnaf;
+      if(_selectedAsnaf == "Yes"){
+        formData["asnafIn"] = asnafInController.text;
+      }
+    }
     formData["justificationApplication"] = justificationController.text;
 
-    formData["proofOfAddress"] = fileName2 ?? "No file uploaded";
-    formData["proofOfIncome"] = fileName3 ?? "No file uploaded";
-    if (!_isEkycComplete) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Please complete the eKYC verification first."),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return; // Stop the submission
-    }
+    final localizations = AppLocalizations.of(context);
+    formData["proofOfAddress"] = fileName2 ?? localizations.translate('apply_aid_no_file_uploaded');
+    formData["proofOfIncome"] = fileName3 ?? localizations.translate('apply_aid_no_file_uploaded');
 
-    // Call a method to upload this data to Firebase
     uploadToFirebase(formData);
   }
 
   List<Widget> buildAgreementPage() {
-    final ScrollController scrollController = ScrollController();
-
+    final localizations = AppLocalizations.of(context);
     return [
       SizedBox(height: 16),
-      Scrollbar(
-        controller: scrollController,
-        thumbVisibility: true,
-        // Show the scrollbar thumb
-        thickness: 6,
-        // Thickness of the scrollbar
-        radius: Radius.circular(10),
-        // Rounded corners for scrollbar
-        interactive: true,
-        scrollbarOrientation: ScrollbarOrientation.right,
+      Container(
+        height: MediaQuery.of(context).size.height * 0.5,
         child: SingleChildScrollView(
-          controller: scrollController,
           child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16.0),
+            padding: EdgeInsets.symmetric(horizontal: 8.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Point 1
-                Text(
-                  "1. Eligibility and Accuracy of Information",
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFFFFCF40), // Color for the point
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  '''
-You confirm that all information provided in this application is true, complete, and accurate to the best of your knowledge.
-You understand that providing false or misleading information may result in the rejection of your application and may impact your eligibility for future assistance.''',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Color(0xFFD9D9D9), // Color for the explanation
-                    height: 1.5,
-                  ),
-                ),
-                SizedBox(height: 10),
-                // Point 2
-                Text(
-                  "2. Use of Financial Aid",
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFFFFCF40), // Color for the point
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  '''
-Financial aid provided through Kita Tongtong is intended solely for the purposes specified in the application, such as tuition fees, hostel fees, and other approved living expenses.
-You agree to use any funds or vouchers received only as directed and for approved expenses within the platform’s guidelines.''',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Color(0xFFD9D9D9), // Color for the explanation
-                    height: 1.5,
-                  ),
-                ),
-                SizedBox(height: 10),
-                // Point 3
-                Text(
-                  "3. Privacy and Data Usage",
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFFFFCF40), // Color for the point
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  '''
-By submitting this application, you consent to the collection, processing, and storage of your personal information as outlined in our Privacy Policy.
-Your information will be used only to assess your eligibility for aid, manage fund disbursement, and ensure compliance with platform policies.''',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Color(0xFFD9D9D9), // Color for the explanation
-                    height: 1.5,
-                  ),
-                ),
-                SizedBox(height: 10),
-                // Point 4
-                Text(
-                  "4. Review and Verification Process",
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFFFFCF40), // Color for the point
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  '''
-You acknowledge that Kita Tongtong may verify the information provided, which may include contacting relevant parties (such as universities, administrators) to validate your application.
-Failure to provide requested information within the specified timeline may result in application delays or denial.''',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Color(0xFFD9D9D9), // Color for the explanation
-                    height: 1.5,
-                  ),
-                ),
+                _buildAgreementPoint(localizations.translate('apply_aid_agreement1_title'), localizations.translate('apply_aid_agreement1_content')),
+                _buildAgreementPoint(localizations.translate('apply_aid_agreement2_title'), localizations.translate('apply_aid_agreement2_content')),
+                _buildAgreementPoint(localizations.translate('apply_aid_agreement3_title'), localizations.translate('apply_aid_agreement3_content')),
+                _buildAgreementPoint(localizations.translate('apply_aid_agreement4_title'), localizations.translate('apply_aid_agreement4_content')),
               ],
             ),
           ),
@@ -623,93 +673,50 @@ Failure to provide requested information within the specified timeline may resul
     ];
   }
 
+  Widget _buildAgreementPoint(String title, String content) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFFFFCF40))),
+        SizedBox(height: 4),
+        Text(content, style: TextStyle(fontSize: 14, color: Color(0xFFD9D9D9), height: 1.5)),
+        SizedBox(height: 10),
+      ],
+    );
+  }
+
   Widget buildFileDisplayField(String title, String? fileName) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Title outside the box
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: Colors.white, // Title color
-          ),
-        ),
-        SizedBox(height: 8), // Spacing between title and box
-        // File display box
+        Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
+        SizedBox(height: 8),
         GestureDetector(
-          onTap: () async {
-            if (fileName == null) {
-              // Allow new file upload if no file exists
-              FilePickerResult? result = await FilePicker.platform.pickFiles(
-                type: FileType.custom,
-                allowedExtensions: ['jpeg', 'jpg', 'pdf'],
-              );
-              if (result != null) {
-                setState(() {
-                  // Assign the uploaded file path
-                  if (title.contains("NRIC"))
-                    fileName1 = result.files.single.path!;
-                  if (title.contains("Address"))
-                    fileName2 = result.files.single.path!;
-                  if (title.contains("Income"))
-                    fileName3 = result.files.single.path!;
-                });
-              }
-            } else {
-              // If file exists, view the file
-              if (fileName.endsWith('.pdf')) {
-                print("Opening file: $fileName"); // Print full file path
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => PDFViewerScreen(filePath: fileName),
-                  ),
-                );
-              }
+          onTap: () {
+            if (fileName != null && fileName.endsWith('.pdf')) {
+              Navigator.push(context, MaterialPageRoute(builder: (context) => PDFViewerScreen(filePath: fileName)));
             }
           },
           child: Container(
-            decoration: BoxDecoration(
-              color: Color(0xFFFFCF40),
-              borderRadius: BorderRadius.circular(10),
-            ),
+            decoration: BoxDecoration(color: Color(0xFFFFCF40), borderRadius: BorderRadius.circular(10)),
             padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Expanded(
                   child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Image.asset('assets/docAsnaf.png', height: 24),
                       SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          fileName != null ? path.basename(fileName) : "No file uploaded",
-                          style: TextStyle(
-                            color: Colors.black,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                          maxLines: 2,
+                          fileName != null ? path.basename(fileName) : AppLocalizations.of(context).translate('apply_aid_no_file_uploaded'),
+                          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 14),
                           overflow: TextOverflow.ellipsis,
-                          softWrap: true,
                         ),
                       ),
                     ],
                   ),
-                ),
-                IconButton(
-                  icon: Image.asset('assets/trash.png', height: 24),
-                  onPressed: () {
-                    setState(() {
-                      if (title.contains("NRIC")) fileName1 = null;
-                      if (title.contains("Address")) fileName2 = null;
-                      if (title.contains("Income")) fileName3 = null;
-                    });
-                  },
                 ),
               ],
             ),
@@ -720,132 +727,49 @@ Failure to provide requested information within the specified timeline may resul
   }
 
   Widget buildFileUploadField(String title, String label, String subtitle, String key, int index) {
-    String? uploadedFileName; // Variable to store the file name
-    return StatefulBuilder(
-      builder: (BuildContext context, StateSetter setState) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title, // Title outside the box
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-            SizedBox(height: 8),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Color(0xFFFFCF40),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              onPressed: () async {
-                try {
-                  // Open file picker to select a file
-                  FilePickerResult? result = await FilePicker.platform.pickFiles(
-                    type: FileType.custom,
-                    allowedExtensions: ['jpeg', 'jpg', 'pdf'],
-                  );
-                  if (result != null) {
-                    setState(() {
-                      uploadedFileName = result.files.single.name;
-                      if (index == 1) fileName1 = uploadedFileName;
-                      if (index == 2) fileName2 = uploadedFileName;
-                      if (index == 3) fileName3 = uploadedFileName;
-                      formData[key] = uploadedFileName;
-                    });
-                  }
-                } catch (e) {
-                  debugPrint("Error while picking file: $e");
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text("Failed to pick file. Please try again.")),
-                  );
-                }
-              },
-              child: Container(
-                height: 90,
-                width: double.infinity,
-                child: Center(
-                  child: uploadedFileName == null
-                      ? Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Image.asset('assets/uploadAsnaf.png', height: 24),
-                      SizedBox(height: 6),
-                      Text(
-                        label,
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        subtitle,
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontSize: 12,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  )
-                      : Text(
-                    uploadedFileName!,
-                    style: TextStyle(
-                      color: Colors.black,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget buildLongTextField(String label, String key, TextEditingController controller) {
+    String? uploadedFileName = index == 2 ? fileName2 : fileName3;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
+        Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
         SizedBox(height: 8),
-        Container(
-          height: 120,
-          decoration: BoxDecoration(
-            color: Color(0xFFFFCF40),
-            borderRadius: BorderRadius.circular(10),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Color(0xFFFFCF40),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            padding: EdgeInsets.zero,
           ),
-          child: TextField(
-            controller: controller,
-            onChanged: (value) {
-              setState(() {
-                formData[key] = value;
-              });
-            },
-            maxLines: null,
-            expands: true,
-            textAlignVertical: TextAlignVertical.top,
-            decoration: InputDecoration(
-              border: InputBorder.none,
-              contentPadding: EdgeInsets.all(8),
+          onPressed: () async {
+            try {
+              FilePickerResult? result = await FilePicker.platform.pickFiles(
+                  type: FileType.custom, allowedExtensions: ['jpeg', 'jpg', 'pdf']);
+              if (result != null) {
+                setState(() {
+                  if (index == 2) fileName2 = result.files.single.path!;
+                  if (index == 3) fileName3 = result.files.single.path!;
+                  formData[key] = result.files.single.path!;
+                });
+              }
+            } catch (e) {
+              debugPrint("Error while picking file: $e");
+            }
+          },
+          child: Container(
+            height: 90,
+            width: double.infinity,
+            child: Center(
+              child: uploadedFileName == null
+                  ? Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Image.asset('assets/uploadAsnaf.png', height: 24),
+                  SizedBox(height: 6),
+                  Text(label, style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 14), textAlign: TextAlign.center),
+                  SizedBox(height: 4),
+                  Text(subtitle, style: TextStyle(color: Colors.black, fontSize: 12), textAlign: TextAlign.center),
+                ],
+              )
+                  : Text(path.basename(uploadedFileName), style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 14), textAlign: TextAlign.center),
             ),
           ),
         ),
@@ -853,33 +777,49 @@ Failure to provide requested information within the specified timeline may resul
     );
   }
 
-  Widget buildTextField(String label, String key, TextEditingController controller) {
+  Widget buildLongTextField(String label, String key, TextEditingController controller, {String? hint}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
+        Text(label, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
         SizedBox(height: 8),
         Container(
-          height: 30,
-          decoration: BoxDecoration(
-            color: Color(0xFFFFCF40),
-            borderRadius: BorderRadius.circular(10),
-          ),
+          height: 120,
+          decoration: BoxDecoration(color: Color(0xFFFFCF40), borderRadius: BorderRadius.circular(10)),
           child: TextField(
             controller: controller,
-            onChanged: (value) {
-              setState(() {
-                formData[key] = value;
-              });
-            },
+            maxLines: null,
+            expands: true,
+            textAlignVertical: TextAlignVertical.top,
             decoration: InputDecoration(
+              hintText: hint,
+              hintStyle: TextStyle(color: Colors.black54),
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.all(12),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget buildTextField(String label, String key, TextEditingController controller, {bool readOnly = false, String? hint, TextInputType? keyboardType, List<TextInputFormatter>? inputFormatters}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
+        SizedBox(height: 8),
+        Container(
+          height: 40,
+          decoration: BoxDecoration(color: Color(0xFFFFCF40), borderRadius: BorderRadius.circular(10)),
+          child: TextField(
+            controller: controller,
+            readOnly: readOnly,
+            keyboardType: keyboardType,
+            inputFormatters: inputFormatters,
+            decoration: InputDecoration(
+              hintText: hint,
+              hintStyle: TextStyle(color: Colors.black54),
               border: InputBorder.none,
               contentPadding: EdgeInsets.symmetric(vertical: 12, horizontal: 12),
             ),
@@ -889,52 +829,61 @@ Failure to provide requested information within the specified timeline may resul
     );
   }
 
-  Widget buildMobileNumberField(String key, TextEditingController controller) {
+  Widget buildDropdownField(String label, String key, List<String> items, String? selectedValue, ValueChanged<String?> onChanged, {String? hint}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          "Mobile Number",
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-        ),
+        Text(label, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
         SizedBox(height: 8),
         Container(
-          height: 30,
-          decoration: BoxDecoration(
-            color: Color(0xFFFFCF40),
-            borderRadius: BorderRadius.circular(10),
+          height: 45,
+          padding: EdgeInsets.symmetric(horizontal: 12.0),
+          decoration: BoxDecoration(color: Color(0xFFFFCF40), borderRadius: BorderRadius.circular(10)),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: selectedValue,
+              isExpanded: true,
+              hint: Text(hint ?? AppLocalizations.of(context).translate('apply_aid_hint_is_asnaf'), style: TextStyle(color: Colors.black54)),
+              icon: Icon(Icons.arrow_drop_down, color: Colors.black),
+              dropdownColor: Color(0xFFFFCF40),
+              onChanged: onChanged,
+              items: items.map<DropdownMenuItem<String>>((String value) {
+                return DropdownMenuItem<String>(value: value, child: Text(value, style: TextStyle(color: Colors.black)));
+              }).toList(),
+            ),
           ),
+        ),
+      ],
+    );
+  }
+
+  Widget buildMobileNumberField(String key, TextEditingController controller) {
+    final localizations = AppLocalizations.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(localizations.translate('apply_aid_label_mobile'), style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)),
+        SizedBox(height: 8),
+        Container(
+          height: 40,
+          decoration: BoxDecoration(color: Color(0xFFFFCF40), borderRadius: BorderRadius.circular(10)),
           child: Row(
             children: [
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                child: Text(
-                  "+60",
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
-                  ),
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                child: Text("+60", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black)),
               ),
-              VerticalDivider(color: Colors.black, thickness: 1),
+              VerticalDivider(color: Colors.black, thickness: 1, indent: 8, endIndent: 8),
               Expanded(
                 child: TextField(
                   controller: controller,
-                  onChanged: (value) {
-                    setState(() {
-                      formData[key] = value;
-                    });
-                  },
                   keyboardType: TextInputType.phone,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   decoration: InputDecoration(
                     border: InputBorder.none,
-                    contentPadding: EdgeInsets.all(8),
-                    hintText: "Enter your mobile number",
+                    contentPadding: EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
+                    hintText: localizations.translate('apply_aid_hint_mobile'),
+                    hintStyle: TextStyle(color: Colors.black54),
                   ),
                 ),
               ),

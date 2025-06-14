@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/bottomNavBar.dart';
 import '../pages/loginPage.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -7,7 +8,6 @@ import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:projects/localization/app_localizations.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -24,6 +24,8 @@ class _ProfilePageState extends State<ProfilePage> {
   File? _selectedImage;
   String? _firestorePhotoUrl;
   String? _firestoreEmail;
+  bool _isSaving = false;
+  bool _isMounted = false;
 
   TextEditingController nameController = TextEditingController();
   TextEditingController phoneController = TextEditingController();
@@ -31,29 +33,50 @@ class _ProfilePageState extends State<ProfilePage> {
   TextEditingController addressController = TextEditingController();
   TextEditingController cityController = TextEditingController();
   TextEditingController postcodeController = TextEditingController();
+  TextEditingController stateController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-
+    _isMounted = true;
     currentUser = widget.user ?? FirebaseAuth.instance.currentUser;
-    _loadCachedData();
-    _initializeListeners();
+    if (currentUser != null) {
+      _loadInitialData();
+      _initializeListeners();
+    }
+  }
 
-    nameController.text = currentUser?.displayName ?? '';
-    phoneController.text = currentUser?.phoneNumber ?? '';
-    nricController.text = '';
-    addressController.text = '';
-    cityController.text = '';
-    postcodeController.text = '';
+  @override
+  void dispose() {
+    _isMounted = false;
+    nameController.removeListener(_saveData);
+    phoneController.removeListener(_saveData);
+    addressController.removeListener(_saveData);
+    cityController.removeListener(_saveData);
+    postcodeController.removeListener(_saveData);
+    stateController.removeListener(_saveData);
+
+    nameController.dispose();
+    phoneController.dispose();
+    nricController.dispose();
+    addressController.dispose();
+    cityController.dispose();
+    postcodeController.dispose();
+    stateController.dispose();
+    super.dispose();
+  }
+
+  void _loadInitialData() async {
+    await _loadCachedData();
+    await _loadUserDataFromFirestore();
   }
 
   Future<void> _pickImage() async {
     final ImagePicker picker = ImagePicker();
-    final XFile? pickedImage =
-    await picker.pickImage(source: ImageSource.gallery);
+    final XFile? pickedImage = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
 
     if (pickedImage != null) {
+      if (!_isMounted) return;
       setState(() {
         _selectedImage = File(pickedImage.path);
       });
@@ -61,137 +84,154 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  Future<void> clearAuthCache() async {
+  Future<void> _signOut() async {
+    final prefs = await SharedPreferences.getInstance();
+    String? userId = currentUser?.uid;
+
+    await GoogleSignIn().signOut();
     await FirebaseAuth.instance.signOut();
 
-    GoogleSignIn googleSignIn = GoogleSignIn();
-    if (await googleSignIn.isSignedIn()) {
-      await googleSignIn.disconnect();
-    }
-    await googleSignIn.signOut();
-
-    final prefs = await SharedPreferences.getInstance();
-    String userId = FirebaseAuth.instance.currentUser?.uid ?? '';
-    print("SharedPreferences for $userId: ${prefs.getString('name_$userId')}");
-
-    if (userId.isNotEmpty) {
+    if (userId != null) {
       await prefs.remove('name_$userId');
       await prefs.remove('phone_$userId');
       await prefs.remove('nric_$userId');
       await prefs.remove('address_$userId');
       await prefs.remove('city_$userId');
       await prefs.remove('postcode_$userId');
+      await prefs.remove('state_$userId');
       await prefs.remove('photoUrl_$userId');
     }
 
-    print("✅ Cached user data cleared.");
+    if (!_isMounted) return;
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => LoginPage()),
+          (route) => false,
+    );
   }
 
   Future<void> _saveData({bool isImageUpdated = false}) async {
-    try {
-      String userId = FirebaseAuth.instance.currentUser?.uid ?? "";
-      if (userId.isEmpty) return;
+    if (_isSaving) return;
+    if (_isMounted) setState(() => _isSaving = true);
 
-      String? imageUrl;
+    try {
+      String? userId = currentUser?.uid;
+      if (userId == null || userId.isEmpty) return;
+
       final prefs = await SharedPreferences.getInstance();
+      String? imageUrl = _firestorePhotoUrl;
 
       if (isImageUpdated && _selectedImage != null) {
-        String fileName =
-            "${userId}_${DateTime.now().millisecondsSinceEpoch}.jpg";
-        final storageRef =
-        FirebaseStorage.instance.ref().child('profile_pictures/$fileName');
-
-        final TaskSnapshot snapshot = await storageRef.putFile(_selectedImage!);
+        String fileName = "${userId}_${DateTime.now().millisecondsSinceEpoch}.jpg";
+        final storageRef = FirebaseStorage.instance.ref().child('profile_pictures/$fileName');
+        final snapshot = await storageRef.putFile(_selectedImage!);
         imageUrl = await snapshot.ref.getDownloadURL();
-
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(userId)
-            .set({'photoUrl': imageUrl}, SetOptions(merge: true));
-
-        prefs.setString('photoUrl_$userId', imageUrl);
       }
 
       final userData = {
-        'name': nameController.text,
-        'phone': phoneController.text,
-        'nric': nricController.text,
-        'address': addressController.text,
-        'city': cityController.text,
-        'postcode': postcodeController.text,
+        'name': nameController.text.trim(),
+        'phone': phoneController.text.trim(),
+        'nric': nricController.text.trim(),
+        'address': addressController.text.trim(),
+        'city': cityController.text.trim(),
+        'postcode': postcodeController.text.trim(),
+        'state': stateController.text.trim(),
         if (imageUrl != null) 'photoUrl': imageUrl,
       };
 
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .set(userData, SetOptions(merge: true));
+      await FirebaseFirestore.instance.collection('users').doc(userId).set(userData, SetOptions(merge: true));
 
-      prefs.setString('name_$userId', nameController.text);
-      prefs.setString('phone_$userId', phoneController.text);
-      prefs.setString('nric_$userId', nricController.text);
-      prefs.setString('address_$userId', addressController.text);
-      prefs.setString('city_$userId', cityController.text);
-      prefs.setString('postcode_$userId', postcodeController.text);
-      if (_firestorePhotoUrl != null) {
-        prefs.setString('photoUrl_$userId', _firestorePhotoUrl!);
+      await prefs.setString('name_$userId', nameController.text.trim());
+      await prefs.setString('phone_$userId', phoneController.text.trim());
+      // NRIC is read-only, no need to save it back from here. It's set by eKYC.
+      await prefs.setString('address_$userId', addressController.text.trim());
+      await prefs.setString('city_$userId', cityController.text.trim());
+      await prefs.setString('postcode_$userId', postcodeController.text.trim());
+      await prefs.setString('state_$userId', stateController.text.trim());
+      if (imageUrl != null) {
+        await prefs.setString('photoUrl_$userId', imageUrl);
       }
 
-
-      setState(() {
-        if (imageUrl != null) {
-          _selectedImage = null;
-        }
-      });
-
-      print("✅ User data saved successfully.");
+      if (_isMounted) {
+        setState(() {
+          if (isImageUpdated) {
+            _firestorePhotoUrl = imageUrl;
+            _selectedImage = null;
+          }
+        });
+      }
     } catch (e) {
       print("❌ Error during data saving: $e");
+    } finally {
+      if (_isMounted) {
+        setState(() => _isSaving = false);
+      }
     }
   }
 
   Future<void> _loadCachedData() async {
     final prefs = await SharedPreferences.getInstance();
-    String userId = FirebaseAuth.instance.currentUser?.uid ?? "";
+    String? userId = currentUser?.uid;
+    if (userId == null || userId.isEmpty || !_isMounted) return;
 
-    if (userId.isEmpty) return;
+    setState(() {
+      nameController.text = prefs.getString('name_$userId') ?? currentUser?.displayName ?? '';
+      phoneController.text = prefs.getString('phone_$userId') ?? currentUser?.phoneNumber ?? '';
+      nricController.text = prefs.getString('nric_$userId') ?? '';
+      addressController.text = prefs.getString('address_$userId') ?? '';
+      cityController.text = prefs.getString('city_$userId') ?? '';
+      postcodeController.text = prefs.getString('postcode_$userId') ?? '';
+      stateController.text = prefs.getString('state_$userId') ?? '';
+      _firestorePhotoUrl = prefs.getString('photoUrl_$userId') ?? currentUser?.photoURL;
+      _firestoreEmail = currentUser?.email ?? '';
+    });
+  }
 
-    final docSnapshot =
-    await FirebaseFirestore.instance.collection('users').doc(userId).get();
+  Future<void> _loadUserDataFromFirestore() async {
+    String? userId = currentUser?.uid;
+    if (userId == null || userId.isEmpty) return;
 
-    if (docSnapshot.exists) {
-      final userData = docSnapshot.data();
+    try {
+      final docSnapshot = await FirebaseFirestore.instance.collection('users').doc(userId).get();
+      if (!_isMounted || !docSnapshot.exists) return;
+
+      final userData = docSnapshot.data()!;
+      final prefs = await SharedPreferences.getInstance();
 
       setState(() {
-        nameController.text = userData?['name'] ?? '';
-        phoneController.text = userData?['phone'] ?? '';
-        nricController.text = userData?['nric'] ?? '';
-        addressController.text = userData?['address'] ?? '';
-        cityController.text = userData?['city'] ?? '';
-        postcodeController.text = userData?['postcode'] ?? '';
-        _firestorePhotoUrl = userData?['photoUrl'];
-        _firestoreEmail = userData?['email'];
-
-        prefs.setString('name_$userId', nameController.text);
-        prefs.setString('phone_$userId', phoneController.text);
-        prefs.setString('nric_$userId', nricController.text);
-        prefs.setString('address_$userId', addressController.text);
-        prefs.setString('city_$userId', cityController.text);
-        prefs.setString('postcode_$userId', postcodeController.text);
-        if (_firestorePhotoUrl != null) {
-          prefs.setString('photoUrl_$userId', _firestorePhotoUrl!);
-        }
+        nameController.text = userData['name'] ?? '';
+        phoneController.text = userData['phone'] ?? '';
+        nricController.text = userData['nric'] ?? '';
+        addressController.text = userData['address'] ?? '';
+        cityController.text = userData['city'] ?? '';
+        postcodeController.text = userData['postcode'] ?? '';
+        stateController.text = userData['state'] ?? '';
+        _firestorePhotoUrl = userData['photoUrl'];
+        _firestoreEmail = userData['email'] ?? currentUser?.email ?? '';
       });
+
+      await prefs.setString('name_$userId', nameController.text);
+      await prefs.setString('phone_$userId', phoneController.text);
+      await prefs.setString('nric_$userId', nricController.text);
+      await prefs.setString('address_$userId', addressController.text);
+      await prefs.setString('city_$userId', cityController.text);
+      await prefs.setString('postcode_$userId', postcodeController.text);
+      await prefs.setString('state_$userId', stateController.text);
+      if (_firestorePhotoUrl != null) {
+        await prefs.setString('photoUrl_$userId', _firestorePhotoUrl!);
+      }
+    } catch (e) {
+      print("❌ Error loading data from Firestore: $e");
     }
   }
 
   void _initializeListeners() {
-    nameController.addListener(() => _saveData());
-    phoneController.addListener(() => _saveData());
-    nricController.addListener(() => _saveData());
-    addressController.addListener(() => _saveData());
-    cityController.addListener(() => _saveData());
-    postcodeController.addListener(() => _saveData());
+    nameController.addListener(_saveData);
+    phoneController.addListener(_saveData);
+    addressController.addListener(_saveData);
+    cityController.addListener(_saveData);
+    postcodeController.addListener(_saveData);
+    stateController.addListener(_saveData);
   }
 
   @override
@@ -204,168 +244,12 @@ class _ProfilePageState extends State<ProfilePage> {
             child: Column(
               children: [
                 SizedBox(height: 20),
-                Center(
-                  child: Column(
-                    children: [
-                      GestureDetector(
-                        onTap: () {
-                          if (currentUser != null) {
-                            _pickImage();
-                          }
-                        },
-                        child: CircleAvatar(
-                          radius: 50,
-                          backgroundImage: _selectedImage != null
-                              ? FileImage(_selectedImage!)
-                              : (_firestorePhotoUrl != null
-                              ? NetworkImage(_firestorePhotoUrl!)
-                              : AssetImage('assets/profileNotLogin.png'))
-                          as ImageProvider,
-                        ),
-                      ),
-                      Stack(
-                        children: [
-                          ConstrainedBox(
-                            constraints: BoxConstraints(
-                              maxWidth: MediaQuery.of(context).size.width * 0.6,
-                            ),
-                            child: TextField(
-                              controller: nameController,
-                              onChanged: (text) {
-                                setState(() {});
-                              },
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.yellow,
-                              ),
-                              decoration: InputDecoration(
-                                border: InputBorder.none,
-                                hintText: AppLocalizations.of(context)
-                                    .translate('profile_set_name_hint'),
-                                hintStyle: TextStyle(color: Colors.grey),
-                              ),
-                              maxLines: 2,
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                          Positioned(
-                            right: MediaQuery.of(context).size.width * 0.05,
-                            top: 10,
-                            child: GestureDetector(
-                              child: Image.asset(
-                                'assets/pencil.png',
-                                height: 20,
-                                width: 20,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      Container(
-                        margin: EdgeInsets.symmetric(horizontal: 20),
-                        decoration: BoxDecoration(
-                          color: Color(0xFF404040),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Column(
-                          children: [
-                            ListTile(
-                              leading: Image.asset(
-                                'assets/profileicon1.png',
-                                height: 24,
-                                width: 24,
-                              ),
-                              title: GestureDetector(
-                                onTap: () {
-                                  _pickImage();
-                                },
-                                child: Text(
-                                  AppLocalizations.of(context)
-                                      .translate('profile_change_photo'),
-                                  style: TextStyle(color: Colors.white),
-                                ),
-                              ),
-                            ),
-                            buildEmailRow(
-                              'assets/profileIcon9.png',
-                              _firestoreEmail != null && _firestoreEmail!.isNotEmpty
-                                  ? _firestoreEmail!
-                                  : AppLocalizations.of(context).translate('profile_no_email'),
-                            ),
-                            buildNonEditableRow(
-                                'assets/profileicon2.png',
-                                currentUser?.displayName ??
-                                    AppLocalizations.of(context)
-                                        .translate('profile_set_username')),
-                            buildEditableRow(
-                                'assets/profileicon3.png',
-                                AppLocalizations.of(context)
-                                    .translate('profile_mobile_number'),
-                                phoneController),
-                            buildEditableRow(
-                                'assets/profileicon4.png',
-                                AppLocalizations.of(context)
-                                    .translate('profile_nric'),
-                                nricController),
-                            buildEditableRow(
-                                'assets/profileicon5.png',
-                                AppLocalizations.of(context)
-                                    .translate('profile_home_address'),
-                                addressController),
-                            buildEditableRow(
-                                'assets/profileicon6.png',
-                                AppLocalizations.of(context)
-                                    .translate('profile_city'),
-                                cityController),
-                            buildEditableRow(
-                                'assets/profileicon7.png',
-                                AppLocalizations.of(context)
-                                    .translate('profile_postcode'),
-                                postcodeController),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 5.0),
-                  child: Column(
-                    children: [
-                      SizedBox(height: 12),
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: currentUser != null
-                              ? Colors.red
-                              : Color(0xFFFFCF40),
-                          foregroundColor: Colors.black,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          padding: EdgeInsets.symmetric(
-                              horizontal: 80, vertical: 12),
-                        ),
-                        onPressed: () async {
-                          await clearAuthCache();
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                                builder: (context) => LoginPage()),
-                          );
-                        },
-                        child: Text(
-                          currentUser != null
-                              ? AppLocalizations.of(context)
-                              .translate('profile_logout')
-                              : AppLocalizations.of(context)
-                              .translate('profile_login'),
-                          style: TextStyle(fontSize: 16),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                Center(child: _buildProfileHeader()),
+                SizedBox(height: 20),
+                _buildProfileDetails(),
+                SizedBox(height: 20),
+                _buildLogoutButton(),
+                SizedBox(height: 20),
               ],
             ),
           ),
@@ -373,64 +257,102 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
       bottomNavigationBar: BottomNavBar(
         selectedIndex: 4,
-        onItemTapped: (int index) {
-          if (index != 4) {
-            Navigator.pushNamed(context, '/home');
-          }
+        onItemTapped: (index) {
+          if (index == 0) Navigator.pushNamed(context, '/home');
         },
       ),
     );
   }
 
-  Widget buildNonEditableRow(String iconPath, String text) {
-    return ListTile(
-      leading: Image.asset(
-        iconPath,
-        height: 24,
-        width: 24,
-      ),
-      title: Text(
-        text,
-        style: TextStyle(
-          color: Colors.white,
+  Widget _buildProfileHeader() {
+    return Column(
+      children: [
+        GestureDetector(
+          onTap: _pickImage,
+          child: CircleAvatar(
+            radius: 50,
+            backgroundImage: _selectedImage != null
+                ? FileImage(_selectedImage!)
+                : (_firestorePhotoUrl != null && _firestorePhotoUrl!.isNotEmpty
+                ? NetworkImage(_firestorePhotoUrl!)
+                : AssetImage('assets/profileNotLogin.png')) as ImageProvider,
+            child: Align(
+              alignment: Alignment.bottomRight,
+              child: CircleAvatar(
+                backgroundColor: Colors.white,
+                radius: 15,
+                child: Icon(Icons.camera_alt, size: 20.0, color: Colors.black),
+              ),
+            ),
+          ),
         ),
+        SizedBox(height: 10),
+        Text(
+          nameController.text.isNotEmpty ? nameController.text : "User Name",
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.yellow),
+          textAlign: TextAlign.center,
+        ),
+        Text(
+          _firestoreEmail ?? "user.email@example.com",
+          style: TextStyle(fontSize: 14, color: Colors.white70),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProfileDetails() {
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 20),
+      decoration: BoxDecoration(
+        color: Color(0xFF404040),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        children: [
+          buildEditableRow('assets/profileicon2.png', AppLocalizations.of(context).translate('profile_set_name_hint'), nameController),
+          buildEditableRow('assets/profileicon3.png', AppLocalizations.of(context).translate('profile_mobile_number'), phoneController),
+          buildEditableRow('assets/profileicon4.png', AppLocalizations.of(context).translate('profile_nric'), nricController, readOnly: true, hint: "From eKYC"),
+          buildEditableRow('assets/profileicon5.png', AppLocalizations.of(context).translate('profile_home_address'), addressController),
+          buildEditableRow('assets/profileicon6.png', AppLocalizations.of(context).translate('profile_city'), cityController),
+          buildEditableRow('assets/profileicon7.png', AppLocalizations.of(context).translate('profile_postcode'), postcodeController),
+          buildEditableRow('assets/profileicon7.png', 'State', stateController),
+        ],
       ),
     );
   }
 
-  Widget buildEditableRow(
-      String iconPath, String label, TextEditingController controller) {
-    return ListTile(
-      leading: Image.asset(
-        iconPath,
-        height: 24,
-        width: 24,
+  Widget _buildLogoutButton() {
+    return ElevatedButton(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.red,
+        foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        padding: EdgeInsets.symmetric(horizontal: 80, vertical: 12),
       ),
+      onPressed: _signOut,
+      child: Text(
+        AppLocalizations.of(context).translate('profile_logout'),
+        style: TextStyle(fontSize: 16),
+      ),
+    );
+  }
+
+  Widget buildEditableRow(String iconPath, String label, TextEditingController controller, {bool readOnly = false, String? hint}) {
+    return ListTile(
+      leading: Image.asset(iconPath, height: 24, width: 24),
       title: TextField(
         controller: controller,
+        readOnly: readOnly,
         style: TextStyle(color: Colors.white),
         decoration: InputDecoration(
           border: InputBorder.none,
-          hintText: label,
-          hintStyle: TextStyle(color: Colors.grey),
+          labelText: label,
+          labelStyle: TextStyle(color: Colors.grey),
+          hintText: hint,
+          hintStyle: TextStyle(color: Colors.grey[600]),
         ),
       ),
     );
   }
-}
-
-Widget buildEmailRow(String iconPath, String email) {
-  return ListTile(
-    leading: Image.asset(
-      iconPath,
-      height: 24,
-      width: 24,
-    ),
-    title: Text(
-      email,
-      style: TextStyle(
-        color: Colors.white,
-      ),
-    ),
-  );
 }

@@ -154,7 +154,7 @@ class _PayPackageState extends State<PayPackage> {
         'categoryCode': toyyibpayCategoryCode,
         'billName': 'Kita Tongtong Package Donation',
         'billDescription': 'Donation of ${widget.totalQuantity} package(s)',
-        'billPriceSetting': '0',
+        'billPriceSetting': '1',
         'billPayorInfo': '1',
         'billAmount': amountInCents,
         'billReturnUrl': billReturnUrl,
@@ -537,7 +537,7 @@ class _PayPackageState extends State<PayPackage> {
                     return;
                   }
 
-                  final String amountInCents = (widget.overallAmount * 100).toString();
+                  final String amountInCents = (widget.overallAmount * 100).toInt().toString();
 
                   final donationData = {
                     'amount': widget.overallAmount, // RM amount

@@ -28,7 +28,7 @@ class _AmountPageState extends State<PackagePage> {
     double sumValue = 0.0;
     for (var doc in docs) {
       final id = doc.id;
-      final packageValue = (doc['price'] as num?)?.toDouble() ?? 0.0;
+      final packageValue = (doc['voucherValue'] as num?)?.toDouble() ?? 0.0;
       final qtyController = _quantityControllers[id];
       int qty = int.tryParse(qtyController?.text ?? "0") ?? 0;
       sumQty += qty;
@@ -52,23 +52,22 @@ class _AmountPageState extends State<PackagePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF1C1C1C),
+      // CHANGED: Point stream to 'package_hamper' collection
       body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance.collection("package_kasih").snapshots(),
+        stream: FirebaseFirestore.instance.collection("package_hamper").snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
             return const Center(
-                child: Text("No package available", style: TextStyle(color: Colors.black)));
+                child: Text("No package available", style: TextStyle(color: Colors.white)));
           }
 
-          // Sort documents based on package value (lowest first)
           List<QueryDocumentSnapshot> docs = snapshot.data!.docs;
           docs.sort((a, b) {
-            // Parse price as a double for correct sorting
-            double valueA = (a['price'] as num?)?.toDouble() ?? 0.0;
-            double valueB = (b['price'] as num?)?.toDouble() ?? 0.0;
+            double valueA = (a['voucherValue'] as num?)?.toDouble() ?? 0.0;
+            double valueB = (b['voucherValue'] as num?)?.toDouble() ?? 0.0;
             return valueA.compareTo(valueB);
           });
 
@@ -149,11 +148,10 @@ class _AmountPageState extends State<PackagePage> {
                               QueryDocumentSnapshot doc = entry.value;
                               final data = doc.data() as Map<String, dynamic>;
 
-                              // Package label A, B, C, etc.
-                              final label = String.fromCharCode(65 + index);
+                              // CHANGED: Use the 'name' field from the document for the label
+                              final hamperName = data['name'] ?? 'Unnamed Hamper';
                               final bannerUrl = data['bannerUrl'] ?? "";
-                              // Parse price as a double
-                              final packageValue = (data['price'] as num?)?.toDouble() ?? 0.0;
+                              final packageValue = (data['voucherValue'] as num?)?.toDouble() ?? 0.0;
                               final items = data['items'] as List? ?? [];
 
                               // "Choice" box with a golden gradient.
@@ -177,7 +175,8 @@ class _AmountPageState extends State<PackagePage> {
                                 child: Column(
                                   children: [
                                     Text(
-                                      "Package $label:",
+                                      // CHANGED: Display the actual hamper name
+                                      hamperName,
                                       style: const TextStyle(
                                         color: Color(0xFFA67C00),
                                         fontWeight: FontWeight.bold,
@@ -202,6 +201,7 @@ class _AmountPageState extends State<PackagePage> {
                                     ...List.generate(items.length, (i) {
                                       final item = items[i];
                                       String itemName = item['name'] ?? "";
+                                      // Logic to display item number is robust, no change needed
                                       String itemNumber = item.containsKey('number')
                                           ? item['number'].toString()
                                           : "";
@@ -210,7 +210,7 @@ class _AmountPageState extends State<PackagePage> {
                                         padding:
                                         const EdgeInsets.symmetric(vertical: 2.0),
                                         child: Text(
-                                          "${i + 1}. $itemName $itemNumber $itemUnit",
+                                          "${i + 1}. $itemName ${itemNumber.isNotEmpty ? 'x$itemNumber' : ''} $itemUnit".trim(),
                                           style: const TextStyle(
                                             color: Colors.black,
                                             fontSize: 14,
@@ -361,6 +361,7 @@ class _AmountPageState extends State<PackagePage> {
                       Center(
                         child: ElevatedButton(
                           onPressed: () {
+                            // This navigation remains valid, no changes needed here.
                             Navigator.push(
                               context,
                               MaterialPageRoute(

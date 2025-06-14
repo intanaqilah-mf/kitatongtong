@@ -7,6 +7,7 @@ import 'package:projects/widgets/bottomNavBar.dart';
 import 'package:path/path.dart' as path;
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:projects/localization/app_localizations.dart';
 
 class FoodItemBank extends StatefulWidget {
   @override
@@ -54,7 +55,6 @@ class _FoodItemBankState extends State<FoodItemBank> {
     String? imageUrl;
     try {
       if (_proofImage != null) {
-        // 1️⃣ Upload image to Storage
         final fileName = '${DateTime.now().millisecondsSinceEpoch}_${path.basename(_proofImage!.path)}';
         final storageRef = FirebaseStorage.instance
             .ref()
@@ -66,7 +66,6 @@ class _FoodItemBankState extends State<FoodItemBank> {
         imageUrl = await snapshot.ref.getDownloadURL();
       }
 
-      // 2️⃣ Write to Firestore
       await FirebaseFirestore.instance
           .collection('fooditembank')
           .add({
@@ -76,18 +75,18 @@ class _FoodItemBankState extends State<FoodItemBank> {
         'phoneNumber'    : _phoneCtrl.text.trim(),
         'email'          : _emailCtrl.text.trim(),
         'taxExemption'   : _wantsTax,
-        'imageUrl'       : imageUrl,                  // ← download URL or null
+        'imageUrl'       : imageUrl,
         'createdAt'      : FieldValue.serverTimestamp(),
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Submitted successfully!'))
+          SnackBar(content: Text(AppLocalizations.of(context).translate('food_item_bank_submit_success')))
       );
       Navigator.of(context).pop();
 
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}'))
+          SnackBar(content: Text(AppLocalizations.of(context).translateWithArgs('food_item_bank_submit_error', {'error': e.toString()})))
       );
     }
   }
@@ -103,8 +102,8 @@ class _FoodItemBankState extends State<FoodItemBank> {
       child: TextFormField(
         controller: c,
         keyboardType: type,
-        textAlignVertical: TextAlignVertical.center,    // ← NEW
-        validator: (v) => v == null || v.isEmpty ? 'Required' : null,
+        textAlignVertical: TextAlignVertical.center,
+        validator: (v) => v == null || v.isEmpty ? AppLocalizations.of(context).translate('food_item_bank_required_field') : null,
         decoration: InputDecoration(
           hintText: hint,
           border: InputBorder.none,
@@ -139,13 +138,28 @@ class _FoodItemBankState extends State<FoodItemBank> {
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context);
+
+    // Mappings for dropdowns
+    final typeMapping = {
+      'Food': localizations.translate('food_item_bank_type_food'),
+      'Item': localizations.translate('food_item_bank_type_item'),
+    };
+    final categoryMapping = {
+      'Clothes': localizations.translate('food_item_bank_item_type_clothes'),
+      'Accessory': localizations.translate('food_item_bank_item_type_accessory'),
+      'Baby Stuff': localizations.translate('food_item_bank_item_type_baby'),
+      'School Stuff': localizations.translate('food_item_bank_item_type_school'),
+      'Other': localizations.translate('food_item_bank_item_type_other'),
+    };
+
     return Scaffold(
       backgroundColor: const Color(0xFF1C1C1C),
       appBar: AppBar(
         backgroundColor: const Color(0xFF1C1C1C),
         elevation: 0,
-        title: const Text(
-          'Food / Item Bank',
+        title: Text(
+          localizations.translate('food_item_bank_title'),
           style: TextStyle(color: Color(0xFFFDB515)),
         ),
         centerTitle: true,
@@ -156,12 +170,11 @@ class _FoodItemBankState extends State<FoodItemBank> {
       ),
       body: SafeArea(
         child: ListView(
-          // give bottom padding so content scrolls above the nav bar
           padding: EdgeInsets.fromLTRB(
-            16,                                       // left
-            16,                                       // top
-            16,                                       // right
-            kBottomNavigationBarHeight + 16,          // bottom
+            16,
+            16,
+            16,
+            kBottomNavigationBarHeight + 16,
           ),
           children: [
             Form(
@@ -170,40 +183,42 @@ class _FoodItemBankState extends State<FoodItemBank> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
 
-                  // TYPE
-                  const Text('Type',
+                  Text(localizations.translate('food_item_bank_type'),
                       style: TextStyle(color: Color(0xFFF1D789), fontSize: 14)),
                   const SizedBox(height: 4),
                   _dropdown(
-                    ['Food', 'Item'],
-                    _selectedType,
-                        (v) => setState(() => _selectedType = v!),
+                    typeMapping.values.toList(),
+                    typeMapping[_selectedType]!,
+                        (v) => setState(() {
+                      _selectedType = typeMapping.entries.firstWhere((e) => e.value == v).key;
+                    }),
                   ),
                   const SizedBox(height: 16),
 
-                  // ITEM‐ONLY FIELDS
                   if (_selectedType == 'Item') ...[
-                    const Text('Item Name',
+                    Text(localizations.translate('food_item_bank_item_name_label'),
                         style: TextStyle(
                             color: Colors.white,
                             fontSize: 14,
                             fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
-                    _field(_itemNameCtrl, 'Enter item name'),
+                    _field(_itemNameCtrl, localizations.translate('food_item_bank_item_name_hint')),
                     const SizedBox(height: 16),
 
-                    const Text('Type of Item',
+                    Text(localizations.translate('food_item_bank_item_type_label'),
                         style:
                         TextStyle(color: Color(0xFFF1D789), fontSize: 14)),
                     const SizedBox(height: 4),
                     _dropdown(
-                      ['Clothes', 'Accessory', 'Baby Stuff', 'School Stuff', 'Other'],
-                      _itemCategory,
-                          (v) => setState(() => _itemCategory = v!),
+                      categoryMapping.values.toList(),
+                      categoryMapping[_itemCategory]!,
+                          (v) => setState(() {
+                        _itemCategory = categoryMapping.entries.firstWhere((e) => e.value == v).key;
+                      }),
                     ),
                     const SizedBox(height: 16),
 
-                    const Text('Number of Items',
+                    Text(localizations.translate('food_item_bank_number_of_items'),
                         style: TextStyle(
                             color: Colors.white,
                             fontSize: 14,
@@ -217,19 +232,16 @@ class _FoodItemBankState extends State<FoodItemBank> {
                           value: _isNew,
                           activeColor: const Color(0xFFFDB515),
                           onChanged: (v) => setState(() => _isNew = v!)),
-                      const Text('New', style: TextStyle(color: Colors.white)),
+                      Text(localizations.translate('food_item_bank_condition_new'), style: TextStyle(color: Colors.white)),
                       const SizedBox(width: 16),
                       Checkbox(
                           value: !_isNew,
                           activeColor: const Color(0xFFFDB515),
                           onChanged: (v) => setState(() => _isNew = !v!)),
-                      const Text('Used', style: TextStyle(color: Colors.white)),
+                      Text(localizations.translate('food_item_bank_condition_used'), style: TextStyle(color: Colors.white)),
                     ]),
                     const SizedBox(height: 16),
 
-                    const Text('Proof of Pic',
-                        style: TextStyle(color: Color(0xFFF1D789), fontSize: 14)),
-                    const SizedBox(height: 8),
                     GestureDetector(
                       onTap: _pickImage,
                       child: Container(
@@ -240,7 +252,7 @@ class _FoodItemBankState extends State<FoodItemBank> {
                         ),
                         child: Center(
                           child: _proofImage == null
-                              ? const Text('Tap to upload image',
+                              ? Text(localizations.translate('food_item_bank_upload_tap'),
                               style: TextStyle(color: Colors.black))
                               : Image.file(_proofImage!, fit: BoxFit.cover),
                         ),
@@ -249,8 +261,7 @@ class _FoodItemBankState extends State<FoodItemBank> {
                     const SizedBox(height: 16),
                   ],
 
-                  // ESTIMATED VALUE
-                  const Text('Estimated Value (RM)',
+                  Text(localizations.translate('food_item_bank_estimated_value'),
                       style: TextStyle(
                           color: Colors.white,
                           fontSize: 14,
@@ -259,28 +270,26 @@ class _FoodItemBankState extends State<FoodItemBank> {
                   _field(_valueCtrl, '0.00', type: TextInputType.number),
                   const SizedBox(height: 24),
 
-                  // GIVER INFO
-                  const Text('Giver Name',
+                  Text(localizations.translate('food_item_bank_giver_name_label'),
                       style: TextStyle(color: Color(0xFFF1D789), fontSize: 14)),
                   const SizedBox(height: 4),
-                  _field(_nameCtrl, 'Enter your name'),
+                  _field(_nameCtrl, localizations.translate('food_item_bank_giver_name_hint')),
                   const SizedBox(height: 16),
 
-                  const Text('Phone Number',
+                  Text(localizations.translate('food_item_bank_phone_label'),
                       style: TextStyle(color: Color(0xFFF1D789), fontSize: 14)),
                   const SizedBox(height: 4),
-                  _field(_phoneCtrl, 'Enter your phone number', type: TextInputType.phone),
+                  _field(_phoneCtrl, localizations.translate('food_item_bank_phone_hint'), type: TextInputType.phone),
                   const SizedBox(height: 16),
 
-                  const Text('Email',
+                  Text(localizations.translate('food_item_bank_email_label'),
                       style: TextStyle(color: Color(0xFFF1D789), fontSize: 14)),
                   const SizedBox(height: 4),
-                  _field(_emailCtrl, 'Enter your email', type: TextInputType.emailAddress),
+                  _field(_emailCtrl, localizations.translate('food_item_bank_email_hint'), type: TextInputType.emailAddress),
                   const SizedBox(height: 24),
 
-                  // TAX‐EXEMPTION QUESTION (split)
-                  const Text(
-                    'Would you like a tax-exemption letter?',
+                  Text(
+                    localizations.translate('food_item_bank_tax_question'),
                     style: TextStyle(color: Color(0xFFF1D789)),
                   ),
                   const SizedBox(height: 8),
@@ -292,7 +301,7 @@ class _FoodItemBankState extends State<FoodItemBank> {
                         activeColor: Color(0xFFFDB515),
                         onChanged: (v) => setState(() => _wantsTax = v!),
                       ),
-                      const Text('Yes', style: TextStyle(color: Colors.white)),
+                      Text(localizations.translate('yes'), style: TextStyle(color: Colors.white)),
                       const SizedBox(width: 24),
                       Radio<bool>(
                         value: false,
@@ -300,7 +309,7 @@ class _FoodItemBankState extends State<FoodItemBank> {
                         activeColor: Color(0xFFFDB515),
                         onChanged: (v) => setState(() => _wantsTax = v!),
                       ),
-                      const Text('No', style: TextStyle(color: Colors.white)),
+                      Text(localizations.translate('no'), style: TextStyle(color: Colors.white)),
                     ],
                   ),
                   const SizedBox(height: 32),
@@ -308,9 +317,8 @@ class _FoodItemBankState extends State<FoodItemBank> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // 1) The section title
                       Text(
-                        'Picture of Food/Item',
+                        localizations.translate('food_item_bank_picture_label'),
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
@@ -319,14 +327,13 @@ class _FoodItemBankState extends State<FoodItemBank> {
                       ),
                       const SizedBox(height: 8),
 
-                      // 2) The upload button styled 1:1 with applyAid
                       ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Color(0xFFFFCF40),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          padding: EdgeInsets.zero, // we’ll size via the child Container
+                          padding: EdgeInsets.zero,
                         ),
                         onPressed: () async {
                           FilePickerResult? result = await FilePicker.platform.pickFiles(
@@ -340,18 +347,17 @@ class _FoodItemBankState extends State<FoodItemBank> {
                           }
                         },
                         child: Container(
-                          height: 90,            // same as applyAid
+                          height: 90,
                           width: double.infinity,
                           child: Center(
                             child: _proofImage == null
-                            // 2a) no file yet → icon + label + subtitle
                                 ? Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Image.asset('assets/uploadAsnaf.png', height: 24),
                                 const SizedBox(height: 6),
-                                const Text(
-                                  'Tap to upload image',
+                                Text(
+                                  localizations.translate('food_item_bank_upload_tap'),
                                   style: TextStyle(
                                     color: Colors.black,
                                     fontWeight: FontWeight.bold,
@@ -360,8 +366,8 @@ class _FoodItemBankState extends State<FoodItemBank> {
                                   textAlign: TextAlign.center,
                                 ),
                                 const SizedBox(height: 4),
-                                const Text(
-                                  'Format: jpeg/jpg/png',
+                                Text(
+                                  localizations.translate('food_item_bank_upload_format'),
                                   style: TextStyle(
                                     color: Colors.black,
                                     fontSize: 12,
@@ -370,7 +376,6 @@ class _FoodItemBankState extends State<FoodItemBank> {
                                 ),
                               ],
                             )
-                            // 2b) file selected → filename centered
                                 : Text(
                               path.basename(_proofImage!.path),
                               style: const TextStyle(
@@ -387,7 +392,6 @@ class _FoodItemBankState extends State<FoodItemBank> {
                     ],
                   ),
 
-                  // SUBMIT BUTTON
                   SizedBox(
                     width: double.infinity,
                     height: 45,
@@ -398,7 +402,7 @@ class _FoodItemBankState extends State<FoodItemBank> {
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8)),
                       ),
-                      child: const Text('Submit',
+                      child: Text(localizations.translate('submit'),
                           style: TextStyle(
                               color: Colors.white, fontWeight: FontWeight.bold)),
                     ),
@@ -413,5 +417,4 @@ class _FoodItemBankState extends State<FoodItemBank> {
       ),
     );
   }
-
 }

@@ -3,6 +3,7 @@ import 'package:projects/widgets/bottomNavBar.dart';
 import 'package:projects/pages/amount.dart';
 import 'package:projects/pages/package.dart';
 import 'package:projects/pages/food_item_bank.dart';
+import 'package:projects/localization/app_localizations.dart';
 
 class HelpAsnaf extends StatefulWidget {
   @override
@@ -31,9 +32,9 @@ class _HelpAsnafState extends State<HelpAsnaf> {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             const SizedBox(height: 20),
-            const Text(
-              'Help Asnaf By...',
-              style: TextStyle(
+            Text(
+              AppLocalizations.of(context).translate('help_asnaf_by'),
+              style: const TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
                 color: Color(0xFFFDB515),
@@ -68,11 +69,11 @@ class _HelpAsnafState extends State<HelpAsnaf> {
                       padding: const EdgeInsets.all(20),
                       child: Column(
                         children: [
-                          const Padding(
-                            padding: EdgeInsets.only(bottom: 8.0),
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8.0),
                             child: Text(
-                              'Amount',
-                              style: TextStyle(
+                              AppLocalizations.of(context).translate('help_asnaf_amount'),
+                              style: const TextStyle(
                                 color: Color(0xFFA67C00),
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
@@ -85,10 +86,10 @@ class _HelpAsnafState extends State<HelpAsnaf> {
                             height: 100,
                           ),
                           const SizedBox(height: 12),
-                          const Text(
-                            'You can contribute any amount you wish. Every contribution, no matter how small, makes a difference',
+                          Text(
+                            AppLocalizations.of(context).translate('help_asnaf_amount_desc'),
                             textAlign: TextAlign.center,
-                            style: TextStyle(
+                            style: const TextStyle(
                               color: Colors.black,
                               fontWeight: FontWeight.bold,
                             ),
@@ -121,11 +122,11 @@ class _HelpAsnafState extends State<HelpAsnaf> {
                       padding: const EdgeInsets.all(20),
                       child: Column(
                         children: [
-                          const Padding(
-                            padding: EdgeInsets.only(bottom: 8.0),
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8.0),
                             child: Text(
-                              'Package',
-                              style: TextStyle(
+                              AppLocalizations.of(context).translate('help_asnaf_package'),
+                              style: const TextStyle(
                                 color: Color(0xFFA67C00),
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
@@ -138,10 +139,10 @@ class _HelpAsnafState extends State<HelpAsnaf> {
                             height: 100,
                           ),
                           const SizedBox(height: 12),
-                          const Text(
-                            'Choose from a list of pre-set package vouchers that you’re willing to sponsor. These packages provide essential items to Asnaf',
+                          Text(
+                            AppLocalizations.of(context).translate('help_asnaf_package_desc'),
                             textAlign: TextAlign.center,
-                            style: TextStyle(
+                            style: const TextStyle(
                               color: Colors.black,
                               fontWeight: FontWeight.bold,
                             ),
@@ -174,11 +175,11 @@ class _HelpAsnafState extends State<HelpAsnaf> {
                       padding: const EdgeInsets.all(20),
                       child: Column(
                         children: [
-                          const Padding(
-                            padding: EdgeInsets.only(bottom: 8.0),
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8.0),
                             child: Text(
-                              'Food/Item Bank',
-                              style: TextStyle(
+                              AppLocalizations.of(context).translate('help_asnaf_item_bank'),
+                              style: const TextStyle(
                                 color: Color(0xFFA67C00),
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
@@ -191,10 +192,10 @@ class _HelpAsnafState extends State<HelpAsnaf> {
                             height: 100,
                           ),
                           const SizedBox(height: 12),
-                          const Text(
-                            'Donate any food or item you have to MADAD centre. It will be distributed to Asnaf.',
+                          Text(
+                            AppLocalizations.of(context).translate('help_asnaf_item_bank_desc'),
                             textAlign: TextAlign.center,
-                            style: TextStyle(
+                            style: const TextStyle(
                               color: Colors.black,
                               fontWeight: FontWeight.bold,
                             ),

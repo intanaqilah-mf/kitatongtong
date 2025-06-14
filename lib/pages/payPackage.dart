@@ -8,14 +8,14 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:projects/pages/PaymentWebview.dart';
-import 'package:projects/config/app_config.dart'; // Import AppConfig
-
+import 'package:projects/config/app_config.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:url_launcher/url_launcher.dart';
+import 'package:projects/localization/app_localizations.dart';
 
 class PayPackage extends StatefulWidget {
   final int totalQuantity;
-  final double  overallAmount;
+  final double overallAmount;
 
   const PayPackage({
     Key? key,
@@ -41,7 +41,6 @@ class _PayPackageState extends State<PayPackage> {
   String? _emailError;
   String? _contactError;
 
-
   @override
   void initState() {
     super.initState();
@@ -49,6 +48,14 @@ class _PayPackageState extends State<PayPackage> {
     nameController.addListener(_validateName);
     emailController.addListener(_validateEmail);
     contactController.addListener(_validateContact);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _validateName();
+    _validateEmail();
+    _validateContact();
   }
 
   @override
@@ -65,7 +72,11 @@ class _PayPackageState extends State<PayPackage> {
   void _loadUserData() {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      FirebaseFirestore.instance.collection('users').doc(user.uid).get().then((doc) {
+      FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get()
+          .then((doc) {
         if (doc.exists) {
           final data = doc.data()!;
           setState(() {
@@ -81,7 +92,8 @@ class _PayPackageState extends State<PayPackage> {
   void _validateName() {
     setState(() {
       if (nameController.text.trim().isEmpty) {
-        _nameError = 'Full name is required';
+        _nameError =
+            AppLocalizations.of(context).translate('full_name_required');
       } else {
         _nameError = null;
       }
@@ -92,9 +104,10 @@ class _PayPackageState extends State<PayPackage> {
     setState(() {
       final email = emailController.text.trim();
       if (email.isEmpty) {
-        _emailError = 'Email is required';
+        _emailError = AppLocalizations.of(context).translate('email_required');
       } else if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(email)) {
-        _emailError = 'Enter a valid email address';
+        _emailError =
+            AppLocalizations.of(context).translate('valid_email_prompt');
       } else {
         _emailError = null;
       }
@@ -105,9 +118,11 @@ class _PayPackageState extends State<PayPackage> {
     setState(() {
       final contact = contactController.text.trim();
       if (contact.isEmpty) {
-        _contactError = 'Contact number is required';
+        _contactError =
+            AppLocalizations.of(context).translate('contact_required');
       } else if (!RegExp(r'^\d{9,10}$').hasMatch(contact)) {
-        _contactError = 'Must be 9-10 digits';
+        _contactError =
+            AppLocalizations.of(context).translate('contact_must_be_digits');
       } else {
         _contactError = null;
       }
@@ -125,7 +140,8 @@ class _PayPackageState extends State<PayPackage> {
     final String webAppDomain = AppConfig.getWebAppDomain();
     final String toyyibpaySecretKey = AppConfig.getToyyibPaySecretKey();
     final String toyyibpayCategoryCode = AppConfig.getToyyibPayCategoryCode();
-    final String billExternalRef = 'TXN${DateTime.now().millisecondsSinceEpoch}';
+    final String billExternalRef =
+        'TXN${DateTime.now().millisecondsSinceEpoch}';
 
     String billReturnUrl;
     String billCallbackUrl;
@@ -141,7 +157,9 @@ class _PayPackageState extends State<PayPackage> {
     if (toyyibpaySecretKey.isEmpty || toyyibpayCategoryCode.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Payment configuration error. Please contact support.")),
+          SnackBar(
+              content: Text(AppLocalizations.of(context)
+                  .translate('pay_package_config_error'))),
         );
       }
       return;
@@ -153,7 +171,8 @@ class _PayPackageState extends State<PayPackage> {
         'userSecretKey': toyyibpaySecretKey,
         'categoryCode': toyyibpayCategoryCode,
         'billName': 'Kita Tongtong Package Donation',
-        'billDescription': 'Donation of ${widget.totalQuantity} package(s)',
+        'billDescription':
+        'Donation of ${widget.totalQuantity} package(s)',
         'billPriceSetting': '1',
         'billPayorInfo': '1',
         'billAmount': amountInCents,
@@ -179,7 +198,9 @@ class _PayPackageState extends State<PayPackage> {
           if (!await launchUrl(Uri.parse(paymentGatewayUrl))) {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Could not open payment page.")),
+                SnackBar(
+                    content: Text(AppLocalizations.of(context)
+                        .translate('pay_package_could_not_open'))),
               );
             }
           }
@@ -188,7 +209,8 @@ class _PayPackageState extends State<PayPackage> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => PaymentWebView(paymentUrl: paymentGatewayUrl, donationData: donationData),
+                builder: (_) => PaymentWebView(
+                    paymentUrl: paymentGatewayUrl, donationData: donationData),
               ),
             );
           }
@@ -196,20 +218,27 @@ class _PayPackageState extends State<PayPackage> {
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Payment initiation error. Please try again.")),
+            SnackBar(
+                content: Text(AppLocalizations.of(context)
+                    .translate('pay_package_initiation_error'))),
           );
         }
       }
     } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Failed to initiate payment.")),
+          SnackBar(
+              content: Text(AppLocalizations.of(context)
+                  .translate('pay_package_failed_initiation'))),
         );
       }
     }
   }
 
-  Future<Uint8List> generatePdfBytes({required String name, required String email, required String amountRM}) async {
+  Future<Uint8List> generatePdfBytes(
+      {required String name,
+        required String email,
+        required String amountRM}) async {
     final pdf = pw.Document();
     final now = DateTime.now();
 
@@ -219,14 +248,19 @@ class _PayPackageState extends State<PayPackage> {
           child: pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Text("Tax Exemption Receipt", style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold)),
+              pw.Text("Tax Exemption Receipt",
+                  style:
+                  pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold)),
               pw.SizedBox(height: 20),
               pw.Text("To: $name"),
               pw.Text("Email: $email"),
-              pw.Text("Date: ${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}"),
+              pw.Text(
+                  "Date: ${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}"),
               pw.SizedBox(height: 20),
-              pw.Text("Thank you for your kind donation of RM $amountRM for ${widget.totalQuantity} package(s)."),
-              pw.Text("This letter serves as official acknowledgment for tax exemption purposes."),
+              pw.Text(
+                  "Thank you for your kind donation of RM $amountRM for ${widget.totalQuantity} package(s)."),
+              pw.Text(
+                  "This letter serves as official acknowledgment for tax exemption purposes."),
               pw.SizedBox(height: 40),
               pw.Text("Issued by: Kita Tongtong Organization"),
               pw.SizedBox(height: 10),
@@ -273,6 +307,8 @@ class _PayPackageState extends State<PayPackage> {
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context);
+
     return Scaffold(
       backgroundColor: const Color(0xFF1C1C1C),
       appBar: AppBar(
@@ -285,7 +321,8 @@ class _PayPackageState extends State<PayPackage> {
         child: Column(
           children: [
             Text(
-              'Help Asnaf by Package (${widget.totalQuantity} selected)',
+              localizations.translateWithArgs('pay_package_title',
+                  {'count': widget.totalQuantity.toString()}),
               style: const TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -294,9 +331,9 @@ class _PayPackageState extends State<PayPackage> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 20),
-            const Text(
-              "Donor’s information",
-              style: TextStyle(
+            Text(
+              localizations.translate('donor_info'),
+              style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
                 color: Color(0xFFFDB515),
@@ -306,11 +343,11 @@ class _PayPackageState extends State<PayPackage> {
             const SizedBox(height: 20),
             Row(
               children: [
-                const Expanded(
+                Expanded(
                   flex: 2,
                   child: Text(
-                    "Would you like a tax exemption letter to be sent to you?",
-                    style: TextStyle(color: Color(0xFFF1D789)),
+                    localizations.translate('tax_exemption_q'),
+                    style: const TextStyle(color: Color(0xFFF1D789)),
                   ),
                 ),
                 Row(
@@ -323,7 +360,8 @@ class _PayPackageState extends State<PayPackage> {
                         setState(() => wantsTaxExemption = true);
                       },
                     ),
-                    const Text("Yes", style: TextStyle(color: Colors.white)),
+                    Text(localizations.translate('yes'),
+                        style: const TextStyle(color: Colors.white)),
                     Radio<bool>(
                       value: false,
                       groupValue: wantsTaxExemption,
@@ -332,13 +370,14 @@ class _PayPackageState extends State<PayPackage> {
                         setState(() => wantsTaxExemption = false);
                       },
                     ),
-                    const Text("No", style: TextStyle(color: Colors.white)),
+                    Text(localizations.translate('no'),
+                        style: const TextStyle(color: Colors.white)),
                   ],
                 )
               ],
             ),
             buildFormInput(
-              'Designation',
+              localizations.translate('designation'),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
@@ -347,7 +386,8 @@ class _PayPackageState extends State<PayPackage> {
                 ),
                 child: DropdownButton<String>(
                   value: selectedSalutation,
-                  hint: const Text("Select", style: TextStyle(color: Colors.black54)),
+                  hint: Text(localizations.translate('select'),
+                      style: const TextStyle(color: Colors.black54)),
                   isExpanded: true,
                   underline: Container(),
                   dropdownColor: const Color(0xFFFFCF40),
@@ -355,7 +395,8 @@ class _PayPackageState extends State<PayPackage> {
                   items: salutations.map((val) {
                     return DropdownMenuItem(
                       value: val,
-                      child: Text(val, style: const TextStyle(color: Colors.black)),
+                      child:
+                      Text(val, style: const TextStyle(color: Colors.black)),
                     );
                   }).toList(),
                   onChanged: (value) {
@@ -365,7 +406,7 @@ class _PayPackageState extends State<PayPackage> {
               ),
             ),
             buildFormInput(
-              'Full Name',
+              localizations.translate('full_name'),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
@@ -379,24 +420,25 @@ class _PayPackageState extends State<PayPackage> {
                 child: TextField(
                   controller: nameController,
                   style: const TextStyle(color: Colors.black),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     border: InputBorder.none,
-                    hintText: 'Enter full name',
-                    hintStyle: TextStyle(color: Colors.black54),
+                    hintText: localizations.translate('enter_full_name'),
+                    hintStyle: const TextStyle(color: Colors.black54),
                   ),
                 ),
               ),
               errorText: _nameError,
             ),
             buildFormInput(
-              'Email',
+              localizations.translate('email'),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFCF40),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: _emailError != null ? Colors.red : Colors.transparent,
+                    color:
+                    _emailError != null ? Colors.red : Colors.transparent,
                     width: 2,
                   ),
                 ),
@@ -404,24 +446,25 @@ class _PayPackageState extends State<PayPackage> {
                   controller: emailController,
                   keyboardType: TextInputType.emailAddress,
                   style: const TextStyle(color: Colors.black),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     border: InputBorder.none,
-                    hintText: 'Enter email',
-                    hintStyle: TextStyle(color: Colors.black54),
+                    hintText: localizations.translate('enter_email'),
+                    hintStyle: const TextStyle(color: Colors.black54),
                   ),
                 ),
               ),
               errorText: _emailError,
             ),
             buildFormInput(
-              'Contact Number',
+              localizations.translate('contact_number'),
               Container(
                 height: 50,
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFCF40),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: _contactError != null ? Colors.red : Colors.transparent,
+                    color:
+                    _contactError != null ? Colors.red : Colors.transparent,
                     width: 2,
                   ),
                 ),
@@ -440,19 +483,21 @@ class _PayPackageState extends State<PayPackage> {
                     ),
                     Container(
                         height: 30,
-                        child: const VerticalDivider(color: Colors.black54, thickness: 1)
-                    ),
+                        child: const VerticalDivider(
+                            color: Colors.black54, thickness: 1)),
                     Expanded(
                       child: Padding(
-                        padding: const EdgeInsets.only(left:8.0, right: 12.0),
+                        padding: const EdgeInsets.only(left: 8.0, right: 12.0),
                         child: TextField(
                           controller: contactController,
                           keyboardType: TextInputType.phone,
-                          style: const TextStyle(color: Colors.black, fontSize: 16),
-                          decoration: const InputDecoration(
+                          style:
+                          const TextStyle(color: Colors.black, fontSize: 16),
+                          decoration: InputDecoration(
                             border: InputBorder.none,
-                            hintText: "Enter mobile number",
-                            hintStyle: TextStyle(color: Colors.black54),
+                            hintText: localizations
+                                .translate('enter_mobile_number'),
+                            hintStyle: const TextStyle(color: Colors.black54),
                           ),
                         ),
                       ),
@@ -462,13 +507,12 @@ class _PayPackageState extends State<PayPackage> {
               ),
               errorText: _contactError,
             ),
-
             const SizedBox(height: 20),
             const Divider(color: Colors.white, thickness: 2),
             const SizedBox(height: 20),
-            const Text(
-              "Payment Method",
-              style: TextStyle(
+            Text(
+              localizations.translate('payment_method'),
+              style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
                 color: Color(0xFFFDB515),
@@ -490,8 +534,8 @@ class _PayPackageState extends State<PayPackage> {
                     children: [
                       Image.asset('assets/bankcard.png', height: 40),
                       const SizedBox(height: 8),
-                      const Text('Card',
-                          style: TextStyle(
+                      Text(localizations.translate('card'),
+                          style: const TextStyle(
                             color: Color(0xFFA67C00),
                             fontWeight: FontWeight.bold,
                           )),
@@ -510,8 +554,8 @@ class _PayPackageState extends State<PayPackage> {
                     children: [
                       Image.asset('assets/fpx.png', height: 40),
                       const SizedBox(height: 8),
-                      const Text('FPX',
-                          style: TextStyle(
+                      Text(localizations.translate('fpx'),
+                          style: const TextStyle(
                             color: Color(0xFFA67C00),
                             fontWeight: FontWeight.bold,
                           )),
@@ -530,17 +574,22 @@ class _PayPackageState extends State<PayPackage> {
                   _validateEmail();
                   _validateContact();
 
-                  if (_nameError != null || _emailError != null || _contactError != null) {
+                  if (_nameError != null ||
+                      _emailError != null ||
+                      _contactError != null) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Please fix the errors before submitting.')),
+                      SnackBar(
+                          content: Text(
+                              localizations.translate('fix_errors_prompt'))),
                     );
                     return;
                   }
 
-                  final String amountInCents = (widget.overallAmount * 100).toInt().toString();
+                  final String amountInCents =
+                  (widget.overallAmount * 100).toInt().toString();
 
                   final donationData = {
-                    'amount': widget.overallAmount, // RM amount
+                    'amount': widget.overallAmount,
                     'totalQuantity': widget.totalQuantity,
                     'designation': selectedSalutation ?? '',
                     'name': nameController.text.trim(),
@@ -550,14 +599,17 @@ class _PayPackageState extends State<PayPackage> {
                     'type': 'package'
                   };
 
-                  await FirebaseFirestore.instance.collection('donation').add(donationData);
+                  await FirebaseFirestore.instance
+                      .collection('donation')
+                      .add(donationData);
 
                   await FirebaseFirestore.instance
                       .collection('notifications')
                       .add({
                     'createdAt': FieldValue.serverTimestamp(),
                     'recipientRole': 'Admin',
-                    'message': 'Donor ${nameController.text.trim()} donated RM ${widget.overallAmount} via package.',
+                    'message':
+                    'Donor ${nameController.text.trim()} donated RM ${widget.overallAmount} via package.',
                   });
 
                   if (wantsTaxExemption) {
@@ -587,7 +639,9 @@ class _PayPackageState extends State<PayPackage> {
                   );
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Donation processing... Please follow payment instructions.')),
+                      SnackBar(
+                          content: Text(
+                              localizations.translate('pay_package_processing'))),
                     );
                   }
                 },
@@ -597,9 +651,9 @@ class _PayPackageState extends State<PayPackage> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                child: const Text(
-                  'Donate Now',
-                  style: TextStyle(
+                child: Text(
+                  localizations.translate('donate_now'),
+                  style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
                   ),

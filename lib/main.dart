@@ -8,7 +8,7 @@ import 'dart:async';
 import 'package:app_links/app_links.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_localizations/flutter_localizations.dart';
-
+import '../pages/HomePage.dart';
 import '../pages/loginPage.dart';
 import '../pages/profilePage.dart';
 import '../pages/successPay.dart';
@@ -278,7 +278,7 @@ class AuthWrapper extends StatelessWidget {
               body: Center(child: Text('Error initializing authentication.', style: TextStyle(color: Colors.red))));
         }
         if (snapshot.hasData && snapshot.data != null) {
-          return ProfilePage(user: snapshot.data!);
+          return HomePage();
         }
         return LoginPage();
       },

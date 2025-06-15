@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
+import 'package:projects/localization/app_localizations.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
 
 class StaffDetailScreen extends StatefulWidget {
@@ -12,8 +14,8 @@ class StaffDetailScreen extends StatefulWidget {
 
 class _StaffDetailScreenState extends State<StaffDetailScreen> {
   int _selectedIndex = 0;
-  String selectedRole = ""; // will be assigned from Firestore (lowercase)
-  bool _roleLoaded = false; // ensures we only initialize dropdown value once
+  String selectedRole = "";
+  bool _roleLoaded = false;
 
   void _onItemTapped(int index) {
     setState(() {
@@ -21,7 +23,6 @@ class _StaffDetailScreenState extends State<StaffDetailScreen> {
     });
   }
 
-  /// A helper function to build a text row (label + value) in black text.
   Widget textRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
@@ -49,8 +50,8 @@ class _StaffDetailScreenState extends State<StaffDetailScreen> {
     );
   }
 
-  /// Updates the user's 'role' field in Firestore when the Submit button is pressed.
   void updateRole() async {
+    final loc = AppLocalizations.of(context)!;
     try {
       await FirebaseFirestore.instance
           .collection('users')
@@ -60,17 +61,18 @@ class _StaffDetailScreenState extends State<StaffDetailScreen> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("User role updated successfully!")),
+        SnackBar(content: Text(loc.translate('staffDetails_update_success'))),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error updating role: $e")),
+        SnackBar(content: Text(loc.translateWithArgs('staffDetails_update_error', {'error': e.toString()}))),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: Color(0xFF303030),
       body: FutureBuilder<DocumentSnapshot>(
@@ -79,38 +81,68 @@ class _StaffDetailScreenState extends State<StaffDetailScreen> {
             .doc(widget.documentId)
             .get(),
         builder: (context, snapshot) {
-          // 1) Show loading spinner
           if (snapshot.connectionState == ConnectionState.waiting) {
             return Center(child: CircularProgressIndicator());
           }
-          // 2) Show "no data" message if user doesn't exist
           if (!snapshot.hasData || !snapshot.data!.exists) {
             return Center(
               child: Text(
-                "No data found for this user.",
+                loc.translate('staffDetails_no_data'),
                 style: TextStyle(color: Colors.white),
               ),
             );
           }
 
-          // 3) Extract user data
           var userData = snapshot.data!.data() as Map<String, dynamic>;
-          var fullname = userData['fullname'] ?? 'N/A';
+          var name = userData['name'] ?? 'N/A';
           var email = userData['email'] ?? 'N/A';
-          var phoneNumber = userData['phoneNumber'] ?? 'N/A';
-          var addressLine1 = userData['addressLine1'] ?? '';
-          var addressLine2 = userData['addressLine2'] ?? '';
+          var phone = userData['phone'] ?? 'N/A';
+          var nric = userData['nric'] ?? 'N/A';
+          var address = userData['address'] ?? '';
           var city = userData['city'] ?? '';
           var postcode = userData['postcode'] ?? '';
           var photoUrl = userData['photoUrl'] ?? '';
+          var points = (userData['points'] ?? 'N/A').toString();
+          var currentRole = userData['role'] ?? 'staff';
 
-          // 4) Initialize 'selectedRole' from Firestore only once
+          var fullAddress = [address, city, postcode]
+              .where((s) => s != null && s.isNotEmpty)
+              .join(', ');
+          if (fullAddress.isEmpty) fullAddress = 'N/A';
+
+          String formattedDate(Timestamp? timestamp) {
+            if (timestamp == null) return 'N/A';
+            return DateFormat('dd MMM yyyy, hh:mm a').format(timestamp.toDate());
+          }
+
+          var createdAt = formattedDate(userData['created_at'] as Timestamp?);
+          var lastLogin = formattedDate(userData['last_login'] as Timestamp?);
+
+          // Updated logic for eKYC status
+          var ekycTimestamp = userData['ekycVerifiedOn'] as Timestamp?;
+          var ekycVerifiedOn = ekycTimestamp == null
+              ? loc.translate('staffDetails_not_applicable')
+              : DateFormat('dd MMM yyyy, hh:mm a').format(ekycTimestamp.toDate());
+
+
           if (!_roleLoaded) {
-            selectedRole = (userData['role'] ?? "staff").toString().toLowerCase();
+            selectedRole = currentRole.toString().toLowerCase();
             _roleLoaded = true;
           }
 
-          // 5) Build UI
+          String getDisplayRole(String roleKey) {
+            switch (roleKey.toLowerCase()) {
+              case 'admin':
+                return loc.translate('staffDetails_role_admin');
+              case 'staff':
+                return loc.translate('staffDetails_role_staff');
+              case 'asnaf':
+                return loc.translate('staffDetails_role_asnaf');
+              default:
+                return roleKey;
+            }
+          }
+
           return SingleChildScrollView(
             child: Padding(
               padding: EdgeInsets.all(16),
@@ -118,7 +150,7 @@ class _StaffDetailScreenState extends State<StaffDetailScreen> {
                 children: [
                   SizedBox(height: 50.0),
                   Text(
-                    "Manage Users",
+                    loc.translate('staffDetails_title'),
                     style: TextStyle(
                       color: Color(0xFFFDB515),
                       fontSize: 22,
@@ -147,24 +179,20 @@ class _StaffDetailScreenState extends State<StaffDetailScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Profile Picture
                         Center(
                           child: CircleAvatar(
                             radius: 50,
-                            backgroundImage: photoUrl.isNotEmpty
-                                ? NetworkImage(photoUrl)
-                                : null,
+                            backgroundImage:
+                            photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
                             child: photoUrl.isEmpty
                                 ? Icon(Icons.person, size: 50, color: Colors.white)
                                 : null,
                           ),
                         ),
                         SizedBox(height: 10),
-
-                        // Full Name in the center
                         Center(
                           child: Text(
-                            fullname,
+                            name,
                             style: TextStyle(
                               fontSize: 22,
                               fontWeight: FontWeight.bold,
@@ -173,19 +201,20 @@ class _StaffDetailScreenState extends State<StaffDetailScreen> {
                           ),
                         ),
                         SizedBox(height: 20),
-
-                        // User Info Rows in black
-                        textRow("Full Name", fullname),
-                        textRow("Email", email),
-                        textRow("Phone Number", phoneNumber),
-                        textRow("Address", "$addressLine1, $addressLine2, $city, $postcode"),
+                        textRow(loc.translate('staffDetails_label_fullName'), name),
+                        textRow(loc.translate('staffDetails_label_nric'), nric),
+                        textRow(loc.translate('staffDetails_label_email'), email),
+                        textRow(loc.translate('staffDetails_label_phone'), phone),
+                        textRow(loc.translate('staffDetails_label_address'), fullAddress),
+                        textRow(loc.translate('staffDetails_label_role'), getDisplayRole(currentRole)),
+                        textRow(loc.translate('staffDetails_label_account_created'), createdAt),
+                        textRow(loc.translate('staffDetails_label_last_login'), lastLogin),
+                        textRow(loc.translate('staffDetails_label_ekyc_verified'), ekycVerifiedOn),
                       ],
                     ),
                   ),
-
                   SizedBox(height: 20),
-
-                  Text("Role", style: TextStyle(color: Colors.white, fontSize: 16)),
+                  Text(loc.translate('staffDetails_label_role'), style: TextStyle(color: Colors.white, fontSize: 16)),
                   Container(
                     width: double.infinity,
                     padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -199,9 +228,8 @@ class _StaffDetailScreenState extends State<StaffDetailScreen> {
                         items: ["admin", "staff", "asnaf"].map((String value) {
                           return DropdownMenuItem<String>(
                             value: value,
-                            // Capitalize first letter for display
                             child: Text(
-                              value[0].toUpperCase() + value.substring(1),
+                              getDisplayRole(value),
                               style: TextStyle(color: Colors.black),
                             ),
                           );
@@ -214,7 +242,6 @@ class _StaffDetailScreenState extends State<StaffDetailScreen> {
                       ),
                     ),
                   ),
-
                   SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,
@@ -225,7 +252,7 @@ class _StaffDetailScreenState extends State<StaffDetailScreen> {
                         padding: EdgeInsets.symmetric(vertical: 12),
                       ),
                       child: Text(
-                        "Submit",
+                        loc.translate('staffDetails_submit_button'),
                         style: TextStyle(color: Colors.black, fontSize: 16),
                       ),
                     ),
@@ -236,7 +263,6 @@ class _StaffDetailScreenState extends State<StaffDetailScreen> {
           );
         },
       ),
-      // Bottom navigation bar
       bottomNavigationBar: BottomNavBar(
         selectedIndex: _selectedIndex,
         onItemTapped: _onItemTapped,

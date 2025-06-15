@@ -771,7 +771,7 @@ class _RewardsState extends State<Rewards> {
       }
       subtitle = localizations.translateWithArgs('rewards_recurring_subtitle', {'period': recurrencePeriod, 'date': nextEligibleDateStr});
     } else {
-      subtitle = "${voucher['rewardType']}\n${voucher['eligibility']}";
+      subtitle = "Non recurring voucher";
     }
 
     return GestureDetector(

@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:projects/localization/app_localizations.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
 import '../pages/verifyReviewScreen.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -53,6 +54,7 @@ class _ScreeningApplicantsState extends State<ScreeningApplicants> {
   }
 
   void submitStatus() async {
+    final loc = AppLocalizations.of(context)!;
     String finalStatus = selectedStatus;
     if (selectedStatus.isEmpty) {
       finalStatus = "Pending";
@@ -70,7 +72,7 @@ class _ScreeningApplicantsState extends State<ScreeningApplicants> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Application status updated successfully!")),
+        SnackBar(content: Text(loc.translate('screening_update_success'))),
       );
 
       Navigator.pushAndRemoveUntil(
@@ -85,6 +87,7 @@ class _ScreeningApplicantsState extends State<ScreeningApplicants> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: Color(0xFF303030),
       appBar: AppBar(
@@ -95,7 +98,7 @@ class _ScreeningApplicantsState extends State<ScreeningApplicants> {
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
-          "Screening Applicant",
+          loc.translate('screening_title'),
           style: TextStyle(color: Color(0xFFFDB515), fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
@@ -107,10 +110,10 @@ class _ScreeningApplicantsState extends State<ScreeningApplicants> {
             return Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFDB515))));
           }
           if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}', style: TextStyle(color: Colors.white)));
+            return Center(child: Text(loc.translateWithArgs('screening_error_generic', {'error': snapshot.error.toString()}), style: TextStyle(color: Colors.white)));
           }
           if (!snapshot.hasData || !snapshot.data!.exists) {
-            return Center(child: Text('No data found for this applicant.', style: TextStyle(color: Colors.white)));
+            return Center(child: Text(loc.translate('screening_no_data'), style: TextStyle(color: Colors.white)));
           }
 
           final applicationData = snapshot.data!.data() as Map<String, dynamic>;
@@ -143,6 +146,7 @@ class _ScreeningApplicantsState extends State<ScreeningApplicants> {
   }
 
   Widget _buildGoldenBox(Map<String, dynamic> appData, dynamic userId, bool isStaffSubmission) {
+    final loc = AppLocalizations.of(context)!;
     String address = [
       appData['addressLine1'],
       appData['addressLine2'],
@@ -180,19 +184,19 @@ class _ScreeningApplicantsState extends State<ScreeningApplicants> {
         children: [
           _buildHeader(appData, userId, isStaffSubmission),
           Divider(color: Colors.black54, thickness: 1, height: 24),
-          _buildInfoRow(Icons.badge_outlined, "NRIC", appData['nric'] ?? 'N/A'),
-          _buildInfoRow(Icons.phone_outlined, "Mobile", "60${appData['mobileNumber'] ?? 'N/A'}"),
-          _buildInfoRow(Icons.email_outlined, "Email", appData['email'] ?? 'N/A'),
-          _buildInfoRow(Icons.home_outlined, "Address", address),
-          _buildInfoRow(Icons.flag_outlined, "Residency", appData['residencyStatus'] ?? 'N/A'),
-          _buildInfoRow(Icons.work_outline, "Employment", appData['employmentStatus'] ?? 'N/A'),
+          _buildInfoRow(Icons.badge_outlined, loc.translate('screening_nric_label'), appData['nric'] ?? 'N/A'),
+          _buildInfoRow(Icons.phone_outlined, loc.translate('screening_mobile_label'), "60${appData['mobileNumber'] ?? 'N/A'}"),
+          _buildInfoRow(Icons.email_outlined, loc.translate('screening_email_label'), appData['email'] ?? 'N/A'),
+          _buildInfoRow(Icons.home_outlined, loc.translate('screening_address_label'), address),
+          _buildInfoRow(Icons.flag_outlined, loc.translate('screening_residency_label'), appData['residencyStatus'] ?? 'N/A'),
+          _buildInfoRow(Icons.work_outline, loc.translate('screening_employment_label'), appData['employmentStatus'] ?? 'N/A'),
           if (appData['employmentStatus'] == 'Employed') ...[
-            _buildInfoRow(Icons.business_center_outlined, "Occupation", appData['occupation'] ?? 'N/A'),
-            _buildInfoRow(Icons.attach_money_outlined, "Income", "RM ${appData['monthlyIncome'] ?? 'N/A'}"),
+            _buildInfoRow(Icons.business_center_outlined, loc.translate('screening_occupation_label'), appData['occupation'] ?? 'N/A'),
+            _buildInfoRow(Icons.attach_money_outlined, loc.translate('screening_income_label'), "RM ${appData['monthlyIncome'] ?? 'N/A'}"),
           ],
           if (appData['employmentStatus'] == 'Unemployed' && appData['isAsnaf'] == 'Yes')
-            _buildInfoRow(Icons.groups_outlined, "Asnaf In", appData['asnafIn'] ?? 'N/A'),
-          _buildInfoRow(Icons.lightbulb_outline, "Justification", appData['justificationApplication'] ?? 'N/A'),
+            _buildInfoRow(Icons.groups_outlined, loc.translate('screening_asnaf_in_label'), appData['asnafIn'] ?? 'N/A'),
+          _buildInfoRow(Icons.lightbulb_outline, loc.translate('screening_justification_label'), appData['justificationApplication'] ?? 'N/A'),
           Divider(color: Colors.black54, thickness: 1, height: 24),
           _buildDocumentSection(appData),
         ],
@@ -201,6 +205,7 @@ class _ScreeningApplicantsState extends State<ScreeningApplicants> {
   }
 
   Widget _buildHeader(Map<String, dynamic> appData, dynamic userId, bool isStaffSubmission) {
+    final loc = AppLocalizations.of(context)!;
     return Row(
       children: [
         (userId != null)
@@ -234,12 +239,12 @@ class _ScreeningApplicantsState extends State<ScreeningApplicants> {
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black),
               ),
               Text(
-                appData['applicationCode'] ?? 'No Code',
+                appData['applicationCode'] ?? loc.translate('verifyApp_no_code'),
                 style: TextStyle(fontSize: 14, color: Colors.black87),
               ),
               if (isStaffSubmission)
                 Text(
-                  "Submitted by: ${appData['submittedBy']['name'] ?? 'Staff'}",
+                  loc.translateWithArgs('verifyApp_submitted_by', {'name': appData['submittedBy']['name'] ?? loc.translate('screening_unknown_staff')}),
                   style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.black54),
                 ),
             ],
@@ -272,19 +277,21 @@ class _ScreeningApplicantsState extends State<ScreeningApplicants> {
   }
 
   Widget _buildDocumentSection(Map<String, dynamic> appData) {
+    final loc = AppLocalizations.of(context)!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text("Uploaded Documents", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black, fontSize: 14)),
+        Text(loc.translate('screening_documents_title'), style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black, fontSize: 14)),
         SizedBox(height: 8),
-        _buildDocumentLink("Proof of Address", appData['proofOfAddress']),
+        _buildDocumentLink(loc.translate('screening_doc_proof_address'), appData['proofOfAddress']),
         if (appData['employmentStatus'] == 'Employed')
-          _buildDocumentLink("Proof of Income", appData['proofOfIncome']),
+          _buildDocumentLink(loc.translate('screening_doc_proof_income'), appData['proofOfIncome']),
       ],
     );
   }
 
   Widget _buildDocumentLink(String label, String? filePath) {
+    final loc = AppLocalizations.of(context)!;
     bool hasFile = filePath != null && filePath.isNotEmpty && filePath != 'No file uploaded';
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
@@ -303,7 +310,7 @@ class _ScreeningApplicantsState extends State<ScreeningApplicants> {
               Expanded(
                   child: Text(label, style: TextStyle(color: hasFile ? Colors.black : Colors.black38, fontWeight: FontWeight.w600))),
               if (!hasFile)
-                Text("Not Provided", style: TextStyle(color: Colors.black38, fontStyle: FontStyle.italic)),
+                Text(loc.translate('screening_doc_not_provided'), style: TextStyle(color: Colors.black38, fontStyle: FontStyle.italic)),
               if(hasFile)
                 Icon(Icons.visibility_outlined, color: Colors.black, size: 20)
             ],
@@ -314,19 +321,16 @@ class _ScreeningApplicantsState extends State<ScreeningApplicants> {
   }
 
   void _openFile(String filePath) async {
-    // This is a simplified version. For a real app, you'd handle file storage and retrieval
-    // (e.g., from Firebase Storage) and use a proper viewer. This example assumes a local path.
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Viewing: $filePath")));
-    // In a real app, you would use a package like `open_file` or a custom viewer screen.
-    // For example:
-    // await OpenFile.open(filePath);
+    final loc = AppLocalizations.of(context)!;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(loc.translateWithArgs('screening_viewing_doc', {'file': filePath}))));
   }
 
   Widget _buildStatusSection() {
+    final loc = AppLocalizations.of(context)!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text("Update Status", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+        Text(loc.translate('screening_update_status_title'), style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
         SizedBox(height: 8),
         Container(
           padding: EdgeInsets.symmetric(horizontal: 12),
@@ -341,10 +345,14 @@ class _ScreeningApplicantsState extends State<ScreeningApplicants> {
               dropdownColor: Colors.grey[800],
               icon: Icon(Icons.arrow_drop_down, color: Color(0xFFFDB515)),
               style: TextStyle(color: Colors.white, fontSize: 16),
-              items: ["Approve", "Reject", "Pending"].map((String value) {
+              items: [
+                {"value": "Approve", "label": loc.translate('verifyApp_status_approve')},
+                {"value": "Reject", "label": loc.translate('verifyApp_status_reject')},
+                {"value": "Pending", "label": loc.translate('verifyApp_status_pending')}
+              ].map((Map<String, String> item) {
                 return DropdownMenuItem<String>(
-                  value: value,
-                  child: Text(value),
+                  value: item["value"],
+                  child: Text(item["label"]!),
                 );
               }).toList(),
               onChanged: (newValue) {
@@ -360,10 +368,11 @@ class _ScreeningApplicantsState extends State<ScreeningApplicants> {
   }
 
   Widget _buildReasonSection() {
+    final loc = AppLocalizations.of(context)!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text("Reason / Remarks", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+        Text(loc.translate('screening_reason_title'), style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
         SizedBox(height: 8),
         TextField(
           controller: reasonController,
@@ -376,7 +385,7 @@ class _ScreeningApplicantsState extends State<ScreeningApplicants> {
               borderRadius: BorderRadius.circular(8),
               borderSide: BorderSide.none,
             ),
-            hintText: "Enter reason for status update (optional)...",
+            hintText: loc.translate('screening_reason_hint'),
             hintStyle: TextStyle(color: Colors.white54),
           ),
         ),
@@ -385,6 +394,7 @@ class _ScreeningApplicantsState extends State<ScreeningApplicants> {
   }
 
   Widget _buildSubmitButton() {
+    final loc = AppLocalizations.of(context)!;
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
@@ -397,7 +407,7 @@ class _ScreeningApplicantsState extends State<ScreeningApplicants> {
           ),
         ),
         child: Text(
-          "Submit Status",
+          loc.translate('screening_submit_button'),
           style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold),
         ),
       ),

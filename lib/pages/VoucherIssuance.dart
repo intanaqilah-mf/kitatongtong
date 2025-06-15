@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:projects/localization/app_localizations.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
 import '../pages/reviewIssueReward.dart';
 import 'package:intl/intl.dart';
@@ -37,10 +38,10 @@ class _VoucherIssuanceState extends State<VoucherIssuance> {
         });
       }
     } catch (e) {
-      print("Error loading initial data: $e");
+      final loc = AppLocalizations.of(context)!;
+      print(loc.translateWithArgs('voucherIssuance_data_load_error', {'error': e.toString()}));
     }
   }
-
 
   void _onItemTapped(int index) {
     setState(() {
@@ -60,6 +61,7 @@ class _VoucherIssuanceState extends State<VoucherIssuance> {
   }
 
   void submitRewardDetails() async {
+    final loc = AppLocalizations.of(context)!;
     try {
       DateTime? nextEligibleDate;
       if (isRecurring) {
@@ -105,20 +107,21 @@ class _VoucherIssuanceState extends State<VoucherIssuance> {
         });
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Reward details updated successfully!")));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(loc.translate('voucherIssuance_update_success'))));
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => ReviewIssueReward()));
 
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Failed to update reward details: $e")));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(loc.translateWithArgs('voucherIssuance_update_fail', {'error': e.toString()}))));
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: Color(0xFF303030),
       appBar: AppBar(
-        title: Text("Voucher Issuance", style: TextStyle(color: Color(0xFFFDB515), fontWeight: FontWeight.bold)),
+        title: Text(loc.translate('voucherIssuance_title'), style: TextStyle(color: Color(0xFFFDB515), fontWeight: FontWeight.bold)),
         backgroundColor: Color(0xFF303030),
         centerTitle: true,
         elevation: 0,
@@ -134,7 +137,7 @@ class _VoucherIssuanceState extends State<VoucherIssuance> {
             return Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFDB515))));
           }
           if (!snapshot.hasData || !snapshot.data!.exists) {
-            return Center(child: Text('Application not found', style: TextStyle(color: Colors.white)));
+            return Center(child: Text(loc.translate('voucherIssuance_app_not_found'), style: TextStyle(color: Colors.white)));
           }
 
           var appData = snapshot.data!.data() as Map<String, dynamic>;
@@ -176,6 +179,7 @@ class _VoucherIssuanceState extends State<VoucherIssuance> {
   }
 
   Widget _buildApplicantInfoCard(Map<String, dynamic> appData, Map<String, dynamic>? userData) {
+    final loc = AppLocalizations.of(context)!;
     String address = [
       appData['addressLine1'],
       appData['addressLine2'],
@@ -186,9 +190,9 @@ class _VoucherIssuanceState extends State<VoucherIssuance> {
 
     String submittedByText;
     if (appData['submittedBy'] is Map) {
-      submittedByText = "Submitted by Staff: ${appData['submittedBy']['name'] ?? 'N/A'}";
+      submittedByText = loc.translateWithArgs('voucherIssuance_submitted_by_staff', {'name': appData['submittedBy']['name'] ?? 'N/A'});
     } else {
-      submittedByText = "Submitted by: ${appData['fullname']}";
+      submittedByText = loc.translateWithArgs('voucherIssuance_submitted_by_user', {'name': appData['fullname']});
     }
     String? photoUrl = userData?['photoUrl'];
 
@@ -234,13 +238,13 @@ class _VoucherIssuanceState extends State<VoucherIssuance> {
             ],
           ),
           Divider(color: Colors.black38, height: 24),
-          _buildInfoRow(Icons.badge_outlined, "NRIC", appData['nric'] ?? 'N/A'),
-          _buildInfoRow(Icons.phone_outlined, "Mobile", "60${appData['mobileNumber'] ?? 'N/A'}"),
-          _buildInfoRow(Icons.work_outline, "Employment", appData['employmentStatus'] ?? 'N/A'),
+          _buildInfoRow(Icons.badge_outlined, loc.translate('voucherIssuance_nric_label'), appData['nric'] ?? 'N/A'),
+          _buildInfoRow(Icons.phone_outlined, loc.translate('voucherIssuance_mobile_label'), "60${appData['mobileNumber'] ?? 'N/A'}"),
+          _buildInfoRow(Icons.work_outline, loc.translate('voucherIssuance_employment_label'), appData['employmentStatus'] ?? 'N/A'),
           if (appData['employmentStatus'] == 'Employed')
-            _buildInfoRow(Icons.attach_money_outlined, "Income", "RM ${appData['monthlyIncome'] ?? 'N/A'}"),
-          _buildInfoRow(Icons.home_outlined, "Address", address),
-          _buildInfoRow(Icons.lightbulb_outline, "Justification", appData['justificationApplication'] ?? 'N/A'),
+            _buildInfoRow(Icons.attach_money_outlined, loc.translate('voucherIssuance_income_label'), "RM ${appData['monthlyIncome'] ?? 'N/A'}"),
+          _buildInfoRow(Icons.home_outlined, loc.translate('voucherIssuance_address_label'), address),
+          _buildInfoRow(Icons.lightbulb_outline, loc.translate('voucherIssuance_justification_label'), appData['justificationApplication'] ?? 'N/A'),
           SizedBox(height: 8),
           Text(submittedByText, style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.black54)),
         ],
@@ -273,10 +277,11 @@ class _VoucherIssuanceState extends State<VoucherIssuance> {
   }
 
   Widget _buildRewardSection() {
+    final loc = AppLocalizations.of(context)!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text("Reward Amount", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+        Text(loc.translate('voucherIssuance_reward_amount_label'), style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
         SizedBox(height: 8),
         Container(
           padding: EdgeInsets.symmetric(horizontal: 12),
@@ -303,13 +308,23 @@ class _VoucherIssuanceState extends State<VoucherIssuance> {
   }
 
   Widget _buildRecurringSection() {
+    final loc = AppLocalizations.of(context)!;
+    final List<Map<String, String>> recurrenceOptions = [
+      {'value': '2 Weeks', 'label': loc.translate('voucherIssuance_period_2_weeks')},
+      {'value': '1 Month', 'label': loc.translate('voucherIssuance_period_1_month')},
+      {'value': '3 Months', 'label': loc.translate('voucherIssuance_period_3_months')},
+      {'value': '6 Months', 'label': loc.translate('voucherIssuance_period_6_months')},
+      {'value': '9 Months', 'label': loc.translate('voucherIssuance_period_9_months')},
+      {'value': '1 Year', 'label': loc.translate('voucherIssuance_period_1_year')}
+    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text("Aid Recurrence", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+        Text(loc.translate('voucherIssuance_aid_recurrence_label'), style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
         SizedBox(height: 8),
         SwitchListTile(
-          title: Text("Issue Recurring Aid", style: TextStyle(color: Colors.white)),
+          title: Text(loc.translate('voucherIssuance_recurring_switch_label'), style: TextStyle(color: Colors.white)),
           value: isRecurring,
           onChanged: (bool value) => setState(() => isRecurring = value),
           activeColor: Color(0xFFFDB515),
@@ -319,7 +334,7 @@ class _VoucherIssuanceState extends State<VoucherIssuance> {
         ),
         if (isRecurring) ...[
           SizedBox(height: 16),
-          Text("Recurrence Period", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          Text(loc.translate('voucherIssuance_recurrence_period_label'), style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
           SizedBox(height: 8),
           Container(
             padding: EdgeInsets.symmetric(horizontal: 12),
@@ -334,8 +349,8 @@ class _VoucherIssuanceState extends State<VoucherIssuance> {
                 dropdownColor: Colors.grey[800],
                 icon: Icon(Icons.arrow_drop_down, color: Color(0xFFFDB515)),
                 style: TextStyle(color: Colors.white, fontSize: 16),
-                items: ["2 Weeks", "1 Month", "3 Months", "6 Months", "9 Months", "1 Year"].map((String value) {
-                  return DropdownMenuItem<String>(value: value, child: Text(value));
+                items: recurrenceOptions.map((Map<String, String> item) {
+                  return DropdownMenuItem<String>(value: item['value'], child: Text(item['label']!));
                 }).toList(),
                 onChanged: (newValue) => setState(() => selectedRecurrence = newValue!),
               ),
@@ -347,6 +362,7 @@ class _VoucherIssuanceState extends State<VoucherIssuance> {
   }
 
   Widget _buildSubmitButton() {
+    final loc = AppLocalizations.of(context)!;
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
@@ -357,7 +373,7 @@ class _VoucherIssuanceState extends State<VoucherIssuance> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
         child: Text(
-          "Issue Reward",
+          loc.translate('voucherIssuance_submit_button'),
           style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold),
         ),
       ),

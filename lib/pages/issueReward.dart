@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:projects/localization/app_localizations.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
 import '../pages/VoucherIssuance.dart';
 
@@ -90,13 +91,14 @@ class _IssueRewardScreenState extends State<IssueReward> with SingleTickerProvid
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: const Color(0xFF303030),
       appBar: AppBar(
         backgroundColor: const Color(0xFF303030),
         elevation: 0,
-        title: const Text(
-          "Issue Reward",
+        title: Text(
+          loc.translate('issueReward_title'),
           style: TextStyle(color: Color(0xFFFDB515), fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
@@ -106,11 +108,11 @@ class _IssueRewardScreenState extends State<IssueReward> with SingleTickerProvid
           indicatorColor: const Color(0xFFFDB515),
           labelColor: const Color(0xFFFDB515),
           unselectedLabelColor: Colors.white70,
-          tabs: const [
-            Tab(text: "All"),
-            Tab(text: "Pending"),
-            Tab(text: "Issued"),
-            Tab(text: "Redeemed"),
+          tabs: [
+            Tab(text: loc.translate('issueReward_tab_all')),
+            Tab(text: loc.translate('issueReward_tab_pending')),
+            Tab(text: loc.translate('issueReward_tab_issued')),
+            Tab(text: loc.translate('issueReward_tab_redeemed')),
           ],
           onTap: (index) {
             if (mounted) setState(() {});
@@ -129,7 +131,7 @@ class _IssueRewardScreenState extends State<IssueReward> with SingleTickerProvid
                     child: TextField(
                       controller: _searchController,
                       decoration: InputDecoration(
-                        hintText: "Search by name or code...",
+                        hintText: loc.translate('issueReward_search_hint'),
                         hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
                         prefixIcon: Icon(Icons.search, color: Colors.grey[400]),
                         filled: true,
@@ -162,8 +164,12 @@ class _IssueRewardScreenState extends State<IssueReward> with SingleTickerProvid
                     dropdownColor: Colors.grey[800],
                     icon: const Icon(Icons.sort, color: Colors.white70),
                     style: const TextStyle(color: Colors.white, fontSize: 14),
-                    items: ["Date", "Name", "Status"]
-                        .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                    items: [
+                      {"value": "Date", "label": loc.translate('issueReward_sort_date')},
+                      {"value": "Name", "label": loc.translate('issueReward_sort_name')},
+                      {"value": "Status", "label": loc.translate('issueReward_sort_status')}
+                    ]
+                        .map((s) => DropdownMenuItem(value: s["value"], child: Text(s["label"]!)))
                         .toList(),
                     onChanged: (v) {
                       if (v != null && mounted) setState(() => _selectedSort = v);
@@ -184,10 +190,10 @@ class _IssueRewardScreenState extends State<IssueReward> with SingleTickerProvid
                       return const Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFDB515))));
                     }
                     if (snapshot.hasError) {
-                      return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.white)));
+                      return Center(child: Text(loc.translateWithArgs('issueReward_error_generic', {'error': snapshot.error.toString()}), style: const TextStyle(color: Colors.white)));
                     }
                     if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                      return const Center(child: Text("No applications found", style: TextStyle(color: Colors.white70)));
+                      return Center(child: Text(loc.translate('issueReward_no_apps_found'), style: TextStyle(color: Colors.white70)));
                     }
 
                     final displayDocs = _filterDocsBySearch(snapshot.data!.docs);
@@ -195,7 +201,7 @@ class _IssueRewardScreenState extends State<IssueReward> with SingleTickerProvid
                     if (displayDocs.isEmpty) {
                       return Center(
                         child: Text(
-                          "No rewards in this category" + (_searchQuery.isNotEmpty ? " match your search." : "."),
+                          loc.translate('issueReward_no_rewards_in_category') + (_searchQuery.isNotEmpty ? loc.translate('issueReward_search_no_match') : "."),
                           style: const TextStyle(color: Colors.white70),
                           textAlign: TextAlign.center,
                         ),
@@ -223,26 +229,31 @@ class _IssueRewardScreenState extends State<IssueReward> with SingleTickerProvid
   }
 
   Widget buildApplicationCard(DocumentSnapshot doc) {
+    final loc = AppLocalizations.of(context)!;
     final appData = doc.data() as Map<String, dynamic>;
-    final String fullname = appData['fullname'] ?? 'Unknown';
+    final String fullname = appData['fullname'] ?? loc.translate('issueReward_unknown_user');
     final String dateStr = appData['date'] ?? '';
-    final String formattedDate = dateStr.isNotEmpty ? DateFormat("dd MMM yy").format(DateTime.parse(dateStr)) : 'No date';
-    final String uniqueCode = appData['applicationCode'] ?? 'N/A';
+    final String formattedDate = dateStr.isNotEmpty ? DateFormat("dd MMM yy").format(DateTime.parse(dateStr)) : loc.translate('issueReward_no_date');
+    final String uniqueCode = appData['applicationCode'] ?? loc.translate('issueReward_not_applicable');
     final String statusReward = appData['statusReward'] ?? 'Pending';
     final String userId = appData['userId'] ?? '';
     final rewardValue = appData['reward'] as String?;
 
     Color statusColor;
+    String statusText;
     switch (statusReward) {
       case 'Issued':
         statusColor = Colors.green;
+        statusText = loc.translate('issueReward_tab_issued');
         break;
       case 'Redeemed':
         statusColor = Colors.blueAccent;
+        statusText = loc.translate('issueReward_tab_redeemed');
         break;
       case 'Pending':
       default:
         statusColor = Colors.orangeAccent;
+        statusText = loc.translate('issueReward_tab_pending');
         break;
     }
 
@@ -301,7 +312,7 @@ class _IssueRewardScreenState extends State<IssueReward> with SingleTickerProvid
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Text(statusReward, style: TextStyle(color: statusColor, fontWeight: FontWeight.bold)),
+                      Text(statusText, style: TextStyle(color: statusColor, fontWeight: FontWeight.bold)),
                       if (statusReward == 'Issued' && rewardValue != null)
                         Padding(
                           padding: const EdgeInsets.only(top: 4.0),

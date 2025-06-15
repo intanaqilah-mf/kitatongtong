@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:projects/localization/app_localizations.dart';
 import 'staffDetails.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
 
@@ -25,7 +26,6 @@ class _ManageStaffsScreenState extends State<ManageStaffsScreen> {
     Query<Map<String, dynamic>> query = FirebaseFirestore.instance.collection('users');
 
     // Apply role filter only if one or more roles are selected.
-    // Note: Ensure that the string here exactly matches the format stored in Firebase.
     if (selectedRoles.isNotEmpty) {
       query = query.where('role', whereIn: selectedRoles);
     }
@@ -36,7 +36,43 @@ class _ManageStaffsScreenState extends State<ManageStaffsScreen> {
     return query.snapshots();
   }
 
+  // UPDATED WIDGET
   Widget buildUserCard(Map<String, dynamic> userData, String docId) {
+    final loc = AppLocalizations.of(context)!;
+    final String role = userData['role'] ?? 'unknown';
+
+    // Determine the display text and colors based on the role
+    String roleDisplayText;
+    Color roleColor;
+    Color roleBackgroundColor;
+
+    switch (role.toLowerCase()) {
+      case 'admin':
+        roleDisplayText = loc.translate('manageStaffs_role_admin');
+        roleColor = Colors.purpleAccent;
+        roleBackgroundColor = Colors.purpleAccent.withOpacity(0.2);
+        break;
+      case 'staff':
+        roleDisplayText = loc.translate('manageStaffs_role_staff');
+        roleColor = Colors.green;
+        roleBackgroundColor = Colors.green.withOpacity(0.2);
+        break;
+      case 'asnaf':
+        roleDisplayText = loc.translate('manageStaffs_role_asnaf');
+        roleColor = Colors.orange;
+        roleBackgroundColor = Colors.orange.withOpacity(0.2);
+        break;
+      default:
+        roleDisplayText = role; // Fallback for any other unexpected roles
+        roleColor = Colors.grey;
+        roleBackgroundColor = Colors.grey.withOpacity(0.2);
+    }
+
+    // Capitalize the first letter for better display
+    if (roleDisplayText.isNotEmpty) {
+      roleDisplayText = roleDisplayText[0].toUpperCase() + roleDisplayText.substring(1);
+    }
+
     return Card(
       color: Colors.grey[850],
       elevation: 4,
@@ -52,33 +88,51 @@ class _ManageStaffsScreenState extends State<ManageStaffsScreen> {
         },
         child: ListTile(
           leading: ClipRRect(
-            borderRadius: BorderRadius.circular(5),
+            borderRadius: BorderRadius.circular(8),
             child: (userData['photoUrl'] ?? '').toString().isNotEmpty
                 ? Image.network(
               userData['photoUrl'],
-              width: 30,
-              height: 30,
+              width: 40,
+              height: 40,
               fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) => Container(width: 40, height: 40, color: Colors.grey.shade700, child: const Icon(Icons.person, color: Colors.white70)),
             )
-                : Container(width: 30, height: 30, color: Colors.grey.shade800),
+                : Container(width: 40, height: 40, color: Colors.grey.shade700, child: const Icon(Icons.person, color: Colors.white70)),
           ),
-          title: Text(userData['name'] ?? 'Unknown',
-              style: TextStyle(color: Colors.white)),
-          subtitle: Text(userData['email'] ?? 'No Email',
-              style: TextStyle(color: Colors.grey)),
+          title: Text(userData['name'] ?? loc.translate('manageStaffs_unknown_user'),
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          subtitle: Text(userData['email'] ?? loc.translate('manageStaffs_no_email'),
+              style: TextStyle(color: Colors.grey, fontSize: 12)),
+          trailing: Container(
+            padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: roleBackgroundColor,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              roleDisplayText,
+              style: TextStyle(
+                color: roleColor,
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+              ),
+            ),
+          ),
         ),
       ),
     );
   }
 
+
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: Color(0xFF303030),
       appBar: AppBar(
         backgroundColor: Color(0xFF303030),
         elevation: 0,
-        title: Text("Manage Staffs", style: TextStyle(color: Color(0xFFFDB515))),
+        title: Text(loc.translate('manageStaffs_title'), style: TextStyle(color: Color(0xFFFDB515))),
       ),
       body: Column(
         children: [
@@ -87,12 +141,12 @@ class _ManageStaffsScreenState extends State<ManageStaffsScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 12.0),
             child: Column(
               children: [
-                Text("Track users you’ve registered or managed.",
+                Text(loc.translate('manageStaffs_subtitle'),
                     style: TextStyle(color: Color(0xFFAA820C), fontSize: 13)),
                 SizedBox(height: 15),
                 Row(
                   children: [
-                    // 🔍 Search
+                    // Search
                     Expanded(
                       flex: 3,
                       child: TextField(
@@ -103,7 +157,7 @@ class _ManageStaffsScreenState extends State<ManageStaffsScreen> {
                         decoration: InputDecoration(
                           prefixIcon: Icon(Icons.search_rounded,
                               size: 25, color: Color(0xFFFDB515)),
-                          hintText: "Search User",
+                          hintText: loc.translate('manageStaffs_search_hint'),
                           hintStyle: TextStyle(fontSize: 14),
                           filled: true,
                           fillColor: Colors.white,
@@ -119,7 +173,7 @@ class _ManageStaffsScreenState extends State<ManageStaffsScreen> {
 
                     SizedBox(width: 8),
 
-                    // 🧩 Filter by Role (Multi-select)
+                    // Filter by Role (Multi-select)
                     Expanded(
                       flex: 2,
                       child: PopupMenuButton<String>(
@@ -132,13 +186,18 @@ class _ManageStaffsScreenState extends State<ManageStaffsScreen> {
                             }
                           });
                         },
-                        itemBuilder: (context) => ['admin', 'staff', 'asnaf']
-                            .map((role) => CheckedPopupMenuItem(
-                          value: role,
-                          checked: selectedRoles.contains(role),
-                          child: Text(role[0].toUpperCase() + role.substring(1)),
-                        ))
-                            .toList(),
+                        itemBuilder: (context) {
+                          final roles = {
+                            "admin": loc.translate('manageStaffs_role_admin'),
+                            "staff": loc.translate('manageStaffs_role_staff'),
+                            "asnaf": loc.translate('manageStaffs_role_asnaf'),
+                          };
+                          return roles.entries.map((entry) => CheckedPopupMenuItem(
+                            value: entry.key,
+                            checked: selectedRoles.contains(entry.key),
+                            child: Text(entry.value),
+                          )).toList();
+                        },
                         child: Container(
                           height: 40,
                           padding: EdgeInsets.symmetric(horizontal: 12),
@@ -150,7 +209,7 @@ class _ManageStaffsScreenState extends State<ManageStaffsScreen> {
                             children: [
                               Icon(Icons.filter_list, color: Colors.black),
                               SizedBox(width: 6),
-                              Text("Filter", style: TextStyle(color: Colors.black)),
+                              Text(loc.translate('manageStaffs_filter_button'), style: TextStyle(color: Colors.black)),
                             ],
                           ),
                         ),
@@ -159,7 +218,7 @@ class _ManageStaffsScreenState extends State<ManageStaffsScreen> {
 
                     SizedBox(width: 8),
 
-                    // 📅 Sort by dropdown
+                    // Sort by dropdown
                     Expanded(
                       flex: 2,
                       child: DropdownButtonHideUnderline(
@@ -177,11 +236,11 @@ class _ManageStaffsScreenState extends State<ManageStaffsScreen> {
                             items: [
                               DropdownMenuItem(
                                 value: 'created_at',
-                                child: Text('Date'),
+                                child: Text(loc.translate('manageStaffs_sort_date')),
                               ),
                               DropdownMenuItem(
                                 value: 'name',
-                                child: Text('Name'),
+                                child: Text(loc.translate('manageStaffs_sort_name')),
                               ),
                             ],
                             onChanged: (value) {
@@ -208,13 +267,13 @@ class _ManageStaffsScreenState extends State<ManageStaffsScreen> {
 
                 if (snapshot.hasError) {
                   return Center(
-                      child: Text("Error: ${snapshot.error}",
+                      child: Text(loc.translateWithArgs('manageStaffs_error_generic', {'error': snapshot.error.toString()}),
                           style: TextStyle(color: Colors.white)));
                 }
 
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty)
                   return Center(
-                    child: Text("No users found.",
+                    child: Text(loc.translate('manageStaffs_no_users_found'),
                         style: TextStyle(color: Colors.white)),
                   );
 

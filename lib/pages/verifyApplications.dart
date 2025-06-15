@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:projects/localization/app_localizations.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
 import '../pages/screeningApplicants.dart';
 
@@ -92,13 +93,14 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen>
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: const Color(0xFF303030),
       appBar: AppBar(
         backgroundColor: const Color(0xFF303030),
         elevation: 0,
-        title: const Text(
-          "Verify Application",
+        title: Text(
+          loc.translate('verifyApp_title'),
           style: TextStyle(
             color: Color(0xFFFDB515),
             fontWeight: FontWeight.bold,
@@ -111,11 +113,11 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen>
           indicatorColor: const Color(0xFFFDB515),
           labelColor: const Color(0xFFFDB515),
           unselectedLabelColor: Colors.white70,
-          tabs: const [
-            Tab(text: "All"),
-            Tab(text: "Pending"),
-            Tab(text: "Verified"),
-            Tab(text: "Rejected"),
+          tabs: [
+            Tab(text: loc.translate('verifyApp_tab_all')),
+            Tab(text: loc.translate('verifyApp_tab_pending')),
+            Tab(text: loc.translate('verifyApp_tab_verified')),
+            Tab(text: loc.translate('verifyApp_tab_rejected')),
           ],
           onTap: (index) {
             if (mounted) setState(() {});
@@ -134,7 +136,7 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen>
                     child: TextField(
                       controller: _searchController,
                       decoration: InputDecoration(
-                        hintText: "Search Asnaf...",
+                        hintText: loc.translate('verifyApp_search_hint'),
                         hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
                         prefixIcon: Icon(Icons.search, color: Colors.grey[400]),
                         filled: true,
@@ -167,8 +169,12 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen>
                     dropdownColor: Colors.grey[800],
                     icon: const Icon(Icons.sort, color: Colors.white70),
                     style: const TextStyle(color: Colors.white, fontSize: 14),
-                    items: ["Date", "Name", "Status"]
-                        .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                    items: [
+                      {"value": "Date", "label": loc.translate('verifyApp_sort_date')},
+                      {"value": "Name", "label": loc.translate('verifyApp_sort_name')},
+                      {"value": "Status", "label": loc.translate('verifyApp_sort_status')}
+                    ]
+                        .map((s) => DropdownMenuItem(value: s["value"], child: Text(s["label"]!)))
                         .toList(),
                     onChanged: (v) {
                       if (v != null && mounted) setState(() => _selectedSort = v);
@@ -189,10 +195,10 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen>
                       return const Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFDB515))));
                     }
                     if (snapshot.hasError) {
-                      return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.white)));
+                      return Center(child: Text(loc.translateWithArgs('verifyApp_error_generic', {'error': snapshot.error.toString()}), style: const TextStyle(color: Colors.white)));
                     }
                     if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                      return const Center(child: Text("No applications found", style: TextStyle(color: Colors.white70)));
+                      return Center(child: Text(loc.translate('verifyApp_no_apps_found'), style: TextStyle(color: Colors.white70)));
                     }
 
                     final displayDocs = _filterDocsBySearch(snapshot.data!.docs);
@@ -200,7 +206,7 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen>
                     if (displayDocs.isEmpty) {
                       return Center(
                           child: Text(
-                            "No applications in this category" + (_searchQuery.isNotEmpty ? " match your search." : "."),
+                            loc.translate('verifyApp_no_apps_in_category') + (_searchQuery.isNotEmpty ? loc.translate('verifyApp_search_no_match') : "."),
                             style: const TextStyle(color: Colors.white70),
                             textAlign: TextAlign.center,
                           ));
@@ -213,22 +219,22 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen>
                         final appData = doc.data() as Map<String, dynamic>;
 
                         final app = {
-                          'fullname': appData['fullname'] ?? 'Unknown',
+                          'fullname': appData['fullname'] ?? loc.translate('verifyApp_unknown_user'),
                           'date': appData['date'] ?? '',
                           'submittedBy': appData['submittedBy'],
                           'statusApplication': appData['statusApplication'] ?? 'Pending',
                           'applicationCode': appData.containsKey('applicationCode')
                               ? appData['applicationCode']
-                              : "No Code",
+                              : loc.translate('verifyApp_no_code'),
                           'id': doc.id,
                           'userId': appData['userId'],
                         };
 
                         final formattedDate = app['date'] != ''
-                            ? DateFormat("dd MMM yyyy").format(DateTime.parse(app['date'].toString()))
-                            : 'No date provided';
+                            ? DateFormat("dd MMMFocusBracketing").format(DateTime.parse(app['date'].toString()))
+                            : loc.translate('verifyApp_no_date');
 
-                        final uniqueCode = app['applicationCode']?.toString() ?? 'No Code';
+                        final uniqueCode = app['applicationCode']?.toString() ?? loc.translate('verifyApp_no_code');
                         final userId = app['userId']?.toString() ?? '';
 
                         if (userId.isNotEmpty) {
@@ -265,16 +271,30 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen>
   }
 
   Widget buildApplicationCard(Map<String, dynamic> app, String formattedDate, String uniqueCode, String photoUrl) {
-    String statusApplication = app['statusApplication'] ?? 'Pending';
+    final loc = AppLocalizations.of(context)!;
+    String statusKey = app['statusApplication'] ?? 'Pending';
+    String statusApplication;
+
+    switch (statusKey) {
+      case 'Approve':
+        statusApplication = loc.translate('verifyApp_status_approve');
+        break;
+      case 'Reject':
+        statusApplication = loc.translate('verifyApp_status_reject');
+        break;
+      default:
+        statusApplication = loc.translate('verifyApp_status_pending');
+    }
+
     var submittedByData = app['submittedBy'];
     String submittedByText;
 
     if (submittedByData is Map) {
-      submittedByText = submittedByData['name'] ?? 'Unknown Staff';
+      submittedByText = submittedByData['name'] ?? loc.translate('screening_unknown_staff');
     } else if (submittedByData is String) {
       submittedByText = submittedByData;
     } else {
-      submittedByText = 'Unknown';
+      submittedByText = loc.translate('verifyApp_unknown_user');
     }
 
     return Card(
@@ -364,9 +384,9 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen>
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: statusApplication == "Pending"
+                      color: statusKey == "Pending"
                           ? Colors.orange.withOpacity(0.2)
-                          : statusApplication == "Approve"
+                          : statusKey == "Approve"
                           ? Colors.green.withOpacity(0.2)
                           : Colors.red.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(10),
@@ -374,9 +394,9 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen>
                     child: Text(
                       statusApplication,
                       style: TextStyle(
-                        color: statusApplication == "Pending"
+                        color: statusKey == "Pending"
                             ? Colors.orange
-                            : statusApplication == "Approve"
+                            : statusKey == "Approve"
                             ? Colors.green
                             : Colors.red,
                         fontSize: 14,

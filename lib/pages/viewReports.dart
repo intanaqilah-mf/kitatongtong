@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'dart:convert';
 import 'dart:math';
 import 'package:projects/config/app_config.dart';
+import 'package:projects/localization/app_localizations.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
 
 // Enum for the interactive redemption chart view
@@ -108,6 +109,7 @@ class _ViewReportsScreenState extends State<ViewReportsScreen> {
   }
 
   Future<void> _sendMessageToGemini() async {
+    final loc = AppLocalizations.of(context)!;
     if (_chatController.text.isEmpty) return;
     final userMessage = _chatController.text;
     setState(() {
@@ -130,12 +132,12 @@ class _ViewReportsScreenState extends State<ViewReportsScreen> {
 
       final response = await model.generateContent([Content.text(prompt)]);
       setState(() {
-        _chatHistory.add({'role': 'model', 'text': response.text ?? "Sorry, I couldn't get a response."});
+        _chatHistory.add({'role': 'model', 'text': response.text ?? loc.translate('viewReports_chatbot_error')});
         _isChatLoading = false;
       });
     } catch (e) {
       setState(() {
-        _chatHistory.add({'role': 'model', 'text': 'Error: ${e.toString()}'});
+        _chatHistory.add({'role': 'model', 'text': loc.translateWithArgs('viewReports_chatbot_generic_error', {'error': e.toString()})});
         _isChatLoading = false;
       });
     }
@@ -143,6 +145,7 @@ class _ViewReportsScreenState extends State<ViewReportsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: darkBackground,
       body: Stack(
@@ -154,9 +157,9 @@ class _ViewReportsScreenState extends State<ViewReportsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text("Dashboard Reports", style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
+                Text(loc.translate('viewReports_title'), style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
-                const Text("Actionable insights for strategic decisions.", style: TextStyle(color: Colors.white70, fontSize: 16)),
+                Text(loc.translate('viewReports_subtitle'), style: TextStyle(color: Colors.white70, fontSize: 16)),
                 const SizedBox(height: 24),
                 _buildApplicationFunnelChart(),
                 const SizedBox(height: 24),
@@ -187,29 +190,31 @@ class _ViewReportsScreenState extends State<ViewReportsScreen> {
   // --- CHART BUILDER WIDGETS ---
 
   Widget _buildApplicationFunnelChart() {
+    final loc = AppLocalizations.of(context)!;
     final applications = _allData['applications'] as List<dynamic>? ?? [];
-    if (applications.isEmpty) return _buildChartContainer(title: "Application Funnel Analysis", chart: _noDataWidget());
+    if (applications.isEmpty) return _buildChartContainer(title: loc.translate('viewReports_funnel_title'), chart: _noDataWidget());
 
     final total = applications.length;
     final approved = applications.where((app) => app['statusApplication'] == 'Approve').length;
     final rejected = applications.where((app) => app['statusApplication'] == 'Reject').length;
     final pending = total - approved - rejected;
 
+    // Data map used for labels and values
     final data = [
-      {'label': 'Total Apps', 'value': total, 'color': primaryGold},
-      {'label': 'Pending', 'value': pending, 'color': accentBlue},
-      {'label': 'Approved', 'value': approved, 'color': accentGreen},
-      {'label': 'Rejected', 'value': rejected, 'color': Colors.redAccent},
+      {'label': loc.translate('viewReports_funnel_total'), 'value': total, 'color': primaryGold},
+      {'label': loc.translate('viewReports_funnel_pending'), 'value': pending, 'color': accentBlue},
+      {'label': loc.translate('viewReports_funnel_approved'), 'value': approved, 'color': accentGreen},
+      {'label': loc.translate('viewReports_funnel_rejected'), 'value': rejected, 'color': Colors.redAccent},
     ];
 
     double maxValue = data.map((d) => d['value'] as int).reduce(max).toDouble();
 
     return _buildChartContainer(
-      title: "Application Funnel Analysis",
+      title: loc.translate('viewReports_funnel_title'),
       chart: BarChart(
         BarChartData(
           alignment: BarChartAlignment.spaceAround,
-          maxY: maxValue * 1.2,
+          maxY: (maxValue * 1.2).ceilToDouble(),
           barTouchData: BarTouchData(
             touchTooltipData: BarTouchTooltipData(
               getTooltipItem: (group, groupIndex, rod, rodIndex) {
@@ -227,19 +232,52 @@ class _ViewReportsScreenState extends State<ViewReportsScreen> {
             ),
           ),
           titlesData: FlTitlesData(
-              show: true,
-              topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-              rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-              leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-              bottomTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 30,
-                  )
-              )
+            show: true,
+            topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            leftTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 40,
+                getTitlesWidget: (value, meta) {
+                  if (value.toInt() % 3 != 0) {
+                    return Container();
+                  }
+                  return Text(
+                    value.toInt().toString(),
+                    style: const TextStyle(color: primaryGold, fontSize: 10),
+                    textAlign: TextAlign.left,
+                  );
+                },
+              ),
+            ),
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                  showTitles: true,
+                  reservedSize: 30,
+                  getTitlesWidget: (value, meta) {
+                    final index = value.toInt();
+                    if (index < 0 || index >= data.length) return Container();
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 4.0),
+                      child: Text(data[index]['label'].toString(), style: TextStyle(color: Colors.white70, fontSize: 10)),
+                    );
+                  }
+              ),
+            ),
           ),
           borderData: FlBorderData(show: false),
-          gridData: FlGridData(show: false),
+          gridData: FlGridData(
+            show: true,
+            horizontalInterval: 3,
+            checkToShowHorizontalLine: (value) => value % 3 == 0,
+            getDrawingHorizontalLine: (value) {
+              return FlLine(
+                color: Colors.white.withOpacity(0.1),
+                strokeWidth: 1,
+              );
+            },
+          ),
           barGroups: data.asMap().entries.map((entry) {
             int index = entry.key;
             Map<String, dynamic> item = entry.value;
@@ -261,8 +299,9 @@ class _ViewReportsScreenState extends State<ViewReportsScreen> {
   }
 
   Widget _buildRegionChart() {
+    final loc = AppLocalizations.of(context)!;
     final applications = _allData['applications'] as List<dynamic>? ?? [];
-    if (applications.isEmpty) return _buildChartContainer(title: "Applicants by Region", chart: _noDataWidget());
+    if (applications.isEmpty) return _buildChartContainer(title: loc.translate('viewReports_region_title'), chart: _noDataWidget());
 
     Map<String, int> regionCounts = {};
     for (var app in applications) {
@@ -278,7 +317,7 @@ class _ViewReportsScreenState extends State<ViewReportsScreen> {
     double maxValue = sortedRegions.isNotEmpty ? sortedRegions.first.value.toDouble() : 10;
 
     return _buildChartContainer(
-      title: "Applicants by Region",
+      title: loc.translate('viewReports_region_title'),
       chart: BarChart(
         BarChartData(
           barTouchData: BarTouchData(enabled: true),
@@ -288,9 +327,8 @@ class _ViewReportsScreenState extends State<ViewReportsScreen> {
                 showTitles: true,
                 getTitlesWidget: (value, meta) {
                   final index = value.toInt();
-                  // Add this check to prevent the RangeError
                   if (index < 0 || index >= sortedRegions.length) {
-                    return Container(); // Return an empty container for invalid indices
+                    return Container();
                   }
                   return Text(
                     sortedRegions[index].key,
@@ -332,17 +370,19 @@ class _ViewReportsScreenState extends State<ViewReportsScreen> {
   }
 
   String _getRegionFromPostcode(String postcode) {
+    final loc = AppLocalizations.of(context)!;
     const Map<String, String> regionMap = {
       '08000': 'Sg. Petani', '08010': 'Sg. Petani', '09000': 'Kulim',
       '09400': 'Padang Serai', '05000': 'Alor Setar', '05050': 'Alor Setar',
       '05100': 'Alor Setar', '06000': 'Jitra', '07000': 'Langkawi',
     };
-    return regionMap[postcode] ?? 'Other';
+    return regionMap[postcode] ?? loc.translate('viewReports_region_other');
   }
 
   Widget _buildDonationsChart() {
+    final loc = AppLocalizations.of(context)!;
     final donations = _allData['donation'] as List<dynamic>? ?? [];
-    if (donations.isEmpty) return _buildChartContainer(title: "Monthly Donations (RM)", chart: _noDataWidget());
+    if (donations.isEmpty) return _buildChartContainer(title: loc.translate('viewReports_donations_title'), chart: _noDataWidget());
 
     Map<String, double> monthlyTotals = {};
     Map<String, int> monthlyCounts = {};
@@ -357,14 +397,14 @@ class _ViewReportsScreenState extends State<ViewReportsScreen> {
       monthlyCounts[month] = (monthlyCounts[month] ?? 0) + 1;
     }
 
-    if (monthlyTotals.isEmpty) return _buildChartContainer(title: "Monthly Donations (RM)", chart: _noDataWidget());
+    if (monthlyTotals.isEmpty) return _buildChartContainer(title: loc.translate('viewReports_donations_title'), chart: _noDataWidget());
 
     var sortedEntries = monthlyTotals.entries.toList()..sort((a, b) => a.key.compareTo(b.key));
     double maxValue = sortedEntries.map((e) => e.value).reduce(max);
     int maxCount = monthlyCounts.values.reduce(max);
 
     return _buildChartContainer(
-      title: "Monthly Donation Analysis",
+      title: loc.translate('viewReports_donations_title'),
       chart: BarChart(
         BarChartData(
           maxY: maxValue * 1.2,
@@ -391,8 +431,9 @@ class _ViewReportsScreenState extends State<ViewReportsScreen> {
   }
 
   Widget _buildRedemptionPopularityChart() {
+    final loc = AppLocalizations.of(context)!;
     final redeemedItems = _allData['redeemedKasih'] as List<dynamic>? ?? [];
-    if (redeemedItems.isEmpty) return _buildChartContainer(title: "Redemption Popularity", chart: _noDataWidget());
+    if (redeemedItems.isEmpty) return _buildChartContainer(title: loc.translate('viewReports_redemption_title'), chart: _noDataWidget());
 
     Map<String, int> hamperCounts = {};
     Map<String, int> kasihCounts = {};
@@ -422,21 +463,21 @@ class _ViewReportsScreenState extends State<ViewReportsScreen> {
         chartView = _buildSummaryBarChart(totalKasih, totalHampers);
         break;
       case RedemptionView.kasih:
-        chartView = _buildDetailedBarChart(top10Kasih, "Top 10 Redeemed Kasih Items");
+        chartView = _buildDetailedBarChart(top10Kasih, loc.translate('viewReports_kasih_detail_title'));
         break;
       case RedemptionView.hamper:
-        chartView = _buildDetailedBarChart(sortedHampers, "Redeemed Hampers");
+        chartView = _buildDetailedBarChart(sortedHampers, loc.translate('viewReports_hamper_detail_title'));
         break;
     }
 
     return _buildChartContainer(
-      title: "Redemption Popularity",
+      title: loc.translate('viewReports_redemption_title'),
       customHeader: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          _buildToggleChip("Summary", RedemptionView.summary),
-          _buildToggleChip("Kasih", RedemptionView.kasih),
-          _buildToggleChip("Hamper", RedemptionView.hamper),
+          _buildToggleChip(loc.translate('viewReports_redemption_summary'), RedemptionView.summary),
+          _buildToggleChip(loc.translate('viewReports_redemption_kasih'), RedemptionView.kasih),
+          _buildToggleChip(loc.translate('viewReports_redemption_hamper'), RedemptionView.hamper),
         ],
       ),
       chart: chartView,
@@ -488,9 +529,8 @@ class _ViewReportsScreenState extends State<ViewReportsScreen> {
               showTitles: true,
               getTitlesWidget: (value, meta) {
                 final index = value.toInt();
-                // ADD THIS BOUNDARY CHECK TO PREVENT THE CRASH
                 if (index < 0 || index >= data.length) {
-                  return Container(); // Return an empty widget for invalid indices
+                  return Container();
                 }
                 return Text(
                     data[index].key,
@@ -519,7 +559,8 @@ class _ViewReportsScreenState extends State<ViewReportsScreen> {
   }
 
   Widget _noDataWidget() {
-    return const Center(child: Text("No data available to display.", style: TextStyle(color: Colors.white70)));
+    final loc = AppLocalizations.of(context)!;
+    return Center(child: Text(loc.translate('viewReports_chart_no_data'), style: TextStyle(color: Colors.white70)));
   }
 
   Widget _buildChartContainer({required String title, Widget? customHeader, required Widget chart}) {
@@ -552,6 +593,7 @@ class _ViewReportsScreenState extends State<ViewReportsScreen> {
   }
 
   Widget _buildChatbot() {
+    final loc = AppLocalizations.of(context)!;
     return Positioned(
       bottom: 80,
       right: 16,
@@ -573,11 +615,11 @@ class _ViewReportsScreenState extends State<ViewReportsScreen> {
               Container(
                 padding: const EdgeInsets.all(12),
                 color: chartContainerBg,
-                child: const Row(
+                child: Row(
                   children: [
                     Icon(Icons.support_agent, color: primaryGold),
                     SizedBox(width: 8),
-                    Text("BI Assistant", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    Text(loc.translate('viewReports_chatbot_title'), style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   ],
                 ),
               ),
@@ -622,7 +664,7 @@ class _ViewReportsScreenState extends State<ViewReportsScreen> {
                         controller: _chatController,
                         style: const TextStyle(color: Colors.white),
                         decoration: InputDecoration(
-                            hintText: "Ask about the data...",
+                            hintText: loc.translate('viewReports_chatbot_hint'),
                             hintStyle: const TextStyle(color: Colors.white54),
                             filled: true,
                             fillColor: chartContainerBg,

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import '../pages/profilePage.dart';
+import '../pages/HomePage.dart'; // Import HomePage
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:projects/localization/app_localizations.dart';
 import 'package:http/http.dart' as http;
@@ -45,44 +45,49 @@ class LoginPage extends StatelessWidget {
     final userRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
     final snap = await userRef.get();
 
-    final profile = user.providerData.firstWhere(
-            (p) => p.providerId == 'google.com',
-        orElse: () => user.providerData[0]);
-    final email = profile.email;
-    final googlePhoto = profile.photoURL;
-
-    String storagePhotoUrl = googlePhoto ?? '';
-    if (googlePhoto != null && googlePhoto.isNotEmpty) {
-      try {
-        final resp = await http.get(Uri.parse(googlePhoto));
-        final ref = FirebaseStorage.instance
-            .ref()
-            .child('profile_pictures')
-            .child('${user.uid}.jpg');
-        await ref.putData(
-            resp.bodyBytes, SettableMetadata(contentType: 'image/jpeg'));
-        storagePhotoUrl = await ref.getDownloadURL();
-      } catch (e) {
-        print("Error handling profile picture: $e");
-        storagePhotoUrl = googlePhoto;
-      }
-    }
-    await user.updatePhotoURL(storagePhotoUrl);
-
-    final data = <String, dynamic>{
-      'uid': user.uid,
-      'email': email,
-      'photoUrl': storagePhotoUrl,
-      'name': user.displayName ?? 'No Name',
-      'last_login': FieldValue.serverTimestamp(),
-    };
-
     if (!snap.exists) {
-      data['created_at'] = FieldValue.serverTimestamp();
-      data['role'] = 'asnaf'; // Only set role for new users
-    }
+      final profile = user.providerData.firstWhere(
+              (p) => p.providerId == 'google.com',
+          orElse: () => user.providerData[0]);
+      final email = profile.email;
+      final googlePhoto = profile.photoURL;
 
-    await userRef.set(data, SetOptions(merge: true));
+      String storagePhotoUrl = googlePhoto ?? '';
+      if (googlePhoto != null && googlePhoto.isNotEmpty) {
+        try {
+          final resp = await http.get(Uri.parse(googlePhoto));
+          final ref = FirebaseStorage.instance
+              .ref()
+              .child('profile_pictures')
+              .child('${user.uid}.jpg');
+          await ref.putData(
+              resp.bodyBytes, SettableMetadata(contentType: 'image/jpeg'));
+          storagePhotoUrl = await ref.getDownloadURL();
+        } catch (e) {
+          print("Error handling initial profile picture: $e");
+          storagePhotoUrl = googlePhoto; // Fallback to original URL on error
+        }
+      }
+
+      await user.updatePhotoURL(storagePhotoUrl);
+      final data = <String, dynamic>{
+        'uid': user.uid,
+        'email': email,
+        'photoUrl': storagePhotoUrl, // Set the initial photo URL
+        'name': user.displayName ?? 'No Name', // Set initial name
+        'created_at': FieldValue.serverTimestamp(),
+        'last_login': FieldValue.serverTimestamp(),
+        'role': 'asnaf', // Default role for new users
+      };
+
+      // Create the new user document in Firestore.
+      await userRef.set(data);
+
+    } else {
+      await userRef.update({
+        'last_login': FieldValue.serverTimestamp(),
+      });
+    }
   }
 
   @override
@@ -185,11 +190,12 @@ class LoginPage extends StatelessWidget {
                                   print("Email: ${user.email}");
 
                                   if (context.mounted) {
+                                    // --- CHANGE HERE ---
+                                    // Navigate to HomePage instead of ProfilePage
                                     Navigator.pushReplacement(
                                       context,
                                       MaterialPageRoute(
-                                        builder: (context) => ProfilePage(
-                                            user: userCredential.user),
+                                        builder: (context) => HomePage(),
                                       ),
                                     );
                                   }
@@ -270,11 +276,4 @@ class LoginPage extends StatelessWidget {
       ),
     );
   }
-}
-
-void main() {
-  runApp(MaterialApp(
-    debugShowCheckedModeBanner: false,
-    home: LoginPage(),
-  ));
 }

@@ -43,45 +43,46 @@ class LoginPage extends StatelessWidget {
 
   Future<void> createOrUpdateUserInFirestore(User user) async {
     final userRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
-    final snap    = await userRef.get();
+    final snap = await userRef.get();
 
-    // 1) Grab provider info
-    final profile    = user.providerData
-        .firstWhere((p) => p.providerId == 'google.com', orElse: () => user.providerData[0]);
-    final email       = profile.email;
+    final profile = user.providerData.firstWhere(
+            (p) => p.providerId == 'google.com',
+        orElse: () => user.providerData[0]);
+    final email = profile.email;
     final googlePhoto = profile.photoURL;
 
-    // 2) Download & re-upload into Storage/profile_pictures/uid.jpg
-    String storagePhotoUrl = googlePhoto!;
-    if (googlePhoto.isNotEmpty) {
-      final resp = await http.get(Uri.parse(googlePhoto));
-      final ref  = FirebaseStorage.instance
-          .ref()
-          .child('profile_pictures')
-          .child('${user.uid}.jpg');
-      await ref.putData(resp.bodyBytes, SettableMetadata(contentType: 'image/jpeg'));
-      storagePhotoUrl = await ref.getDownloadURL();
+    String storagePhotoUrl = googlePhoto ?? '';
+    if (googlePhoto != null && googlePhoto.isNotEmpty) {
+      try {
+        final resp = await http.get(Uri.parse(googlePhoto));
+        final ref = FirebaseStorage.instance
+            .ref()
+            .child('profile_pictures')
+            .child('${user.uid}.jpg');
+        await ref.putData(
+            resp.bodyBytes, SettableMetadata(contentType: 'image/jpeg'));
+        storagePhotoUrl = await ref.getDownloadURL();
+      } catch (e) {
+        print("Error handling profile picture: $e");
+        storagePhotoUrl = googlePhoto;
+      }
     }
     await user.updatePhotoURL(storagePhotoUrl);
 
-    // 3) Merge into Firestore
-    final data = {
-      'uid':        user.uid,
-      'email':      email,
-      'photoUrl':   storagePhotoUrl,
-      'name':       user.displayName ?? 'No Name',
-      'role':       'asnaf',
+    final data = <String, dynamic>{
+      'uid': user.uid,
+      'email': email,
+      'photoUrl': storagePhotoUrl,
+      'name': user.displayName ?? 'No Name',
       'last_login': FieldValue.serverTimestamp(),
-      if (!snap.exists) 'created_at': FieldValue.serverTimestamp(),
     };
-    await userRef.set(data, SetOptions(merge: true));
-  }
 
-  Future<void> updateLastLogin(User user) async {
-    final userRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
-    await userRef.update({
-      'last_login': FieldValue.serverTimestamp(),
-    });
+    if (!snap.exists) {
+      data['created_at'] = FieldValue.serverTimestamp();
+      data['role'] = 'asnaf'; // Only set role for new users
+    }
+
+    await userRef.set(data, SetOptions(merge: true));
   }
 
   @override
@@ -181,15 +182,14 @@ class LoginPage extends StatelessWidget {
                                     userCredential.user != null) {
                                   final user = userCredential.user!;
                                   await createOrUpdateUserInFirestore(user);
-                                  await updateLastLogin(user);
                                   print("Email: ${user.email}");
 
                                   if (context.mounted) {
                                     Navigator.pushReplacement(
                                       context,
                                       MaterialPageRoute(
-                                        builder: (context) =>
-                                            ProfilePage(user: userCredential.user),
+                                        builder: (context) => ProfilePage(
+                                            user: userCredential.user),
                                       ),
                                     );
                                   }

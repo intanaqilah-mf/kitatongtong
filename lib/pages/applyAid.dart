@@ -121,29 +121,48 @@ class _ApplyAidState extends State<ApplyAid> {
   }
 
   void uploadToFirebase(Map<String, dynamic> data) async {
+    final localizations = AppLocalizations.of(context);
     try {
-      final String userId = FirebaseAuth.instance.currentUser!.uid;
       final DateTime now = DateTime.now();
+      final String applicationCode = generateUniqueCode(); // Defined here
 
-      String applicationCode = generateUniqueCode();
       data['date'] = now.toIso8601String();
-      data['userId'] = userId;
       data['applicationCode'] = applicationCode;
       data['statusApplication'] = "Pending";
 
-      if (userRole != null && userRole!.toLowerCase() == 'asnaf') {
+      // Correctly handle submission based on the user's role
+      if (userRole == 'staff') {
+        final currentUser = FirebaseAuth.instance.currentUser;
+        if (currentUser == null) {
+          showSnackBar("Staff user not found. Please log in again.");
+          return;
+        }
+        final String staffUserId = currentUser.uid;
+
+        // Get staff's name directly from their user profile at the time of submission
+        final staffDoc = await FirebaseFirestore.instance.collection('users').doc(staffUserId).get();
+        final String staffName = staffDoc.data()?['name'] ?? 'Unknown Staff';
+
+        data['submittedBy'] = {
+          'uid': staffUserId,
+          'name': staffName
+        };
+        data['userId'] = null; // Applicant is identified by NRIC, not a user ID
+
+      } else { // Asnaf is applying for themselves
+        final String asnafUserId = FirebaseAuth.instance.currentUser!.uid;
+        data['userId'] = asnafUserId;
         data['submittedBy'] = 'system';
-      } else if (userRole != null && userRole!.toLowerCase() == 'staff') {
-        data['submittedBy'] = fullnameController.text;
-      } else {
-        data['submittedBy'] = fullnameController.text;
       }
 
+      // Add the application to the collection
       await FirebaseFirestore.instance.collection("applications").add(data);
+
+      // Add a notification for the admin
       await FirebaseFirestore.instance.collection("notifications").add({
         'recipientRole': 'Admin',
-        'applicantId': userId,
-        'applicantName': fullnameController.text,
+        'applicantId': data['userId'], // This will be null for staff submissions, which is correct
+        'applicantName': fullnameController.text, // This is always the applicant's name
         'applicationCode': applicationCode,
         'createdAt': now,
       });
@@ -155,12 +174,13 @@ class _ApplyAidState extends State<ApplyAid> {
       );
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppLocalizations.of(context).translate('apply_aid_submit_success'))),
+        SnackBar(content: Text(localizations.translate('apply_aid_submit_success'))),
       );
 
     } catch (e) {
+      print("Error during submission: $e");
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppLocalizations.of(context).translate('apply_aid_submit_fail'))),
+        SnackBar(content: Text(localizations.translate('apply_aid_submit_fail'))),
       );
     }
   }
@@ -168,31 +188,56 @@ class _ApplyAidState extends State<ApplyAid> {
   Future<void> _fetchUserData() async {
     try {
       final String userId = FirebaseAuth.instance.currentUser!.uid;
-
       DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
 
       if (userDoc.exists) {
         final userData = userDoc.data() as Map<String, dynamic>;
-
-        userRole = userData['role'] ?? '';
-
-        final fullAddress = userData['address'] ?? '';
-        final addressParts = fullAddress.split(',');
-
+        final role = userData['role'] ?? 'asnaf';
         setState(() {
-          nricController.text = userData['nric'] ?? '';
-          fullnameController.text = userData['name'] ?? '';
-          emailController.text = FirebaseAuth.instance.currentUser!.email ?? '';
-          mobileNumberController.text = userData['phone'] ?? '';
-          add1Controller.text = addressParts.isNotEmpty ? addressParts[0].trim() : '';
-          add2Controller.text = addressParts.length > 1 ? addressParts.sublist(1).join(',').trim() : '';
-          cityController.text = userData['city'] ?? '';
-          postcodeController.text = userData['postcode'] ?? '';
-          stateController.text = userData['state'] ?? '';
-          if (nricController.text.isNotEmpty) {
-            _isEkycComplete = true;
-          }
+          userRole = role;
         });
+
+        // If the user is an 'asnaf', populate their data.
+        if (role == 'asnaf') {
+          final fullAddress = userData['address'] ?? '';
+          final addressParts = fullAddress.split(',');
+
+          setState(() {
+            nricController.text = userData['nric'] ?? '';
+            fullnameController.text = userData['name'] ?? '';
+            emailController.text = FirebaseAuth.instance.currentUser!.email ?? '';
+            mobileNumberController.text = userData['phone'] ?? '';
+            add1Controller.text = addressParts.isNotEmpty ? addressParts[0].trim() : '';
+            add2Controller.text = addressParts.length > 1 ? addressParts.sublist(1).join(',').trim() : '';
+            cityController.text = userData['city'] ?? '';
+            postcodeController.text = userData['postcode'] ?? '';
+            stateController.text = userData['state'] ?? '';
+
+            // Check eKYC status only for asnaf
+            if ((userData['nric'] ?? '').isNotEmpty) {
+              _isEkycComplete = true;
+            } else {
+              _isEkycComplete = false;
+            }
+          });
+        }
+        // If the user is a 'staff', ensure the form is empty.
+        else if (role == 'staff') {
+          setState(() {
+            nricController.clear();
+            fullnameController.clear();
+            emailController.clear();
+            mobileNumberController.clear();
+            add1Controller.clear();
+            add2Controller.clear();
+            cityController.clear();
+            postcodeController.clear();
+            stateController.clear();
+
+            // Always reset eKYC status for staff
+            _isEkycComplete = false;
+          });
+        }
       }
     } catch (e) {
       debugPrint("Error fetching user data: $e");
@@ -207,8 +252,6 @@ class _ApplyAidState extends State<ApplyAid> {
           .join(', ');
 
       await FirebaseFirestore.instance.collection('users').doc(userId).set({
-        'name': fullnameController.text,
-        'nric': nricController.text,
         'phone': mobileNumberController.text,
         'address': mergedAddress,
         'city': cityController.text,
@@ -387,7 +430,7 @@ class _ApplyAidState extends State<ApplyAid> {
       return;
     }
 
-    if (currentStep == 1 || currentStep == 2){
+    if (userRole == 'asnaf' && (currentStep == 1 || currentStep == 2)){
       await _updateUserProfile();
     }
 
@@ -489,19 +532,75 @@ class _ApplyAidState extends State<ApplyAid> {
   List<Widget> buildPersonalDetailsForm() {
     final localizations = AppLocalizations.of(context);
     return [
-      buildTextField(localizations.translate('apply_aid_label_email'), "email", emailController, hint: localizations.translate('apply_aid_hint_email'), readOnly: true),
+      if (userRole == 'staff') ...[
+        buildTextField(
+            localizations.translate('profile_nric'),
+            "nric",
+            nricController,
+            readOnly: true,
+            hint: "Complete eKYC to populate applicant NRIC"
+        ),
+        SizedBox(height: 10),
+        buildTextField(
+            localizations.translate('profile_set_name_hint'),
+            "fullname",
+            fullnameController,
+            readOnly: true,
+            hint: "Complete eKYC to populate applicant name"
+        ),
+        SizedBox(height: 10),
+      ],
+      buildTextField(
+          localizations.translate('apply_aid_label_email'),
+          "email",
+          emailController,
+          readOnly: userRole == 'asnaf', // Email is read-only for 'asnaf'
+          hint: localizations.translate('apply_aid_hint_email')
+      ),
       SizedBox(height: 10),
       buildMobileNumberField("mobileNumber", mobileNumberController),
       SizedBox(height: 10),
-      buildTextField(localizations.translate('apply_aid_label_addr1'), "addressLine1", add1Controller, hint: localizations.translate('apply_aid_hint_addr1')),
+      buildTextField(
+          localizations.translate('apply_aid_label_addr1'),
+          "addressLine1",
+          add1Controller,
+          hint: localizations.translate('apply_aid_hint_addr1')
+      ),
       SizedBox(height: 10),
-      buildTextField(localizations.translate('apply_aid_label_addr2'), "addressLine2", add2Controller, hint: localizations.translate('apply_aid_hint_addr2')),
+      buildTextField(
+          localizations.translate('apply_aid_label_addr2'),
+          "addressLine2",
+          add2Controller,
+          hint: localizations.translate('apply_aid_hint_addr2')
+      ),
       SizedBox(height: 10),
-      buildTextField(localizations.translate('apply_aid_label_postcode'), "postcode", postcodeController, hint: localizations.translate('apply_aid_hint_postcode'), keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(5)]),
+      buildTextField(
+          localizations.translate('apply_aid_label_postcode'),
+          "postcode",
+          postcodeController,
+          hint: localizations.translate('apply_aid_hint_postcode'),
+          keyboardType: TextInputType.number,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(5)
+          ]
+      ),
       SizedBox(height: 10),
-      buildTextField(localizations.translate('apply_aid_label_city'), "city", cityController, hint: localizations.translate('apply_aid_hint_city'), readOnly: true),
+      buildTextField(
+          localizations.translate('apply_aid_label_city'),
+          "city",
+          cityController,
+          hint: localizations.translate('apply_aid_hint_city'),
+          readOnly: true
+      ),
       SizedBox(height: 10),
-      buildTextField(localizations.translate('apply_aid_label_state'), "state", stateController, hint: localizations.translate('apply_aid_hint_state'), readOnly: true),
+      buildTextField(
+          localizations.translate('apply_aid_label_state'),
+          "state",
+          stateController,
+          hint: localizations.translate('apply_aid_hint_state'),
+          readOnly: true
+      ),
     ];
   }
 
@@ -583,24 +682,50 @@ class _ApplyAidState extends State<ApplyAid> {
         SizedBox(height: 8),
         GestureDetector(
           onTap: () async {
-            final result = await Navigator.push(context, MaterialPageRoute(builder: (context) => EkycScreen()));
-            if (result == true) {
-              await _fetchUserData();
-              setState(() => _isEkycComplete = true);
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(localizations.translate('apply_aid_ekyc_success')), backgroundColor: Colors.green));
+            // Pass the user's role to determine the eKYC mode.
+            final result = await Navigator.push(context, MaterialPageRoute(
+                builder: (context) => EkycScreen(isStaffMode: userRole == 'staff')),
+            );
+
+            if (result == null) return; // User cancelled
+
+            // Handle the return data based on the user's role.
+            if (userRole == 'staff') {
+              if (result is Map<String, dynamic>) {
+                // For staff, update controllers with returned data to preserve the form.
+                setState(() {
+                  nricController.text = result['nric'] ?? '';
+                  fullnameController.text = result['name'] ?? '';
+                  _isEkycComplete = true;
+                });
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(localizations.translate('apply_aid_ekyc_success')), backgroundColor: Colors.green));
+              }
+            } else {
+              // For asnaf, reload their own profile data.
+              if (result == true) {
+                await _fetchUserData();
+                setState(() => _isEkycComplete = true);
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(localizations.translate('apply_aid_ekyc_success')), backgroundColor: Colors.green));
+              }
             }
           },
           child: Container(
             width: double.infinity,
             padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-            decoration: BoxDecoration(color: _isEkycComplete ? Colors.green : Color(0xFFFFCF40), borderRadius: BorderRadius.circular(10)),
+            decoration: BoxDecoration(
+                color: _isEkycComplete ? Colors.green : Color(0xFFFFCF40),
+                borderRadius: BorderRadius.circular(10)
+            ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(_isEkycComplete ? localizations.translate('apply_aid_ekyc_complete') : localizations.translate('apply_aid_ekyc_start'), style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
+                    Text(
+                        _isEkycComplete ? localizations.translate('apply_aid_ekyc_complete') : localizations.translate('apply_aid_ekyc_start'),
+                        style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)
+                    ),
                     Text(subtitle, style: TextStyle(color: Colors.black87, fontSize: 12)),
                   ],
                 ),

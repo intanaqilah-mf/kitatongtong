@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:projects/pages/packageKasih.dart';
 import 'package:projects/pages/packageRedeem.dart';
 import 'package:projects/pages/redeem_voucher_items_page.dart';
+import 'package:projects/localization/app_localizations.dart';
 
 class Rewards extends StatefulWidget {
   @override
@@ -18,9 +19,12 @@ class _RewardsState extends State<Rewards> {
   int userPoints = 0;
   int redeemablePoints = 0;
   int valuePoints = 0;
-  String validityMessage = "Valid for 1 month";
+  // String validityMessage = "Valid for 1 month"; // Replaced with dynamic logic in build method
+  int? voucherDaysLeft;
+  bool isVoucherExpired = false;
   List<Map<String, dynamic>> eligibleVouchers = [];
   List<Map<String, dynamic>> eventList = [];
+
   String getAdminVoucherBanner(String voucherGranted) {
     if (voucherGranted == "RM10") {
       return "https://firebasestorage.googleapis.com/v0/b/kita-tongtong.firebasestorage.app/o/voucherBanner%2F100_points_RM10.png?alt=media";
@@ -127,7 +131,10 @@ class _RewardsState extends State<Rewards> {
     }
 
     debugPrint("==> BEST MATCH: $bestMatchPoints points => RM$bestMatchValue");
-    int daysLeft = 0;
+
+    int? days;
+    bool expired = false;
+
     if (userDoc.data()?['voucherReceived'] != null) {
       final received = userDoc.data()!['voucherReceived'];
       if (received is Map && received['redeemedAt'] != null) {
@@ -137,10 +144,9 @@ class _RewardsState extends State<Rewards> {
           final now = DateTime.now();
           final difference = 30 - now.difference(redeemedDate).inDays;
           if (difference >= 0) {
-            daysLeft = difference;
-            validityMessage = "Valid for $daysLeft day${daysLeft == 1 ? '' : 's'}";
+            days = difference;
           } else {
-            validityMessage = "Expired";
+            expired = true;
           }
         }
       }
@@ -150,6 +156,8 @@ class _RewardsState extends State<Rewards> {
       userPoints = points;
       redeemablePoints = bestMatchPoints;
       valuePoints = bestMatchValue;
+      voucherDaysLeft = days;
+      isVoucherExpired = expired;
     });
   }
 
@@ -320,12 +328,13 @@ class _RewardsState extends State<Rewards> {
   }
 
   Widget buildRewardsListSection() {
+    final localizations = AppLocalizations.of(context);
     final uid = _auth.currentUser?.uid;
     if (uid == null) {
       return Container(
         alignment: Alignment.center,
         padding: EdgeInsets.symmetric(vertical: 20),
-        child: Text("No user found."),
+        child: Text(localizations.translate('rewards_no_user_found')),
       );
     }
 
@@ -339,7 +348,7 @@ class _RewardsState extends State<Rewards> {
           return Container(
             alignment: Alignment.center,
             padding: EdgeInsets.symmetric(vertical: 20),
-            child: Text("No user data found."),
+            child: Text(localizations.translate('rewards_no_user_data_found')),
           );
         }
 
@@ -435,7 +444,7 @@ class _RewardsState extends State<Rewards> {
                   children: [
                     // Section 1: Admin-issued vouchers fetched from the applications collection.
                     Text(
-                      "This is your Rewards!", //
+                      localizations.translate('rewards_section_title'),
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -454,12 +463,12 @@ class _RewardsState extends State<Rewards> {
                         }).toList(),
                       )
                     else
-                      Text("No admin-issued rewards available.",
+                      Text(localizations.translate('rewards_no_admin_rewards'),
                           style: TextStyle(color: Colors.black)),
                     SizedBox(height: 20),
                     // Section 2: Claimed vouchers from the user's voucherReceived field (which do not have voucherGranted).
                     Text(
-                      "My Claimed Vouchers", //
+                      localizations.translate('rewards_my_claimed_vouchers'),
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -479,6 +488,7 @@ class _RewardsState extends State<Rewards> {
   }
 
   Widget _buildClaimedVoucherList(dynamic voucherData) {
+    final localizations = AppLocalizations.of(context);
     List claimedVouchers = [];
     if (voucherData is List) {
       claimedVouchers = voucherData;
@@ -487,7 +497,7 @@ class _RewardsState extends State<Rewards> {
     }
     if (claimedVouchers.isEmpty) {
       return Text(
-        "No claimed vouchers available.",
+        localizations.translate('rewards_no_claimed_vouchers'),
         style: TextStyle(color: Colors.black),
       );
     }
@@ -507,7 +517,7 @@ class _RewardsState extends State<Rewards> {
           redeemedDateStr = DateFormat("dd MMM ").format((voucher['redeemedAt'] as Timestamp).toDate());
         }
         int rmValue = int.tryParse(voucherValue) ?? 0;
-        String subtitle = "Redeemed on:\n" + redeemedDateStr;
+        String subtitle = localizations.translateWithArgs('rewards_redeemed_on', {'date': redeemedDateStr});
 
         return GestureDetector(
           // Inside _buildClaimedVoucherList, in the GestureDetector's onTap:
@@ -532,7 +542,7 @@ class _RewardsState extends State<Rewards> {
               }
             } else {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text("Invalid voucher value.")),
+                SnackBar(content: Text(localizations.translate('rewards_invalid_voucher'))),
               );
             }
           },
@@ -557,7 +567,7 @@ class _RewardsState extends State<Rewards> {
                         height: 110,
                         color: Colors.grey,
                         child: Center(
-                            child: Text("Image Error",
+                            child: Text(localizations.translate('rewards_image_error'),
                                 style: TextStyle(color: Colors.white))),
                       );
                     },
@@ -571,7 +581,7 @@ class _RewardsState extends State<Rewards> {
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Center(
-                    child: Text("Admin Issued Reward",
+                    child: Text(localizations.translate('rewards_admin_issued'),
                         style: TextStyle(color: Colors.white)),
                   ),
                 ),
@@ -592,12 +602,12 @@ class _RewardsState extends State<Rewards> {
                         mainAxisAlignment:
                         MainAxisAlignment.spaceBetween,
                         children: [
-                          Text("Redeem with",
+                          Text(localizations.translate('rewards_redeem_with'),
                               style: TextStyle(
                                   color: Color(0xFFA67C00),
                                   fontWeight: FontWeight.bold,
                                   fontSize: 13)),
-                          Text("Rewards",
+                          Text(localizations.translate('rewards_label'),
                               style: TextStyle(
                                   color: Color(0xFFA67C00),
                                   fontWeight: FontWeight.bold,
@@ -633,6 +643,7 @@ class _RewardsState extends State<Rewards> {
   }
 
   Widget buildVoucherWidget(Map<String, dynamic> voucher) {
+    final localizations = AppLocalizations.of(context);
     String bannerUrl = voucher['bannerVoucher'] ?? "";
     int thresholdPoints = int.tryParse(voucher['points'].toString()) ?? 0;
     int rmValue = int.tryParse(voucher['valuePoints'].toString()) ?? 0;
@@ -657,7 +668,7 @@ class _RewardsState extends State<Rewards> {
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Invalid admin voucher value.")),
+            SnackBar(content: Text(localizations.translate('rewards_invalid_voucher'))),
           );
         }
       },
@@ -698,12 +709,12 @@ class _RewardsState extends State<Rewards> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text("Redeem with",
+                      Text(localizations.translate('rewards_redeem_with'),
                           style: TextStyle(
                               color: Color(0xFFA67C00),
                               fontWeight: FontWeight.bold,
                               fontSize: 13)),
-                      Text("Rewards",
+                      Text(localizations.translate('rewards_label'),
                           style: TextStyle(
                               color: Color(0xFFA67C00),
                               fontWeight: FontWeight.bold,
@@ -736,6 +747,7 @@ class _RewardsState extends State<Rewards> {
   }
 
   Widget buildAdminVoucherWidget(Map<String, dynamic> voucher) {
+    final localizations = AppLocalizations.of(context);
     String voucherGranted = voucher['voucherGranted']?.toString() ?? "";
     String bannerUrl = getAdminVoucherBanner(voucherGranted);
     String title = voucherGranted;
@@ -747,7 +759,7 @@ class _RewardsState extends State<Rewards> {
 
     if (isRecurring) {
       String recurrencePeriod = voucher['recurrencePeriod'] ?? 'N/A';
-      String nextEligibleDateStr = "Now";
+      String nextEligibleDateStr = localizations.translate('rewards_redeemable_now');
       // Safely access nextEligibleDate and convert to DateTime
       final Timestamp? nextEligibleTimestamp = voucher['nextEligibleDate'] as Timestamp?;
       if (nextEligibleTimestamp != null) {
@@ -757,7 +769,7 @@ class _RewardsState extends State<Rewards> {
           nextEligibleDateStr = DateFormat("dd MMM ").format(nextDate);
         }
       }
-      subtitle = "Every: $recurrencePeriod\nRedeemable from: $nextEligibleDateStr";
+      subtitle = localizations.translateWithArgs('rewards_recurring_subtitle', {'period': recurrencePeriod, 'date': nextEligibleDateStr});
     } else {
       subtitle = "${voucher['rewardType']}\n${voucher['eligibility']}";
     }
@@ -796,7 +808,7 @@ class _RewardsState extends State<Rewards> {
                     width: double.infinity,
                     height: 110,
                     color: Colors.grey,
-                    child: Center(child: Text("Image Error", style: TextStyle(color: Colors.white))),
+                    child: Center(child: Text(localizations.translate('rewards_image_error'), style: TextStyle(color: Colors.white))),
                   );
                 },
               ),
@@ -809,7 +821,7 @@ class _RewardsState extends State<Rewards> {
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Center(
-                child: Text("Admin Issued Reward", style: TextStyle(color: Colors.white)),
+                child: Text(localizations.translate('rewards_admin_issued'), style: TextStyle(color: Colors.white)),
               ),
             ),
             Container(
@@ -827,12 +839,12 @@ class _RewardsState extends State<Rewards> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text("Redeem with",
+                      Text(localizations.translate('rewards_redeem_with'),
                           style: TextStyle(
                               color: Color(0xFFA67C00),
                               fontWeight: FontWeight.bold,
                               fontSize: 13)),
-                      Text("Rewards",
+                      Text(localizations.translate('rewards_label'),
                           style: TextStyle(
                               color: Color(0xFFA67C00),
                               fontWeight: FontWeight.bold,
@@ -867,6 +879,21 @@ class _RewardsState extends State<Rewards> {
   }
 
   Widget buildRedeemSection() {
+    final localizations = AppLocalizations.of(context);
+
+    String validityMessage;
+    if (isVoucherExpired) {
+      validityMessage = localizations.translate('rewards_expired');
+    } else if (voucherDaysLeft != null) {
+      if (voucherDaysLeft == 1) {
+        validityMessage = localizations.translateWithArgs('rewards_validity_days_single', {'count': voucherDaysLeft.toString()});
+      } else {
+        validityMessage = localizations.translateWithArgs('rewards_validity_days_plural', {'count': voucherDaysLeft.toString()});
+      }
+    } else {
+      validityMessage = localizations.translate('rewards_validity_month');
+    }
+
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: 16),
       child: Column(
@@ -876,7 +903,7 @@ class _RewardsState extends State<Rewards> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                "Tongtong Points\n$userPoints Pts",
+                localizations.translateWithArgs('rewards_tongtong_points', {'points': userPoints.toString()}),
                 style: TextStyle(
                   color: Color(0xFFFFCF40),
                   fontSize: 24,
@@ -897,7 +924,7 @@ class _RewardsState extends State<Rewards> {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Text(
-                  "Points to Redeem",
+                  localizations.translate('rewards_points_to_redeem'),
                   style: TextStyle(
                     color: Color(0xFFFDB515),
                     fontSize: 18,
@@ -913,7 +940,7 @@ class _RewardsState extends State<Rewards> {
                 ),
                 SizedBox(height: 8),
                 Text(
-                  "Details",
+                  localizations.translate('rewards_details'),
                   style: TextStyle(
                     color: Color(0xFFFDB515),
                     fontSize: 18,
@@ -921,7 +948,7 @@ class _RewardsState extends State<Rewards> {
                 ),
                 SizedBox(height: 8),
                 Text(
-                  "$valuePoints Cash Voucher\n$validityMessage",
+                  localizations.translateWithArgs('rewards_cash_voucher_details', {'value': valuePoints.toString(), 'validity': validityMessage}),
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: Colors.white70,
@@ -936,7 +963,7 @@ class _RewardsState extends State<Rewards> {
                     padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                   ),
                   child: Text(
-                    "Redeem Points",
+                    localizations.translate('rewards_redeem_points_button'),
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -963,7 +990,7 @@ class _RewardsState extends State<Rewards> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          "Redeem your Points!",
+                          localizations.translate('rewards_redeem_your_points_title'),
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -1012,8 +1039,8 @@ class _RewardsState extends State<Rewards> {
                                           Row(
                                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                             children: [
-                                              Text("Redeem with", style: TextStyle(color: Color(0xFFA67C00), fontWeight: FontWeight.bold, fontSize: 13)),
-                                              Text("Rewards", style: TextStyle(color: Color(0xFFA67C00), fontWeight: FontWeight.bold, fontSize: 13)),
+                                              Text(localizations.translate('rewards_redeem_with'), style: TextStyle(color: Color(0xFFA67C00), fontWeight: FontWeight.bold, fontSize: 13)),
+                                              Text(localizations.translate('rewards_label'), style: TextStyle(color: Color(0xFFA67C00), fontWeight: FontWeight.bold, fontSize: 13)),
                                             ],
                                           ),
                                           SizedBox(height: 4),
@@ -1036,7 +1063,7 @@ class _RewardsState extends State<Rewards> {
                                                   borderRadius: BorderRadius.circular(8),
                                                 ),
                                               ),
-                                              child: Text("Claim", style: TextStyle(fontSize: 14, color: Colors.white)),
+                                              child: Text(localizations.translate('rewards_claim_button'), style: TextStyle(fontSize: 14, color: Colors.white)),
                                             ),
                                           ),
                                         ],
@@ -1049,7 +1076,7 @@ class _RewardsState extends State<Rewards> {
                           ),
                         ),
                         Text(
-                          "Join Activity and Get Rewards!",
+                          localizations.translate('rewards_join_activity_title'),
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -1090,7 +1117,7 @@ class _RewardsState extends State<Rewards> {
                                           width: 200,
                                           height: 110,
                                           color: Colors.grey,
-                                          child: Center(child: Text("No Image")),
+                                          child: Center(child: Text(localizations.translate('rewards_no_image'))),
                                         ),
                                       ),
                                       // White info box (like vouchers)
@@ -1120,7 +1147,7 @@ class _RewardsState extends State<Rewards> {
                                             SizedBox(height: 4),
                                             // Organiser Name
                                             Text(
-                                              "by $organiserName",
+                                              localizations.translateWithArgs('rewards_organised_by', {'organiser': organiserName}),
                                               style: TextStyle(
                                                 color: Colors.black54,
                                                 fontSize: 12,
@@ -1174,7 +1201,7 @@ class _RewardsState extends State<Rewards> {
                                                   ),
                                                 ),
                                                 child: Text(
-                                                  "Join",
+                                                  localizations.translate('rewards_join_button'),
                                                   style: TextStyle(
                                                       fontSize: 14, color: Colors.white),
                                                 ),
@@ -1203,6 +1230,7 @@ class _RewardsState extends State<Rewards> {
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: Color(0xFF303030),
       body: SingleChildScrollView(
@@ -1231,7 +1259,7 @@ class _RewardsState extends State<Rewards> {
                           ),
                           alignment: Alignment.center,
                           child: Text(
-                            "Redeem Rewards",
+                            localizations.translate('rewards_tab_redeem'),
                             style: TextStyle(
                               color: isRewards ? Color(0xFFFDB515) : Colors.white,
                               fontWeight: FontWeight.bold,
@@ -1250,7 +1278,7 @@ class _RewardsState extends State<Rewards> {
                           ),
                           alignment: Alignment.center,
                           child: Text(
-                            "Rewards",
+                            localizations.translate('rewards_label'),
                             style: TextStyle(
                               color: !isRewards ? Color(0xFFFDB515) : Colors.white,
                               fontWeight: FontWeight.bold,

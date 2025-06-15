@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:projects/localization/app_localizations.dart';
 
 class RedemptionStatus extends StatefulWidget {
   final String documentId;
@@ -18,10 +19,12 @@ class _RedemptionStatusPageState extends State<RedemptionStatus> {
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context);
+
     return Scaffold(
       backgroundColor: Color(0xFF303030),
       appBar: AppBar(
-        title: Text("Pickup Status", style: TextStyle(color: Color(0xFFFDB515), fontWeight: FontWeight.bold)),
+        title: Text(localizations.translate('redemption_status_title'), style: TextStyle(color: Color(0xFFFDB515), fontWeight: FontWeight.bold)),
         backgroundColor: Color(0xFF303030),
         elevation: 0,
         centerTitle: true,
@@ -37,12 +40,12 @@ class _RedemptionStatusPageState extends State<RedemptionStatus> {
             return Center(child: CircularProgressIndicator(color: Color(0xFFFDB515)));
           }
           if (!snapshot.hasData || !snapshot.data!.exists) {
-            return Center(child: Text("Order not found.", style: TextStyle(color: Colors.white)));
+            return Center(child: Text(localizations.translate('redemption_status_order_not_found'), style: TextStyle(color: Colors.white)));
           }
 
           final data = snapshot.data!.data() as Map<String, dynamic>;
-          final pickupCode = data['pickupCode'] ?? 'N/A';
-          final userName = data['userName'] ?? 'User';
+          final pickupCode = data['pickupCode'] ?? localizations.translate('track_order_not_applicable');
+          final userName = data['userName'] ?? localizations.translate('redemption_status_user');
           final isProcessed = (data['processedOrder'] ?? 'no') == 'yes';
           final isPickedUp = (data['pickedUp'] ?? 'no') == 'yes';
 
@@ -52,7 +55,6 @@ class _RedemptionStatusPageState extends State<RedemptionStatus> {
             padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
             child: Column(
               children: [
-                // Header
                 Container(
                   padding: const EdgeInsets.all(16.0),
                   decoration: BoxDecoration(
@@ -62,14 +64,13 @@ class _RedemptionStatusPageState extends State<RedemptionStatus> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      _buildHeaderInfo("Pickup Code", "#$pickupCode"),
-                      _buildHeaderInfo("Full Name", userName, isRightAligned: true),
+                      _buildHeaderInfo(localizations.translate('redemption_status_pickup_code'), "#$pickupCode"),
+                      _buildHeaderInfo(localizations.translate('redemption_status_full_name'), userName, isRightAligned: true),
                     ],
                   ),
                 ),
                 SizedBox(height: 40),
 
-                // QR Code Display
                 if (showQrCode)
                   Column(
                     children: [
@@ -87,15 +88,19 @@ class _RedemptionStatusPageState extends State<RedemptionStatus> {
                       ),
                       SizedBox(height: 10),
                       Text(
-                        "Show this QR to the staff for pickup",
+                        localizations.translate('redemption_status_qr_instruction'),
                         style: TextStyle(color: Colors.white70, fontSize: 14),
                       ),
                       SizedBox(height: 40),
                     ],
                   ),
 
-                // Timeline
-                _buildStatusTimeline(isPlaced: true, isProcessed: isProcessed, isReady: isPickedUp),
+                _buildStatusTimeline(
+                    isPlaced: true,
+                    isProcessed: isProcessed,
+                    isReady: isPickedUp,
+                    localizations: localizations
+                ),
 
                 SizedBox(height: 50),
                 SizedBox(
@@ -107,7 +112,7 @@ class _RedemptionStatusPageState extends State<RedemptionStatus> {
                         padding: EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))
                     ),
-                    child: Text("OK", style: TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.bold)),
+                    child: Text(localizations.translate('redemption_status_ok_button'), style: TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.bold)),
                   ),
                 )
               ],
@@ -130,29 +135,28 @@ class _RedemptionStatusPageState extends State<RedemptionStatus> {
     );
   }
 
-  // A more robust timeline builder that matches the screenshot
-  Widget _buildStatusTimeline({required bool isPlaced, required bool isProcessed, required bool isReady}) {
+  Widget _buildStatusTimeline({required bool isPlaced, required bool isProcessed, required bool isReady, required AppLocalizations localizations}) {
     return Column(
       children: [
         _buildTimelineNode(
           icon: Icons.shopping_cart_checkout,
-          title: "Order Placed",
-          subtitle: "We have received your order.",
+          title: localizations.translate('redemption_status_timeline_placed_title'),
+          subtitle: localizations.translate('redemption_status_timeline_placed_subtitle'),
           isActive: isPlaced,
           isFirst: true,
         ),
         _buildTimelineConnector(isActive: isProcessed),
         _buildTimelineNode(
           icon: Icons.inventory_2_outlined,
-          title: "Order Processed",
-          subtitle: "We are processing your order.",
+          title: localizations.translate('redemption_status_timeline_processed_title'),
+          subtitle: localizations.translate('redemption_status_timeline_processed_subtitle'),
           isActive: isProcessed,
         ),
         _buildTimelineConnector(isActive: isReady),
         _buildTimelineNode(
           icon: Icons.storefront_outlined,
-          title: "Ready to Pickup",
-          subtitle: "Your order is ready to pickup.",
+          title: localizations.translate('redemption_status_timeline_pickup_title'),
+          subtitle: localizations.translate('redemption_status_timeline_pickup_subtitle'),
           isActive: isReady,
           isLast: true,
         ),
@@ -171,7 +175,6 @@ class _RedemptionStatusPageState extends State<RedemptionStatus> {
     return IntrinsicHeight(
       child: Row(
         children: [
-          // Dot and Line Column
           Column(
             children: [
               Container(
@@ -192,10 +195,9 @@ class _RedemptionStatusPageState extends State<RedemptionStatus> {
             ],
           ),
           SizedBox(width: 20),
-          // Icon and Text Column
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.only(bottom: 30.0), // Space between timeline items
+              padding: const EdgeInsets.only(bottom: 30.0),
               child: Row(
                 children: [
                   Icon(icon, color: isActive ? Color(0xFFFDB515) : Colors.grey[600], size: 40),
@@ -232,10 +234,7 @@ class _RedemptionStatusPageState extends State<RedemptionStatus> {
     );
   }
 
-  // This is a simplified connector for the visual timeline. The main logic is in the node.
   Widget _buildTimelineConnector({required bool isActive}) {
-    // This widget is no longer needed as the line is part of the node now.
-    // Kept for clarity in case you want to separate it again.
     return SizedBox.shrink();
   }
 }

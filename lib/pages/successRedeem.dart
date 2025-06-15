@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:projects/pages/redemptionStatus.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
+import 'package:projects/localization/app_localizations.dart';
 
 class SuccessRedeem extends StatefulWidget {
   @override
@@ -17,8 +18,8 @@ class _SuccessRedeemState extends State<SuccessRedeem> {
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context);
     return Scaffold(
-      // Wrap the entire body in a FutureBuilder so we can grab the doc ID
       body: FutureBuilder<QuerySnapshot>(
         future: FirebaseFirestore.instance
             .collection('redeemedKasih')
@@ -32,17 +33,16 @@ class _SuccessRedeemState extends State<SuccessRedeem> {
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
             return Center(
               child: Text(
-                "Unable to fetch pickup code.",
+                localizations.translate('success_redeem_fetch_error'),
                 style: TextStyle(color: Colors.white),
                 textAlign: TextAlign.center,
               ),
             );
           }
 
-          // Grab the latest redemption document
           final doc = snapshot.data!.docs.first;
           final data = doc.data()! as Map<String, dynamic>;
-          final pickupCode = data['pickupCode'] ?? 'N/A';
+          final pickupCode = data['pickupCode'] ?? localizations.translate('track_order_not_applicable');
           final docId = doc.id;
 
           return Column(
@@ -60,7 +60,7 @@ class _SuccessRedeemState extends State<SuccessRedeem> {
                         ),
                         SizedBox(height: 20),
                         Text(
-                          "Your redemption is successful!",
+                          localizations.translate('success_redeem_title'),
                           style: TextStyle(
                             fontSize: 35,
                             fontWeight: FontWeight.bold,
@@ -70,7 +70,7 @@ class _SuccessRedeemState extends State<SuccessRedeem> {
                         ),
                         SizedBox(height: 10),
                         Text(
-                          "Congratulations! You have redeemed the item successfully. Your pickup code is",
+                          localizations.translate('success_redeem_congrats'),
                           style: TextStyle(
                             fontSize: 18,
                             color: Colors.grey[400],
@@ -89,10 +89,7 @@ class _SuccessRedeemState extends State<SuccessRedeem> {
                         ),
                         SizedBox(height: 20),
                         Text(
-                          "You can pick up your package at:\n"
-                              "MADAD Office\n"
-                              "Operating Hours: 9:00 AM - 5:00 PM\n"
-                              "Please ensure you bring your redemption code and valid ID during pickup.",
+                          localizations.translate('success_redeem_pickup_details'),
                           style: TextStyle(
                             fontSize: 18,
                             color: Colors.white,
@@ -104,8 +101,6 @@ class _SuccessRedeemState extends State<SuccessRedeem> {
                   ),
                 ),
               ),
-
-              // Track Order button now passes the documentId
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
                 child: ElevatedButton(
@@ -127,7 +122,7 @@ class _SuccessRedeemState extends State<SuccessRedeem> {
                     );
                   },
                   child: Text(
-                    "Track Order",
+                    localizations.translate('success_redeem_track_order_button'),
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,

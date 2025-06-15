@@ -129,9 +129,7 @@ class _ProfilePageState extends State<ProfilePage> {
       }
 
       final userData = {
-        'name': nameController.text.trim(),
         'phone': phoneController.text.trim(),
-        'nric': nricController.text.trim(),
         'address': addressController.text.trim(),
         'city': cityController.text.trim(),
         'postcode': postcodeController.text.trim(),
@@ -141,9 +139,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
       await FirebaseFirestore.instance.collection('users').doc(userId).set(userData, SetOptions(merge: true));
 
-      await prefs.setString('name_$userId', nameController.text.trim());
       await prefs.setString('phone_$userId', phoneController.text.trim());
-      // NRIC is read-only, no need to save it back from here. It's set by eKYC.
       await prefs.setString('address_$userId', addressController.text.trim());
       await prefs.setString('city_$userId', cityController.text.trim());
       await prefs.setString('postcode_$userId', postcodeController.text.trim());
@@ -226,7 +222,6 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   void _initializeListeners() {
-    nameController.addListener(_saveData);
     phoneController.addListener(_saveData);
     addressController.addListener(_saveData);
     cityController.addListener(_saveData);
@@ -302,6 +297,9 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildProfileDetails() {
+    final localizations = AppLocalizations.of(context);
+    // Determine if fields should be read-only based on NRIC presence.
+    final bool isEkycComplete = nricController.text.isNotEmpty;
     return Container(
       margin: EdgeInsets.symmetric(horizontal: 20),
       decoration: BoxDecoration(
@@ -310,9 +308,21 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
       child: Column(
         children: [
-          buildEditableRow('assets/profileicon2.png', AppLocalizations.of(context).translate('profile_set_name_hint'), nameController),
+          buildEditableRow(
+              'assets/profileicon2.png',
+              AppLocalizations.of(context).translate('profile_set_name_hint'),
+              nameController,
+              readOnly: isEkycComplete,
+              hint: isEkycComplete ? "Verified via eKYC" : "Enter your name"
+          ),
           buildEditableRow('assets/profileicon3.png', AppLocalizations.of(context).translate('profile_mobile_number'), phoneController),
-          buildEditableRow('assets/profileicon4.png', AppLocalizations.of(context).translate('profile_nric'), nricController, readOnly: true, hint: "From eKYC"),
+          buildEditableRow(
+              'assets/profileicon4.png',
+              AppLocalizations.of(context).translate('profile_nric'),
+              nricController,
+              readOnly: true, // This is correct
+              hint: "From eKYC"
+          ),
           buildEditableRow('assets/profileicon5.png', AppLocalizations.of(context).translate('profile_home_address'), addressController),
           buildEditableRow('assets/profileicon6.png', AppLocalizations.of(context).translate('profile_city'), cityController),
           buildEditableRow('assets/profileicon7.png', AppLocalizations.of(context).translate('profile_postcode'), postcodeController),

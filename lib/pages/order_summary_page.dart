@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:projects/pages/successRedeem.dart';
 import 'dart:math';
+import 'package:projects/localization/app_localizations.dart';
 
 class OrderSummaryPage extends StatefulWidget {
   final Map<String, Map<String, dynamic>> initialCart;
@@ -28,7 +29,6 @@ class _OrderSummaryPageState extends State<OrderSummaryPage> {
   @override
   void initState() {
     super.initState();
-    // Create a deep copy of the cart to modify it locally
     _cart = Map.from(widget.initialCart);
     _recalculateTotals();
   }
@@ -53,6 +53,7 @@ class _OrderSummaryPageState extends State<OrderSummaryPage> {
   }
 
   void _incrementQuantity(String itemId) {
+    final localizations = AppLocalizations.of(context);
     final itemData = _cart[itemId]!['data'] as Map<String, dynamic>;
     final itemPrice = itemData['price'] as double;
 
@@ -63,9 +64,9 @@ class _OrderSummaryPageState extends State<OrderSummaryPage> {
       });
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
             backgroundColor: Colors.redAccent,
-            content: Text("Cannot exceed voucher value.")),
+            content: Text(localizations.translate('order_summary_exceed_voucher_error'))),
       );
     }
   }
@@ -75,7 +76,6 @@ class _OrderSummaryPageState extends State<OrderSummaryPage> {
       if (_cart[itemId]!['quantity'] > 1) {
         _cart[itemId]!['quantity']--;
       } else {
-        // If quantity is 1, remove it from the cart
         _cart.remove(itemId);
       }
       _recalculateTotals();
@@ -90,16 +90,17 @@ class _OrderSummaryPageState extends State<OrderSummaryPage> {
   }
 
   Future<void> _placeOrder() async {
+    final localizations = AppLocalizations.of(context);
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("User not logged in.")),
+        SnackBar(content: Text(localizations.translate('order_summary_not_logged_in_error'))),
       );
       return;
     }
     if (_cart.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Your cart is empty.")),
+        SnackBar(content: Text(localizations.translate('order_summary_cart_empty_error'))),
       );
       return;
     }
@@ -123,7 +124,6 @@ class _OrderSummaryPageState extends State<OrderSummaryPage> {
             ? item['itemImageUrl']
             : item['packageBannerUrl'] ?? '';
 
-        // Add item to the list 'quantity' times
         for (int i = 0; i < quantity; i++) {
           itemsForFirebase.add({
             'name': item['name'],
@@ -165,9 +165,11 @@ class _OrderSummaryPageState extends State<OrderSummaryPage> {
       );
 
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Checkout failed: ${e.toString()}")),
-      );
+      if(mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(localizations.translateWithArgs('order_summary_checkout_failed_error', {'error': e.toString()}))),
+        );
+      }
     } finally {
       if(mounted) {
         setState(() => _isLoading = false);
@@ -178,18 +180,18 @@ class _OrderSummaryPageState extends State<OrderSummaryPage> {
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context);
     return WillPopScope(
       onWillPop: () async {
-        // Return the (possibly modified) cart to the previous screen
         Navigator.pop(context, _cart);
         return false;
       },
       child: Scaffold(
         backgroundColor: const Color(0xFF303030),
         appBar: AppBar(
-          title: const Text(
-            "Order Summary",
-            style: TextStyle(
+          title: Text(
+            localizations.translate('order_summary_title'),
+            style: const TextStyle(
               color: Color(0xFFFDB515),
               fontWeight: FontWeight.bold,
             ),
@@ -204,10 +206,10 @@ class _OrderSummaryPageState extends State<OrderSummaryPage> {
           ),
         ),
         body: _cart.isEmpty
-            ? const Center(
+            ? Center(
           child: Text(
-            "Your cart is empty.",
-            style: TextStyle(color: Colors.white70, fontSize: 18),
+            localizations.translate('order_summary_cart_is_empty'),
+            style: const TextStyle(color: Colors.white70, fontSize: 18),
           ),
         )
             : Column(
@@ -232,32 +234,33 @@ class _OrderSummaryPageState extends State<OrderSummaryPage> {
   }
 
   Widget _buildMasjidInfoCard() {
+    final localizations = AppLocalizations.of(context);
     return Container(
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
         color: const Color(0xFF1C1C1C),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: const Row(
+      child: Row(
         children: [
-          Icon(Icons.location_on, color: Color(0xFFFDB515), size: 40),
-          SizedBox(width: 16),
+          const Icon(Icons.location_on, color: Color(0xFFFDB515), size: 40),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  "Masjid MADAD (+60146019090)",
-                  style: TextStyle(
+                  localizations.translate('order_summary_pickup_location_name'),
+                  style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
                   ),
                 ),
-                SizedBox(height: 4),
+                const SizedBox(height: 4),
                 Text(
-                  "Masjid MADAD, Kampung Telok, 08000 Sungai Petani, Kedah",
-                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                  localizations.translate('order_summary_pickup_location_address'),
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
                 ),
               ],
             ),
@@ -268,6 +271,7 @@ class _OrderSummaryPageState extends State<OrderSummaryPage> {
   }
 
   Widget _buildItemsList() {
+    final localizations = AppLocalizations.of(context);
     final cartItems = _cart.entries.toList();
     return Container(
       padding: const EdgeInsets.all(16.0),
@@ -331,7 +335,7 @@ class _OrderSummaryPageState extends State<OrderSummaryPage> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        itemData['category'] as String? ?? 'Uncategorized',
+                        itemData['category'] as String? ?? localizations.translate('order_summary_uncategorized'),
                         style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
                       ),
                       const SizedBox(height: 8),
@@ -384,6 +388,7 @@ class _OrderSummaryPageState extends State<OrderSummaryPage> {
   }
 
   Widget _buildBottomSummaryBar() {
+    final localizations = AppLocalizations.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16).copyWith(
           bottom: MediaQuery.of(context).padding.bottom + 16),
@@ -395,7 +400,7 @@ class _OrderSummaryPageState extends State<OrderSummaryPage> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
-            "Total (${_getTotalItems()} items)",
+            localizations.translateWithArgs('order_summary_total_items', {'count': _getTotalItems().toString()}),
             style: const TextStyle(color: Colors.white, fontSize: 16),
           ),
           ElevatedButton(
@@ -414,9 +419,9 @@ class _OrderSummaryPageState extends State<OrderSummaryPage> {
               height: 20,
               child: CircularProgressIndicator(strokeWidth: 3, color: Colors.black),
             )
-                : const Text(
-              "Place Order",
-              style: TextStyle(
+                : Text(
+              localizations.translate('order_summary_place_order_button'),
+              style: const TextStyle(
                   color: Colors.black,
                   fontWeight: FontWeight.bold,
                   fontSize: 16),

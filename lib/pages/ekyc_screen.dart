@@ -9,7 +9,10 @@ import 'package:image_picker/image_picker.dart';
 import 'package:projects/localization/app_localizations.dart';
 
 class EkycScreen extends StatefulWidget {
-  const EkycScreen({Key? key}) : super(key: key);
+  // Add isStaffMode to differentiate the workflow
+  final bool isStaffMode;
+
+  const EkycScreen({Key? key, this.isStaffMode = false}) : super(key: key);
 
   @override
   _EkycScreenState createState() => _EkycScreenState();
@@ -52,6 +55,7 @@ class _EkycScreenState extends State<EkycScreen> {
     }
   }
 
+  /// Validates images and either returns data (Staff) or saves data (Asnaf).
   Future<void> _validateAndUpload() async {
     if (_nricImageFile == null || _selfieImageFile == null) {
       _showErrorDialog(AppLocalizations.of(context).translate('ekyc_error_missing_images'));
@@ -63,9 +67,10 @@ class _EkycScreenState extends State<EkycScreen> {
     });
 
     try {
-      final bool isNricValid = await _validateNricImage(_nricImageFile!);
-      if (!isNricValid) {
-        _showErrorDialog(AppLocalizations.of(context).translate('ekyc_error_nric_validation_failed'));
+      // NEW: Check NRIC image and get a specific error message if it fails.
+      final String? nricValidationError = await _validateNricImage(_nricImageFile!);
+      if (nricValidationError != null) {
+        _showErrorDialog(nricValidationError); // Show the specific error from validation.
         if(mounted) setState(() { _isLoading = false; });
         return;
       }
@@ -77,6 +82,18 @@ class _EkycScreenState extends State<EkycScreen> {
         return;
       }
 
+      // Staff Mode returns a Map of data back to the ApplyAid screen.
+      if (widget.isStaffMode) {
+        if(mounted) {
+          Navigator.of(context).pop({
+            'nric': _nricNumber,
+            'name': _nricName,
+          });
+        }
+        return; // Stop execution for staff.
+      }
+
+      // Original flow for Asnaf: Save data to their own profile.
       final String userId = FirebaseAuth.instance.currentUser!.uid;
       final String nricImageUrl = await _uploadFile(_nricImageFile!, 'users/$userId/nric.jpg');
       final String selfieImageUrl = await _uploadFile(_selfieImageFile!, 'users/$userId/selfie.jpg');
@@ -89,6 +106,7 @@ class _EkycScreenState extends State<EkycScreen> {
         'ekycVerifiedOn': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
+      // Pop with 'true' for success for the Asnaf flow.
       if(mounted) Navigator.of(context).pop(true);
 
     } catch (e) {
@@ -102,40 +120,58 @@ class _EkycScreenState extends State<EkycScreen> {
     }
   }
 
-  Future<bool> _validateNricImage(File image) async {
+  Future<String?> _validateNricImage(File image) async {
+    final localizations = AppLocalizations.of(context);
     final inputImage = InputImage.fromFile(image);
 
+    // 1. Face detection on NRIC
     final List<Face> faces = await _faceDetector.processImage(inputImage);
     if (faces.isEmpty) {
-      print("Validation failed: No face detected in NRIC image.");
-      return false;
+      final error = localizations.translate('ekyc_error_no_face');
+      print("Validation failed: $error");
+      return error;
     }
 
+    // 2. Text recognition on NRIC
     final RecognizedText recognizedText = await _textRecognizer.processImage(inputImage);
     final String fullText = recognizedText.text;
-    final List<String> lines = fullText.split('\n');
-
     if (fullText.isEmpty) {
-      print("Validation failed: No text detected in NRIC image.");
-      return false;
+      final error = localizations.translate('ekyc_error_no_text');
+      print("Validation failed: $error");
+      return error;
     }
 
-    final nricRegex = RegExp(r'(\d{6}-\d{2}-\d{4})');
+    // 3. ENHANCED: Extract NRIC number with a more flexible regex
+    final nricRegex = RegExp(r'(\d{6})\s*-\s*(\d{2})\s*-\s*(\d{4})');
     final nricMatch = nricRegex.firstMatch(fullText);
-
     if (nricMatch == null) {
-      print("Validation failed: Could not extract NRIC number.");
-      return false;
+      // Create a more specific and user-friendly error message
+      final error = AppLocalizations.of(context).translate('ekyc_error_no_nric');
+      print("Validation failed: $error. Full text was: \n$fullText");
+      _showErrorDialog(error); // Show immediate feedback
+      return error;
     }
-    _nricNumber = nricMatch.group(0)!;
+    // Re-format to ensure consistency: XXXXXX-XX-XXXX
+    _nricNumber = '${nricMatch.group(1)}-${nricMatch.group(2)}-${nricMatch.group(3)}';
     print("✅ Extracted NRIC: $_nricNumber");
 
+    // 4. ENHANCED: Extract Name with more robust logic
+    final List<String> lines = fullText.split('\n');
     String foundName = '';
 
+    // Strategy 1: Look for "NAMA" and grab the text after it on the same line or the next line.
     for (int i = 0; i < lines.length; i++) {
-      if (RegExp(r'\bNAMA\b', caseSensitive: false).hasMatch(lines[i])) {
+      final line = lines[i];
+      if (RegExp(r'\bNAMA\b', caseSensitive: false).hasMatch(line)) {
+        // Check the same line first
+        String potentialName = line.replaceAll(RegExp(r'.*NAMA\s*:?\s*', caseSensitive: false), '').trim();
+        if (potentialName.isNotEmpty && potentialName.split(' ').length >= 2) {
+          foundName = potentialName;
+          break;
+        }
+        // Check the next line if same line is not fruitful
         if (i + 1 < lines.length) {
-          String potentialName = lines[i + 1].trim();
+          potentialName = lines[i + 1].trim();
           if (potentialName.isNotEmpty && potentialName.split(' ').length >= 2) {
             foundName = potentialName;
             break;
@@ -144,40 +180,44 @@ class _EkycScreenState extends State<EkycScreen> {
       }
     }
 
+    // Strategy 2: Fallback to find the longest, all-caps line without keywords if Strategy 1 fails.
     if (foundName.isEmpty) {
       List<String> candidates = [];
       for (String line in lines) {
         final trimmedLine = line.trim();
+        // A good name candidate is all uppercase, has at least two parts, no digits, and isn't a known keyword.
         if (trimmedLine.toUpperCase() == trimmedLine &&
-            trimmedLine.split(' ').length >= 2 &&
+            trimmedLine.split(' ').where((s) => s.isNotEmpty).length >= 2 &&
             !trimmedLine.contains(RegExp(r'\d')) &&
-            !RegExp(r'KAD PENGENALAN|MALAYSIA|NAMA|ALAMAT', caseSensitive: false).hasMatch(trimmedLine))
-        {
+            !RegExp(r'KAD PENGENALAN|MALAYSIA|NAMA|ALAMAT|IC|NO|MYKAD|NEGARA', caseSensitive: false).hasMatch(trimmedLine)) {
           candidates.add(trimmedLine);
         }
       }
       if (candidates.isNotEmpty) {
+        // Sort by length to find the most likely name
         candidates.sort((a, b) => b.length.compareTo(a.length));
         foundName = candidates.first;
       }
     }
 
     if (foundName.isEmpty) {
-      print("Validation failed: Could not extract Name.");
-      return false;
+      // Create a more specific and user-friendly error message
+      final error = AppLocalizations.of(context).translate('ekyc_error_no_name');
+      print("Validation failed: $error. Full text was: \n$fullText");
+      _showErrorDialog(error); // Show immediate feedback
+      return error;
     }
-
-    _nricName = foundName;
+    _nricName = foundName.replaceAll(RegExp(r'[^A-Z\s]'), '').trim(); // Clean up the name
     print("✅ Extracted Name: $_nricName");
 
-    if(mounted) setState(() {});
-    return true;
+    if (mounted) setState(() {});
+    return null; // Return null on success
   }
 
   Future<bool> _validateSelfieImage(File image) async {
     final inputImage = InputImage.fromFile(image);
     final List<Face> faces = await _faceDetector.processImage(inputImage);
-    return faces.length == 1;
+    return faces.length == 1; // Ensure only one face is in the selfie
   }
 
   Future<String> _uploadFile(File file, String path) async {

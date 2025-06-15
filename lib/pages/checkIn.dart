@@ -214,7 +214,7 @@ class _checkInState extends State<checkIn> {
     _pointsController.clear();
     _eventLocation = null;
 
-    if (_role == 'staff') {
+    if (_role == 'staff' || _role == 'admin') {
       _nricController.clear();
       _participantNameController.clear();
       _participantNumberController.clear();
@@ -302,7 +302,7 @@ class _checkInState extends State<checkIn> {
                   controller: _eventNameController,
                   hint: "Event name will appear here",
                   isReadOnly: true),
-              if (_role == 'staff')
+              if (_role == 'staff' || _role == 'admin')
                 buildTextField(
                     label: "Enter Asnaf NRIC",
                     controller: _nricController,
@@ -311,8 +311,8 @@ class _checkInState extends State<checkIn> {
               buildTextField(
                   label: "Participant's Name",
                   controller: _participantNameController,
-                  hint: _role == 'staff' ? "Asnaf's name will appear here" : "Enter your name",
-                  isReadOnly: _role == 'staff'),
+                  hint: (_role == 'staff' || _role == 'admin') ? "Asnaf's name will appear here" : "Enter your name",
+                  isReadOnly: _role == 'staff' || _role == 'admin'),
               buildParticipantNumberField(),
               buildTextField(
                   label: "Points per attendance",
@@ -349,7 +349,7 @@ class _checkInState extends State<checkIn> {
       );
       return;
     }
-    if (_role == 'staff' && _participantDocId == null) {
+    if ((_role == 'staff' || _role == 'admin') && _participantDocId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Please enter a valid NRIC to find an Asnaf.")),
       );
@@ -401,7 +401,7 @@ class _checkInState extends State<checkIn> {
       final currentUser = FirebaseAuth.instance.currentUser!;
       final pointsToAdd = int.tryParse(_pointsController.text) ?? 0;
 
-      final submittedBy = _role == 'staff'
+      final submittedBy = (_role == 'staff' || _role == 'admin')
           ? {"uid": currentUser.uid, "name": _staffName, "role": _role}
           : "system";
 
@@ -424,10 +424,10 @@ class _checkInState extends State<checkIn> {
         "checkedInAt": Timestamp.now(),
         "eventDate": eventDate,
         "submittedBy": submittedBy,
-        "participantId": _role == 'staff' ? _participantDocId : currentUser.uid,
+        "participantId": (_role == 'staff' || _role == 'admin') ? _participantDocId : currentUser.uid,
       });
 
-      String participantToUpdateId = _role == 'staff' ? _participantDocId! : currentUser.uid;
+      String participantToUpdateId = (_role == 'staff' || _role == 'admin') ? _participantDocId! : currentUser.uid;
 
       final participantDocRef = FirebaseFirestore.instance.collection("users").doc(participantToUpdateId);
       await FirebaseFirestore.instance.runTransaction((transaction) async {
@@ -493,13 +493,13 @@ class _checkInState extends State<checkIn> {
                 Expanded(
                   child: TextField(
                     controller: _participantNumberController,
-                    readOnly: _role == 'staff',
+                    readOnly: _role == 'staff' || _role == 'admin',
                     keyboardType: TextInputType.phone,
                     style: TextStyle(color: Colors.black),
                     decoration: InputDecoration(
                       border: InputBorder.none,
                       contentPadding: EdgeInsets.all(8),
-                      hintText: _role == 'staff' ? "Asnaf's phone number" : "Your phone number",
+                      hintText: (_role == 'staff' || _role == 'admin') ? "Asnaf's phone number" : "Your phone number",
                       hintStyle: TextStyle(color: Colors.black54),
                     ),
                   ),

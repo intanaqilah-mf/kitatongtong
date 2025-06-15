@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:projects/localization/app_localizations.dart';
 import 'package:qr_flutter/qr_flutter.dart' as qr;
 
 class EventDetailPage extends StatelessWidget {
@@ -10,20 +11,21 @@ class EventDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
     // Safely extract data
     final String bannerUrl = (event['bannerUrl'] ?? '').toString();
-    final String eventName = (event['eventName'] ?? 'No Name').toString();
+    final String eventName = (event['eventName'] ?? loc.translate('eventDetail_no_name')).toString();
     final String points = (event['points'] ?? '0').toString();
-    final String organiserName = (event['organiserName'] ?? 'Unknown').toString();
-    final String organiserNumber = (event['organiserNumber'] ?? 'N/A').toString();
+    final String organiserName = (event['organiserName'] ?? loc.translate('eventDetail_unknown')).toString();
+    final String organiserNumber = (event['organiserNumber'] ?? loc.translate('eventDetail_not_applicable')).toString();
     final String startDateString = (event['eventDate'] ?? '').toString();
     final String endDateString = (event['eventEndDate'] ?? '').toString();
 
     // Handle both Map and String for location
     final dynamic locationData = event['location'];
-    String locationAddress = 'Unknown';
+    String locationAddress = loc.translate('eventDetail_unknown');
     if (locationData is Map) {
-      locationAddress = locationData['address'] ?? 'No location provided';
+      locationAddress = locationData['address'] ?? loc.translate('eventDetail_no_location');
     } else if (locationData is String) {
       locationAddress = locationData;
     }
@@ -54,7 +56,7 @@ class EventDetailPage extends StatelessWidget {
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
-          'Event Details',
+          loc.translate('eventDetail_title'),
           style: TextStyle(
             color: Color(0xFFFDB515),
             fontWeight: FontWeight.bold,
@@ -123,17 +125,17 @@ class EventDetailPage extends StatelessWidget {
                 ),
                 child: Column(
                   children: [
-                    _buildDetailRow(icon: Icons.star_rounded, label: "Points to Earn", value: "$points pts"),
+                    _buildDetailRow(icon: Icons.star_rounded, label: loc.translate('eventDetail_points_label'), value: "$points pts"),
                     _buildDivider(),
-                    _buildDetailRow(icon: Icons.calendar_today_rounded, label: "Starts On", value: startDateString),
+                    _buildDetailRow(icon: Icons.calendar_today_rounded, label: loc.translate('eventDetail_starts_on_label'), value: startDateString),
                     _buildDivider(),
-                    _buildDetailRow(icon: Icons.event_available_rounded, label: "Ends On", value: endDateString),
+                    _buildDetailRow(icon: Icons.event_available_rounded, label: loc.translate('eventDetail_ends_on_label'), value: endDateString),
                     _buildDivider(),
-                    _buildDetailRow(icon: Icons.location_on_rounded, label: "Location", value: locationAddress),
+                    _buildDetailRow(icon: Icons.location_on_rounded, label: loc.translate('eventDetail_location_label'), value: locationAddress),
                     _buildDivider(),
-                    _buildDetailRow(icon: Icons.person_rounded, label: "Organiser", value: organiserName),
+                    _buildDetailRow(icon: Icons.person_rounded, label: loc.translate('eventDetail_organiser_label'), value: organiserName),
                     _buildDivider(),
-                    _buildDetailRow(icon: Icons.phone_rounded, label: "Contact", value: "+60$organiserNumber"),
+                    _buildDetailRow(icon: Icons.phone_rounded, label: loc.translate('eventDetail_contact_label'), value: "+60$organiserNumber"),
                   ],
                 ),
               ),
@@ -155,7 +157,7 @@ class EventDetailPage extends StatelessWidget {
                       showDialog(
                         context: context,
                         builder: (_) => AlertDialog(
-                          title: Text('Event QR Code'),
+                          title: Text(loc.translate('eventDetail_qr_dialog_title')),
                           content: SizedBox(
                             width: 200.0,
                             height: 200.0,
@@ -168,20 +170,20 @@ class EventDetailPage extends StatelessWidget {
                           actions: [
                             TextButton(
                               onPressed: () => Navigator.pop(context),
-                              child: Text('Close'),
+                              child: Text(loc.translate('eventDetail_close_button')),
                             ),
                           ],
                         ),
                       );
                     } else {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text("Attendance code is not available for this event.")),
+                        SnackBar(content: Text(loc.translate('eventDetail_code_not_available'))),
                       );
                     }
                   },
                   icon: Icon(Icons.qr_code, color: Colors.white),
                   label: Text(
-                    'Generate QR Code',
+                    loc.translate('eventDetail_generate_qr_button'),
                     style: TextStyle(color: Colors.white),
                   ),
                 ),

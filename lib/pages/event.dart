@@ -12,6 +12,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:async';
+import 'package:projects/localization/app_localizations.dart'; // Import for localization
 
 File? _selectedImage;
 String? _uploadedImageUrl;
@@ -197,6 +198,8 @@ class _EventPageState extends State<EventPage> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!; // Localizations instance
+
     return Scaffold(
       backgroundColor: Color(0xFF303030),
       body: Column(
@@ -223,7 +226,7 @@ class _EventPageState extends State<EventPage> {
                         ),
                         alignment: Alignment.center,
                         child: Text(
-                          "Create Events",
+                          loc.translate('event_create_title'), // Localized
                           style: TextStyle(
                             color: isCreateEvent ? Color(0xFFFDB515) : Colors.white,
                             fontWeight: FontWeight.bold,
@@ -246,7 +249,7 @@ class _EventPageState extends State<EventPage> {
                         ),
                         alignment: Alignment.center,
                         child: Text(
-                          "List of Events",
+                          loc.translate('event_list_title'), // Localized
                           style: TextStyle(
                             color: !isCreateEvent ? Color(0xFFFDB515) : Colors.white,
                             fontWeight: FontWeight.bold,
@@ -261,14 +264,21 @@ class _EventPageState extends State<EventPage> {
           ),
           if (!isCreateEvent)
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 16.0),
+              padding: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 16.0),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _buildFilterButton(EventFilter.Upcoming, "Upcoming"),
-                  _buildFilterButton(EventFilter.Ongoing, "Ongoing"),
-                  _buildFilterButton(EventFilter.Past, "Past"),
-                ],
+                  Expanded(
+                    child: _buildFilterButton(EventFilter.Upcoming, loc.translate('event_filter_upcoming')),
+                  ),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: _buildFilterButton(EventFilter.Ongoing, loc.translate('event_filter_ongoing')),
+                  ),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: _buildFilterButton(EventFilter.Past, loc.translate('event_filter_past')),
+                  ),                ],
               ),
             ),
           Expanded(
@@ -298,11 +308,16 @@ class _EventPageState extends State<EventPage> {
           borderRadius: BorderRadius.circular(10),
         ),
       ),
-      child: Text(text),
+      child: Text(
+        text,
+        style: TextStyle(fontSize: 10.0), // Add this line
+      ),
     );
   }
 
   Widget buildEventList() {
+    final loc = AppLocalizations.of(context)!; // Localizations instance
+
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection("event").orderBy("updatedAt", descending: true).snapshots(),
       builder: (context, snapshot) {
@@ -312,7 +327,7 @@ class _EventPageState extends State<EventPage> {
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           return Center(
             child: Text(
-              "No Events Available",
+              loc.translate('event_list_none_available'), // Localized
               style: TextStyle(color: Colors.white),
             ),
           );
@@ -351,7 +366,7 @@ class _EventPageState extends State<EventPage> {
         if (filteredDocs.isEmpty) {
           return Center(
             child: Text(
-              "No ${(_selectedFilter.toString().split('.').last)} Events",
+              loc.translateWithArgs('event_list_no_filtered_events', {'filter': _selectedFilter.toString().split('.').last}), // Localized
               style: TextStyle(color: Colors.white, fontSize: 16),
             ),
           );
@@ -389,7 +404,7 @@ class _EventPageState extends State<EventPage> {
               onDismissed: (direction) {
                 FirebaseFirestore.instance.collection("event").doc(docId).delete();
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text("${event["eventName"]} deleted")),
+                  SnackBar(content: Text(loc.translateWithArgs('event_deleted_snackbar', {'eventName': event["eventName"]}))), // Localized
                 );
               },
               background: Container(
@@ -454,26 +469,26 @@ class _EventPageState extends State<EventPage> {
                       ),
                       SizedBox(height: 6),
                       Text(
-                        "Event Name: ${event["eventName"] ?? "Unknown"}",
+                        "${loc.translate('event_name_label')}: ${event["eventName"] ?? "Unknown"}", // Localized
                         style: TextStyle(color: Colors.black),
                       ),
                       Text(
-                        "Points per attendance: ${event["points"] ?? "0"}",
+                        "${loc.translate('event_points_label')}: ${event["points"] ?? "0"}", // Localized
                         style: TextStyle(color: Colors.black),
                       ),
                       Text(
-                        "Organiser's name: ${event["organiserName"] ?? "Unknown"}",
+                        "${loc.translate('event_organiser_name_label')}: ${event["organiserName"] ?? "Unknown"}", // Localized
                         style: TextStyle(color: Colors.black),
                       ),
                       Text(
-                        "Organiser’s Number: ${event["organiserNumber"] ?? "N/A"}",
+                        "${loc.translate('event_organiser_number_label')}: ${event["organiserNumber"] ?? "N/A"}", // Localized
                         style: TextStyle(color: Colors.black),
                       ),
                       Row(
                         children: [
                           Expanded(
                             child: Text(
-                              "Location: $locationAddress",
+                              "${loc.translate('event_location_label')}: $locationAddress", // Localized
                               style: TextStyle(color: Colors.black),
                             ),
                           ),
@@ -483,13 +498,12 @@ class _EventPageState extends State<EventPage> {
                               onPressed: () async {
                                 final lat = locationData['latitude'];
                                 final lng = locationData['longitude'];
-                                // This URL will open Google Maps and place a pin at the coordinates.
                                 final url = Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
                                 if (await canLaunchUrl(url)) {
                                   await launchUrl(url);
                                 } else {
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text("Could not open map.")),
+                                    SnackBar(content: Text(loc.translate('event_map_error'))), // Localized
                                   );
                                 }
                               },
@@ -509,7 +523,7 @@ class _EventPageState extends State<EventPage> {
                             showDialog(
                               context: context,
                               builder: (_) => AlertDialog(
-                                title: Text('Event QR Code'),
+                                title: Text(loc.translate('event_qr_dialog_title')), // Localized
                                 content: SizedBox(
                                   width: 200.0,
                                   height: 200.0,
@@ -522,7 +536,7 @@ class _EventPageState extends State<EventPage> {
                                 actions: [
                                   TextButton(
                                     onPressed: () => Navigator.pop(context),
-                                    child: Text('Close'),
+                                    child: Text(loc.translate('close')), // Localized
                                   ),
                                 ],
                               ),
@@ -530,7 +544,7 @@ class _EventPageState extends State<EventPage> {
                           },
                           icon: Icon(Icons.qr_code, color: Colors.white),
                           label: Text(
-                            'Generate QR Code',
+                            loc.translate('event_generate_qr_button'), // Localized
                             style: TextStyle(color: Colors.white),
                           ),
                         ),
@@ -546,6 +560,8 @@ class _EventPageState extends State<EventPage> {
   }
 
   Widget buildCreateEventForm() {
+    final loc = AppLocalizations.of(context)!; // Localizations instance
+
     return Padding(
       padding: EdgeInsets.all(16),
       child: SingleChildScrollView(
@@ -553,7 +569,7 @@ class _EventPageState extends State<EventPage> {
           children: [
             SizedBox(height: 10),
             Text(
-              _editingDocId == null ? "Create Event" : "Edit Event",
+              _editingDocId == null ? loc.translate('event_form_title_create') : loc.translate('event_form_title_edit'), // Localized
               style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
@@ -562,20 +578,20 @@ class _EventPageState extends State<EventPage> {
             ),
             SizedBox(height: 4),
             Text(
-              "Fill in the details below",
+              loc.translate('event_form_subtitle'), // Localized
               style: TextStyle(fontSize: 14, color: Color(0xFFAA820C)),
               textAlign: TextAlign.center,
             ),
             SizedBox(height: 20),
-            buildTextField("Enter Attendance Code", "attendanceCode", _attendanceCodeController),
-            buildTextField("Event Name", "eventName", _eventNameController),
+            buildTextField(loc.translate('event_form_attendance_code_label'), "attendanceCode", _attendanceCodeController), // Localized
+            buildTextField(loc.translate('event_name_label'), "eventName", _eventNameController), // Localized
             Padding(
               padding: EdgeInsets.symmetric(vertical: 8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    "Points per attendance",
+                    loc.translate('event_points_label'), // Localized
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       color: Color(0xFFF1D789),
@@ -606,14 +622,14 @@ class _EventPageState extends State<EventPage> {
                 ],
               ),
             ),
-            buildTextField("Organiser’s name", "organiserName", _organiserNameController),
+            buildTextField(loc.translate('event_organiser_name_label'), "organiserName", _organiserNameController), // Localized
             Padding(
               padding: EdgeInsets.symmetric(vertical: 8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    "Organiser’s Number",
+                    loc.translate('event_organiser_number_label'), // Localized
                     style: TextStyle(
                         color: Color(0xFFFDB515),
                         fontSize: 14,
@@ -653,7 +669,7 @@ class _EventPageState extends State<EventPage> {
                             decoration: InputDecoration(
                               border: InputBorder.none,
                               contentPadding: EdgeInsets.all(8),
-                              hintText: "Enter your mobile number",
+                              hintText: loc.translate('enter_mobile_number'), // Localized
                               hintStyle: TextStyle(color: Colors.black),
                             ),
                           ),
@@ -664,16 +680,16 @@ class _EventPageState extends State<EventPage> {
                 ],
               ),
             ),
-            buildLocationPicker("Location", "location", _locationController),
-            buildDateTimePicker("Event’s start date & time", "eventDate", _dateController),
-            buildDateTimePicker("Event’s end date & time", "eventEndDate", _endDateController),
+            buildLocationPicker(loc.translate('event_location_label'), "location", _locationController), // Localized
+            buildDateTimePicker(loc.translate('event_form_start_date_label'), "eventDate", _dateController), // Localized
+            buildDateTimePicker(loc.translate('event_form_end_date_label'), "eventEndDate", _endDateController), // Localized
             Padding(
               padding: EdgeInsets.symmetric(vertical: 8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    "Event Section",
+                    loc.translate('event_form_section_label'), // Localized
                     style: TextStyle(
                         color: Color(0xFFFDB515),
                         fontSize: 14,
@@ -692,10 +708,15 @@ class _EventPageState extends State<EventPage> {
                         value: selectedSection,
                         isExpanded: true,
                         items: eventSections.keys.map((String value) {
+                          String displayText = value;
+                          if (value == 'Upcoming Activities') {
+                            displayText = loc.translate('event_section_upcoming');
+                          } else if (value == 'Others') {
+                            displayText = loc.translate('event_section_others');
+                          }
                           return DropdownMenuItem<String>(
                             value: value,
-                            child:
-                            Text(value, style: TextStyle(color: Colors.black)),
+                            child: Text(displayText, style: TextStyle(color: Colors.black)),
                           );
                         }).toList(),
                         onChanged: (String? newValue) {
@@ -710,7 +731,7 @@ class _EventPageState extends State<EventPage> {
                   if (selectedSection == 'Others')
                     Padding(
                       padding: EdgeInsets.only(top: 8),
-                      child: buildTextField("Custom Section Name", "customSection", _sectionController),
+                      child: buildTextField(loc.translate('event_form_custom_section_label'), "customSection", _sectionController), // Localized
                     ),
                 ],
               ),
@@ -721,7 +742,7 @@ class _EventPageState extends State<EventPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    "Event Banner",
+                    loc.translate('event_form_banner_label'), // Localized
                     style: TextStyle(
                         color: Color(0xFFFDB515),
                         fontSize: 14,
@@ -765,7 +786,7 @@ class _EventPageState extends State<EventPage> {
               onPressed: () async {
                 if (_dateController.text.isEmpty || _endDateController.text.isEmpty || _eventNameController.text.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text("Please fill in all required fields!")),
+                    SnackBar(content: Text(loc.translate('event_form_validation_error'))), // Localized
                   );
                   return;
                 }
@@ -806,7 +827,7 @@ class _EventPageState extends State<EventPage> {
                 padding: EdgeInsets.symmetric(vertical: 12, horizontal: 24),
               ),
               child: Center(
-                  child: Text("Submit",
+                  child: Text(loc.translate('submit'), // Localized
                       style: TextStyle(fontSize: 16, color: Colors.white))),
             ),
           ],
@@ -816,6 +837,7 @@ class _EventPageState extends State<EventPage> {
   }
 
   Widget buildLocationPicker(String label, String key, TextEditingController controller) {
+    final loc = AppLocalizations.of(context)!; // Localizations instance
     return Padding(
       padding: EdgeInsets.symmetric(vertical: 8),
       child: Column(
@@ -855,7 +877,7 @@ class _EventPageState extends State<EventPage> {
                   Expanded(
                     child: Text(
                       controller.text.isEmpty
-                          ? "Pin location on map"
+                          ? loc.translate('event_map_picker_placeholder') // Localized
                           : controller.text,
                       style: TextStyle(color: Colors.black),
                       overflow: TextOverflow.ellipsis,
@@ -872,6 +894,7 @@ class _EventPageState extends State<EventPage> {
   }
 
   Widget buildDateTimePicker(String label, String key, TextEditingController controller) {
+    final loc = AppLocalizations.of(context)!; // Localizations instance
     return Padding(
       padding: EdgeInsets.symmetric(vertical: 8),
       child: Column(
@@ -898,7 +921,7 @@ class _EventPageState extends State<EventPage> {
                 children: [
                   Text(
                     controller.text.isEmpty
-                        ? "Select Date & Time"
+                        ? loc.translate('event_datetime_picker_placeholder') // Localized
                         : controller.text,
                     style: TextStyle(color: Colors.black),
                   ),
@@ -976,6 +999,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
   }
 
   Future<void> _searchAndNavigate() async {
+    final loc = AppLocalizations.of(context)!;
     try {
       List<Location> locations = await locationFromAddress(_searchController.text);
       if (locations.isNotEmpty) {
@@ -993,17 +1017,18 @@ class _MapPickerPageState extends State<MapPickerPage> {
           );
         });
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Location not found.")));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(loc.translate('event_map_search_not_found')))); // Localized
       }
     } catch(e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error finding location.")));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(loc.translate('event_map_search_error')))); // Localized
     }
   }
 
 
   void _onConfirm() async {
+    final loc = AppLocalizations.of(context)!;
     if (_selectedMarker == null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Please select a location on the map.")));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(loc.translate('event_map_confirm_validation')))); // Localized
       return;
     }
 
@@ -1021,16 +1046,18 @@ class _MapPickerPageState extends State<MapPickerPage> {
         });
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Could not get address for the location.")));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(loc.translate('event_map_address_error')))); // Localized
     }
   }
 
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!; // Localizations instance
+
     return Scaffold(
       appBar: AppBar(
-        title: Text('Pin Location'),
+        title: Text(loc.translate('event_map_picker_title')), // Localized
         backgroundColor: Color(0xFF303030),
       ),
       body: Stack(
@@ -1056,7 +1083,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
                     child: TextField(
                       controller: _searchController,
                       decoration: InputDecoration(
-                        hintText: 'Search for an address',
+                        hintText: loc.translate('event_map_search_hint'), // Localized
                         contentPadding: EdgeInsets.all(10),
                       ),
                       onSubmitted: (_) => _searchAndNavigate(),
@@ -1076,7 +1103,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
             right: 20,
             child: ElevatedButton.icon(
               icon: Icon(Icons.check),
-              label: Text('Confirm Location'),
+              label: Text(loc.translate('event_map_confirm_button')), // Localized
               onPressed: _onConfirm,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Color(0xFFFDB515),

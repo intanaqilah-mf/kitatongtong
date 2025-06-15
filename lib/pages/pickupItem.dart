@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:projects/localization/app_localizations.dart';
 import 'package:projects/pages/pickupSuccess.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
 import 'package:projects/pages/pickupFail.dart';
@@ -30,6 +31,7 @@ class _PickUpItemState extends State<PickUpItem> {
   }
 
   Future<void> _scanQRCode() async {
+    final loc = AppLocalizations.of(context)!;
     try {
       final String? qrCode = await Navigator.push<String>(
         context,
@@ -46,14 +48,15 @@ class _PickUpItemState extends State<PickUpItem> {
         _initiateVerification();
       }
     } catch (e) {
-      _showError("Error opening QR scanner: $e");
+      _showError("${loc.translate('pickupItem_error_scan')}$e");
     }
   }
 
   Future<void> _initiateVerification() async {
+    final loc = AppLocalizations.of(context)!;
     final String code = _pickupCodeController.text.trim();
     if (code.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Please enter or scan a pickup code.")));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(loc.translate('pickupItem_error_no_code'))));
       return;
     }
 
@@ -71,7 +74,7 @@ class _PickUpItemState extends State<PickUpItem> {
           .get();
 
       if (pickupSnapshot.docs.isEmpty) {
-        _showError("Pickup code not found.");
+        _showError(loc.translate('pickupItem_error_not_found'));
         return;
       }
 
@@ -79,12 +82,12 @@ class _PickUpItemState extends State<PickUpItem> {
       docIdToUpdate = pickupSnapshot.docs.first.id;
 
       if(pickupData['pickedUp'] == 'yes') {
-        _showError("This order has already been picked up.");
+        _showError(loc.translate('pickupItem_error_already_picked_up'));
         return;
       }
 
       if(pickupData['processedOrder'] != 'yes') {
-        _showError("This order has not been processed by admin yet.");
+        _showError(loc.translate('pickupItem_error_not_processed'));
         return;
       }
 
@@ -92,7 +95,7 @@ class _PickUpItemState extends State<PickUpItem> {
       final userDoc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
 
       if (!userDoc.exists || userDoc.data()?['selfieImageUrl'] == null) {
-        _showError("Asnaf eKYC photo not found.");
+        _showError(loc.translate('pickupItem_error_no_ekyc'));
         return;
       }
       final userData = userDoc.data()!;
@@ -114,14 +117,14 @@ class _PickUpItemState extends State<PickUpItem> {
           _isVerified = true;
         });
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text("Validation successful. Details loaded."),
+          content: Text(loc.translate('pickupItem_success_validation')),
           backgroundColor: Colors.green,
         ));
       } else {
-        _showError("Face validation failed or was rejected by staff.");
+        _showError(loc.translate('pickupItem_error_validation_failed'));
       }
     } catch (e) {
-      _showError("An error occurred: $e");
+      _showError("${loc.translate('pickupItem_error_generic')}$e");
     } finally {
       if (mounted) {
         setState(() {
@@ -132,8 +135,9 @@ class _PickUpItemState extends State<PickUpItem> {
   }
 
   Future<void> _submitPickup() async {
+    final loc = AppLocalizations.of(context)!;
     if (!_isVerified || docIdToUpdate == null) {
-      _showError("Please verify the Asnaf's identity first.");
+      _showError(loc.translate('pickupItem_error_verify_first'));
       return;
     }
     setState(() { _isLoading = true; });
@@ -151,7 +155,7 @@ class _PickUpItemState extends State<PickUpItem> {
         pickupCode: _pickupCodeController.text,
       )), (route) => false,);
     } catch (e) {
-      _showError("Failed to submit pickup: $e");
+      _showError("${loc.translate('pickupItem_error_submit_failed')}$e");
     } finally {
       if(mounted) setState(() { _isLoading = false; });
     }
@@ -186,6 +190,7 @@ class _PickUpItemState extends State<PickUpItem> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: Color(0xFF303030),
       body: Padding(
@@ -196,13 +201,13 @@ class _PickUpItemState extends State<PickUpItem> {
             children: [
               SizedBox(height: 70),
               Text(
-                "Verify Pickup Code Here",
+                loc.translate('pickupItem_page_title'),
                 style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFFFDB515)),
                 textAlign: TextAlign.center,
               ),
               SizedBox(height: 4),
               Text(
-                "Scan QR or enter code to begin validation",
+                loc.translate('pickupItem_page_subtitle'),
                 style: TextStyle(fontSize: 14, color: Color(0xFFAA820C)),
                 textAlign: TextAlign.center,
               ),
@@ -218,14 +223,14 @@ class _PickUpItemState extends State<PickUpItem> {
                     backgroundColor: Color(0xFFFDB515),
                     padding: EdgeInsets.symmetric(vertical: 16),
                   ),
-                  child: Text("Verify Asnaf Identity", style: TextStyle(fontSize: 16, color: Colors.black, fontWeight: FontWeight.bold)),
+                  child: Text(loc.translate('pickupItem_verify_button'), style: TextStyle(fontSize: 16, color: Colors.black, fontWeight: FontWeight.bold)),
                 ),
               SizedBox(height: 20),
               Divider(color: Colors.white24),
               SizedBox(height: 10),
-              buildInfoTextField("Reward Redeemed", _rewardRedeemedController),
-              buildInfoTextField("Asnaf's Name", _asnafNameController),
-              buildMobileField("Asnaf's Number", _asnafNumberController),
+              buildInfoTextField(loc.translate('pickupItem_reward_redeemed_label'), _rewardRedeemedController),
+              buildInfoTextField(loc.translate('pickupItem_asnaf_name_label'), _asnafNameController),
+              buildMobileField(loc.translate('pickupItem_asnaf_number_label'), _asnafNumberController),
               SizedBox(height: 20),
               ElevatedButton(
                 onPressed: _isVerified && !_isLoading ? _submitPickup : null,
@@ -233,7 +238,7 @@ class _PickUpItemState extends State<PickUpItem> {
                   backgroundColor: _isVerified ? Colors.green : Colors.grey[700],
                   padding: EdgeInsets.symmetric(vertical: 16),
                 ),
-                child: Text("Confirm & Submit Pickup", style: TextStyle(fontSize: 16, color: Colors.white)),
+                child: Text(loc.translate('pickupItem_submit_button'), style: TextStyle(fontSize: 16, color: Colors.white)),
               ),
             ],
           ),
@@ -247,12 +252,13 @@ class _PickUpItemState extends State<PickUpItem> {
   }
 
   Widget buildPickupCodeField() {
+    final loc = AppLocalizations.of(context)!;
     return Padding(
       padding: EdgeInsets.symmetric(vertical: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("Enter Pickup Code or Scan QR", style: TextStyle(color: Color(0xFFFDB515), fontSize: 14, fontWeight: FontWeight.bold)),
+          Text(loc.translate('pickupItem_code_field_label'), style: TextStyle(color: Color(0xFFFDB515), fontSize: 14, fontWeight: FontWeight.bold)),
           SizedBox(height: 4),
           Container(
             decoration: BoxDecoration(color: Colors.grey[800], borderRadius: BorderRadius.circular(8)),
@@ -265,7 +271,7 @@ class _PickUpItemState extends State<PickUpItem> {
                     decoration: InputDecoration(
                       border: InputBorder.none,
                       contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 15),
-                      hintText: "Enter code manually",
+                      hintText: loc.translate('pickupItem_code_field_hint'),
                       hintStyle: TextStyle(color: Colors.white54),
                     ),
                   ),
@@ -273,7 +279,7 @@ class _PickUpItemState extends State<PickUpItem> {
                 IconButton(
                   icon: Icon(Icons.qr_code_scanner, color: Color(0xFFFDB515)),
                   onPressed: _scanQRCode,
-                  tooltip: 'Scan QR Code',
+                  tooltip: loc.translate('pickupItem_scan_qr_tooltip'),
                 ),
               ],
             ),

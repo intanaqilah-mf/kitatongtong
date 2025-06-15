@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:projects/localization/app_localizations.dart';
 import 'package:projects/pages/event.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
 
@@ -20,6 +21,7 @@ class _EventReviewScreenState extends State<EventReview> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
     return Scaffold(
       body: Column(
         children: [
@@ -36,7 +38,7 @@ class _EventReviewScreenState extends State<EventReview> {
                     ),
                     SizedBox(height: 20),
                     Text(
-                      "You have created an event!",
+                      loc.translate('eventReview_success_title'),
                       style: TextStyle(
                         fontSize: 35,
                         fontWeight: FontWeight.bold,
@@ -46,7 +48,7 @@ class _EventReviewScreenState extends State<EventReview> {
                     ),
                     SizedBox(height: 10),
                     Text(
-                      "It will be reflected at event page.",
+                      loc.translate('eventReview_success_subtitle'),
                       style: TextStyle(
                         fontSize: 18,
                         color: Colors.grey[400], // Light gray color
@@ -77,7 +79,7 @@ class _EventReviewScreenState extends State<EventReview> {
                 );
               },
               child: Text(
-                "OK",
+                loc.translate('eventReview_ok_button'),
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,

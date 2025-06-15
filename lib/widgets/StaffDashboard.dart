@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:projects/pages/applyAid.dart';
 import 'package:projects/pages/event.dart';
-import 'package:projects/pages/verifyApplications.dart';
-import 'package:projects/pages/issueReward.dart';
+import 'package:projects/pages/trackApplication.dart';
+import 'package:projects/pages/trackRewards.dart';
 import 'package:projects/localization/app_localizations.dart';
 
 class StaffDashboard extends StatelessWidget {
@@ -34,13 +34,13 @@ class StaffDashboard extends StatelessWidget {
                     } else if (i == 2) {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => IssueReward()),
+                        MaterialPageRoute(builder: (context) => TrackRewardsScreen()),
                       );
                     } else if (i == 3) {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                            builder: (context) => VerifyApplicationsScreen()),
+                            builder: (context) => TrackApplicationsScreen()),
                       );
                     } else if (i == 4) {
                       Navigator.push(

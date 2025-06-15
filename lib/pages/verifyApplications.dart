@@ -13,8 +13,6 @@ class VerifyApplicationsScreen extends StatefulWidget {
 
 class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
   int _selectedIndex = 0;
-  late Stream<QuerySnapshot> _applicationsStream;
-  Map<int, bool> _expandedStates = {};
   String selectedFilter = "All";
   String selectedSort = "Date";
   TextEditingController searchController = TextEditingController();
@@ -23,8 +21,6 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
   @override
   void initState() {
     super.initState();
-    _applicationsStream =
-        FirebaseFirestore.instance.collection('applications').snapshots();
   }
 
   void _onItemTapped(int index) {
@@ -201,7 +197,7 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
           ),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: _applicationsStream,
+              stream: FirebaseFirestore.instance.collection('applications').snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return Center(child: CircularProgressIndicator());
@@ -218,33 +214,34 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
                   return {
                     'fullname': appData['fullname'] ?? 'Unknown',
                     'date': appData['date'] ?? '',
-                    'submittedBy': appData['submittedBy'] ?? 'Unknown',
+                    'submittedBy': appData['submittedBy'], // Keep as dynamic type
                     'statusApplication': appData['statusApplication'] ?? 'Pending',
                     'applicationCode': appData.containsKey('applicationCode')
                         ? appData['applicationCode']
                         : "No Code",
                     'id': doc.id,
-                    'userId': appData['userId'] ?? '',
+                    'userId': appData['userId'], // Keep as dynamic type
                   };
                 }).toList();
+
                 if (selectedFilter != "All") {
                   applications = applications.where((app) {
                     return app['statusApplication'].toString().toLowerCase() == selectedFilter.toLowerCase();
                   }).toList();
                 }
 
-// Apply search query
                 if (searchQuery.isNotEmpty) {
                   applications = applications.where((app) {
                     return app['fullname'].toString().toLowerCase().contains(searchQuery);
                   }).toList();
                 }
+
                 applications.sort((a, b) {
                   if (selectedSort == "Name") {
                     return a['fullname'].compareTo(b['fullname']);
                   } else if (selectedSort == "Status") {
                     return a['statusApplication'].compareTo(b['statusApplication']);
-                  } else { // Default to sorting by Date descending
+                  } else {
                     DateTime dateA = a['date'] != '' ? DateTime.parse(a['date']) : DateTime(1900);
                     DateTime dateB = b['date'] != '' ? DateTime.parse(b['date']) : DateTime(1900);
                     return dateB.compareTo(dateA);
@@ -255,31 +252,35 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
                   itemCount: applications.length,
                   itemBuilder: (context, index) {
                     var app = applications[index];
-                    bool isExpanded = _expandedStates[index] ?? false;
                     String formattedDate = app['date'] != ''
                         ? DateFormat("dd MMM yyyy")
                         .format(DateTime.parse(app['date']))
                         : 'No date provided';
+
+                    String uniqueCode = app['applicationCode'] ?? 'No Code';
                     String userId = app['userId'] ?? '';
-                    String uniqueCode = app['applicationCode']; // Use applicationCode directly
 
-                    return FutureBuilder<DocumentSnapshot>(
-                      future: FirebaseFirestore.instance
-                          .collection('users')
-                          .doc(userId)
-                          .get(),
-                      builder: (context, userSnapshot) {
-                        String photoUrl = "";
-                        if (userSnapshot.connectionState == ConnectionState.done &&
-                            userSnapshot.hasData &&
-                            userSnapshot.data!.exists) {
-                          var userData = userSnapshot.data!.data() as Map<String, dynamic>;
-                          photoUrl = userData['photoUrl'] ?? "";
-                        }
-
-                        return buildApplicationCard(app, formattedDate, uniqueCode, photoUrl);
-                      },
-                    );
+                    // **FIX:** Check if userId is valid before trying to fetch from Firestore.
+                    if (userId.isNotEmpty) {
+                      // This is an Asnaf submission, fetch the user's photo.
+                      return FutureBuilder<DocumentSnapshot>(
+                        future: FirebaseFirestore.instance.collection('users').doc(userId).get(),
+                        builder: (context, userSnapshot) {
+                          String photoUrl = "";
+                          if (userSnapshot.connectionState == ConnectionState.done &&
+                              userSnapshot.hasData &&
+                              userSnapshot.data!.exists) {
+                            var userData = userSnapshot.data!.data() as Map<String, dynamic>;
+                            photoUrl = userData['photoUrl'] ?? "";
+                          }
+                          return buildApplicationCard(app, formattedDate, uniqueCode, photoUrl);
+                        },
+                      );
+                    } else {
+                      // **FIX:** This is a Staff submission, so there's no user photo to fetch.
+                      // Build the card directly with an empty photo URL.
+                      return buildApplicationCard(app, formattedDate, uniqueCode, "");
+                    }
                   },
                 );
               },
@@ -294,22 +295,30 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
     );
   }
 
-  // Function to build the application card with the submitted_by value on top
-  // of statusApplication. The date and application code remain unchanged.
   Widget buildApplicationCard(Map<String, dynamic> app, String formattedDate, String uniqueCode, String photoUrl) {
-    bool isExpanded = _expandedStates[app['id']] ?? false;
-
     String statusApplication = app['statusApplication'] ?? 'Pending';
-    // Note we use 'submitted_by' as stored in Firestore
-    String submittedBy = app['submittedBy'] ?? 'Unknown';
+    var submittedByData = app['submittedBy'];
+    String submittedByText;
+
+    // **FIX:** Check the type of 'submittedBy' to display the correct name.
+    if (submittedByData is Map) {
+      // If it's a map (staff submission), get the name from it.
+      submittedByText = submittedByData['name'] ?? 'Unknown Staff';
+    } else if (submittedByData is String) {
+      // If it's a string (asnaf submission), use it directly.
+      submittedByText = submittedByData;
+    } else {
+      submittedByText = 'Unknown';
+    }
 
     return Card(
       color: Colors.grey[850],
+      margin: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       elevation: 4,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
       ),
-      child: GestureDetector(
+      child: InkWell( // Use InkWell for splash effect on tap
         onTap: () {
           Navigator.push(
             context,
@@ -320,93 +329,98 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
             ),
           );
         },
-        child: Column(
-          children: [
-            ListTile(
-              leading: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        _expandedStates[app['id']] = !isExpanded;
-                      });
-                    },
-                    child: Icon(
-                      isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                      color: Colors.white,
-                    ),
-                  ),
-                  SizedBox(width: 8),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(5),
-                    child: photoUrl.isNotEmpty
-                        ? Image.network(
-                      photoUrl,
-                      width: 30,
-                      height: 30,
-                      fit: BoxFit.cover,
-                    )
-                        : Container(
-                      width: 30,
-                      height: 30,
-                      color: Colors.grey.shade800,
-                    ),
-                  ),
-                ],
+        child: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: photoUrl.isNotEmpty
+                    ? Image.network(
+                  photoUrl,
+                  width: 40,
+                  height: 40,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) =>
+                      Container(width: 40, height: 40, color: Colors.grey.shade700, child: Icon(Icons.person)),
+                )
+                    : Container(
+                  width: 40,
+                  height: 40,
+                  color: Colors.grey.shade700,
+                  child: Icon(Icons.person, color: Colors.white70),
+                ),
               ),
-              title: Text(
-                app['fullname'],
-                style: TextStyle(color: Colors.white),
-              ),
-              subtitle: Row(
-                children: [
-                  Text(
-                    formattedDate,
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                  SizedBox(width: 6),
-                  Icon(
-                    Icons.circle,
-                    color: Colors.white,
-                    size: 6,
-                  ),
-                  SizedBox(width: 6),
-                  Flexible(
-                    child: Text(
-                      uniqueCode,
-                      style: TextStyle(color: Colors.grey),
+              SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      app['fullname'],
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                       overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                ],
+                    SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Text(
+                          formattedDate,
+                          style: TextStyle(color: Colors.grey, fontSize: 12),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                          child: Icon(Icons.circle, color: Colors.grey, size: 5),
+                        ),
+                        Flexible(
+                          child: Text(
+                            uniqueCode,
+                            style: TextStyle(color: Colors.grey, fontSize: 12),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-              trailing: Column(
+              SizedBox(width: 8),
+              Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  // Display the submitted_by value on top
                   Text(
-                    submittedBy,
-                    style: TextStyle(color: Colors.white, fontSize: 12),
+                    submittedByText,
+                    style: TextStyle(color: Colors.white, fontSize: 12, fontStyle: FontStyle.italic),
                   ),
                   SizedBox(height: 4),
-                  // Then display the statusApplication value below it
-                  Text(
-                    statusApplication,
-                    style: TextStyle(
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
                       color: statusApplication == "Pending"
-                          ? Colors.orange
+                          ? Colors.orange.withOpacity(0.2)
                           : statusApplication == "Approve"
-                          ? Colors.green
-                          : Colors.red,
-                      fontSize: 14,
+                          ? Colors.green.withOpacity(0.2)
+                          : Colors.red.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      statusApplication,
+                      style: TextStyle(
+                        color: statusApplication == "Pending"
+                            ? Colors.orange
+                            : statusApplication == "Approve"
+                            ? Colors.green
+                            : Colors.red,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ],
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

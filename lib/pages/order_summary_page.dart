@@ -40,9 +40,11 @@ class _OrderSummaryPageState extends State<OrderSummaryPage> {
       final quantity = value['quantity'] as int;
       tempValue += (itemData['price'] as double) * quantity;
     });
-    setState(() {
-      _totalCartValue = tempValue;
-    });
+    if (mounted) {
+      setState(() {
+        _totalCartValue = tempValue;
+      });
+    }
   }
 
   int _getTotalItems() {
@@ -105,7 +107,7 @@ class _OrderSummaryPageState extends State<OrderSummaryPage> {
       return;
     }
 
-    setState(() => _isLoading = true);
+    if (mounted) setState(() => _isLoading = true);
 
     try {
       final now = Timestamp.now();
@@ -134,6 +136,24 @@ class _OrderSummaryPageState extends State<OrderSummaryPage> {
         }
       });
 
+      // --- MODIFICATION START ---
+      String? applicationId;
+      String? applicationCode;
+
+      if (widget.voucherReceived.containsKey('docId')) {
+        applicationId = widget.voucherReceived['docId'] as String?;
+        if (applicationId != null) {
+          final appDocRef = FirebaseFirestore.instance.collection('applications').doc(applicationId);
+          final appDoc = await appDocRef.get();
+          if (appDoc.exists) {
+            applicationCode = appDoc.data()?['applicationCode'] as String?;
+            // IMPORTANT: Update the application status to 'Redeemed'
+            await appDocRef.update({'statusReward': 'Redeemed'});
+          }
+        }
+      }
+      // --- MODIFICATION END ---
+
 
       await FirebaseFirestore.instance.collection('redeemedKasih').add({
         'userId': user.uid,
@@ -145,18 +165,20 @@ class _OrderSummaryPageState extends State<OrderSummaryPage> {
         'pickedUp': 'no',
         'processedOrder': 'no',
         'redeemedAt': now,
-        'redeemType': 'itemSelection'
+        'redeemType': 'itemSelection',
+        // These fields will now be populated correctly IF docId is passed in.
+        'applicationId': applicationId,
+        'applicationCode': applicationCode,
       });
+
 
       if (widget.voucherReceived.containsKey('voucherId')) {
         final targetVoucherId = widget.voucherReceived['voucherId'];
         List<dynamic> vouchers = List<dynamic>.from(userData?['voucherReceived'] ?? []);
         vouchers.removeWhere((v) => v is Map && v['voucherId'] == targetVoucherId);
         await userDocRef.update({'voucherReceived': vouchers});
-      } else if (widget.voucherReceived.containsKey('docId')) {
-        final docId = widget.voucherReceived['docId'];
-        await FirebaseFirestore.instance.collection('applications').doc(docId).delete();
       }
+      // The logic to update the application is now handled above, so we don't need to delete it here.
 
       Navigator.pushAndRemoveUntil(
         context,

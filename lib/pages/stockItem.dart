@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:projects/localization/app_localizations.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
 import 'package:projects/services/search_service.dart';
 
@@ -68,6 +69,7 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
 
   // --- LOADING OVERLAY ---
   void _showLoadingDialog() {
+    final loc = AppLocalizations.of(context)!;
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -96,7 +98,7 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
                 ),
                 SizedBox(height: 24),
                 Text(
-                  "Submitting Package...",
+                  loc.translate('stockItem_loading_dialog'),
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 16,
@@ -115,6 +117,7 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
   }
   // --- Helper function for Warning Dialog ---
   Future<void> _showWarningDialog(String title, String message) async {
+    final loc = AppLocalizations.of(context)!;
     return showDialog<void>(
       context: context,
       barrierDismissible: false, // User must tap button to close
@@ -131,7 +134,7 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
           ),
           actions: <Widget>[
             TextButton(
-              child: Text('OK', style: TextStyle(color: Color(0xFFFDB515), fontWeight: FontWeight.bold)),
+              child: Text(loc.translate('stockItem_ok_button'), style: TextStyle(color: Color(0xFFFDB515), fontWeight: FontWeight.bold)),
               onPressed: () {
                 Navigator.of(context).pop();
               },
@@ -144,6 +147,7 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
 
   // --- EDIT PACKAGE NAME DIALOG (Kasih)---
   Future<void> _editPackageName(DocumentSnapshot doc, String currentName) async {
+    final loc = AppLocalizations.of(context)!;
     final TextEditingController editController =
     TextEditingController(text: currentName);
 
@@ -152,14 +156,14 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
       builder: (BuildContext context) {
         return AlertDialog(
           backgroundColor: Color(0xFF3F3F3F),
-          title: Text('Edit Package Name',
+          title: Text(loc.translate('stockItem_edit_package_name_title'),
               style: TextStyle(color: Color(0xFFFDB515))),
           content: TextField(
             controller: editController,
             autofocus: true,
             style: TextStyle(color: Colors.white),
             decoration: InputDecoration(
-              hintText: "Enter new package name",
+              hintText: loc.translate('stockItem_edit_package_name_hint'),
               hintStyle: TextStyle(color: Colors.white54),
               enabledBorder: UnderlineInputBorder(
                 borderSide: BorderSide(color: Color(0xFFFDB515)),
@@ -171,7 +175,7 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
           ),
           actions: <Widget>[
             TextButton(
-              child: Text('Cancel', style: TextStyle(color: Colors.white70)),
+              child: Text(loc.translate('stockItem_cancel_button'), style: TextStyle(color: Colors.white70)),
               onPressed: () {
                 Navigator.of(context).pop();
               },
@@ -179,7 +183,7 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
             ElevatedButton(
               style:
               ElevatedButton.styleFrom(backgroundColor: Color(0xFFFDB515)),
-              child: Text('Update', style: TextStyle(color: Colors.black)),
+              child: Text(loc.translate('stockItem_update_button'), style: TextStyle(color: Colors.black)),
               onPressed: () async {
                 final String newName = editController.text.trim();
                 if (newName.isNotEmpty && newName != currentName) {
@@ -196,6 +200,7 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
 
   // --- ADD PACKAGE KASIH (Single Item) ---
   void _addPackageKasih() {
+    final loc = AppLocalizations.of(context)!;
     print("---EXECUTING _addPackageKasih FUNCTION---");
     itemNameController.clear();
     itemSuggestions = [];
@@ -224,7 +229,7 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
                     children: [
                       Center(
                         child: Text(
-                          "Add Package Kasih",
+                          loc.translate('stockItem_add_kasih_title'),
                           style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
@@ -232,7 +237,7 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
                         ),
                       ),
                       SizedBox(height: 16),
-                      Text("Item Name",
+                      Text(loc.translate('stockItem_item_name_label'),
                           style: TextStyle(
                               fontWeight: FontWeight.bold,
                               color: Color(0xFFF1D789))),
@@ -245,7 +250,7 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
                             decoration: InputDecoration(
                               filled: true,
                               fillColor: Color(0xFFFFCF40),
-                              hintText: "Type to search item…",
+                              hintText: loc.translate('stockItem_search_hint'),
                               border: OutlineInputBorder(),
                             ),
                             onChanged: (pattern) async {
@@ -305,7 +310,7 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                   content: Text(
-                                      "Please select an item before submitting.")),
+                                      loc.translate('stockItem_select_item_warning'))),
                             );
                             return;
                           }
@@ -352,7 +357,7 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                   content: Text(
-                                      'Error creating package: ${e.toString()}')),
+                                      '${loc.translate('stockItem_create_package_error')}${e.toString()}')),
                             );
                           } finally {
                             _hideLoadingDialog();
@@ -362,7 +367,7 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
                           backgroundColor: Color(0xFFFDB515),
                           minimumSize: Size(double.infinity, 48),
                         ),
-                        child: Text("Submit Package",
+                        child: Text(loc.translate('stockItem_submit_package_button'),
                             style:
                             TextStyle(fontSize: 16, color: Colors.black)),
                       ),
@@ -377,6 +382,7 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
     );
   }
   void _addPackageHamper() {
+    final loc = AppLocalizations.of(context)!;
     hamperNameController.clear();
     itemNameController.clear();
     detailedHamperItems = [];
@@ -405,7 +411,7 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
                     children: [
                       Center(
                         child: Text(
-                          "Add Package Hamper",
+                          loc.translate('stockItem_add_hamper_title'),
                           style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
@@ -413,7 +419,7 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
                         ),
                       ),
                       SizedBox(height: 16),
-                      Text("Package Name",
+                      Text(loc.translate('stockItem_package_name_label'),
                           style: TextStyle(
                               fontWeight: FontWeight.bold,
                               color: Color(0xFFF1D789))),
@@ -423,12 +429,12 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
                         decoration: InputDecoration(
                           filled: true,
                           fillColor: Color(0xFFFFCF40),
-                          hintText: "e.g., Hamper Raya Aidilfitri",
+                          hintText: loc.translate('stockItem_hamper_name_hint'),
                           border: OutlineInputBorder(),
                         ),
                       ),
                       SizedBox(height: 16),
-                      Text("Voucher Value",
+                      Text(loc.translate('stockItem_voucher_value_label'),
                           style: TextStyle(
                               fontWeight: FontWeight.bold,
                               color: Color(0xFFF1D789))),
@@ -462,7 +468,7 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
                         ),
                       ),
                       SizedBox(height: 16),
-                      Text("Items",
+                      Text(loc.translate('stockItem_items_label'),
                           style: TextStyle(
                               fontWeight: FontWeight.bold,
                               color: Color(0xFFF1D789))),
@@ -511,7 +517,7 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
                                   decoration: InputDecoration(
                                     filled: true,
                                     fillColor: Color(0xFFFFCF40),
-                                    hintText: "Type to search item…",
+                                    hintText: loc.translate('stockItem_search_hint'),
                                     border: OutlineInputBorder(),
                                   ),
                                   onChanged: (pattern) async {
@@ -605,11 +611,11 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
                           final String hamperName =
                           hamperNameController.text.trim();
                           if (hamperName.isEmpty) {
-                            _showWarningDialog("Validation Error", "Please enter a package name.");
+                            _showWarningDialog(loc.translate('stockItem_warning_title_validation'), loc.translate('stockItem_hamper_name_warning'));
                             return;
                           }
                           if (detailedHamperItems.isEmpty) {
-                            _showWarningDialog("Validation Error", "Please add at least one item to the hamper.");
+                            _showWarningDialog(loc.translate('stockItem_warning_title_validation'), loc.translate('stockItem_add_item_warning'));
                             return;
                           }
 
@@ -641,14 +647,14 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
                             if (serverSideTotalPrice < minAllowedPrice) {
                               _hideLoadingDialog();
                               final double difference = minAllowedPrice - serverSideTotalPrice;
-                              _showWarningDialog("Validation Failed", "Price too low (RM ${serverSideTotalPrice.toStringAsFixed(2)}). Need to add at least RM ${difference.toStringAsFixed(2)} more.");
+                              _showWarningDialog(loc.translate('stockItem_warning_title_failed'), loc.translateWithArgs('stockItem_price_low_warning', {'price': serverSideTotalPrice.toStringAsFixed(2), 'diff': difference.toStringAsFixed(2)}));
                               return;
                             }
 
                             if (serverSideTotalPrice > maxAllowedPrice) {
                               _hideLoadingDialog();
                               final double difference = serverSideTotalPrice - maxAllowedPrice;
-                              _showWarningDialog("Validation Failed", "Item price too high (RM ${serverSideTotalPrice.toStringAsFixed(2)}). Need to decrease item at least RM ${difference.toStringAsFixed(2)}.");
+                              _showWarningDialog(loc.translate('stockItem_warning_title_failed'), loc.translateWithArgs('stockItem_price_high_warning', {'price': serverSideTotalPrice.toStringAsFixed(2), 'diff': difference.toStringAsFixed(2)}));
                               return;
                             }
 
@@ -684,18 +690,18 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
                             Navigator.pop(context); // Close the modal sheet
 
                             // Show success dialog on the main screen
-                            _showWarningDialog("Success", "Package Hamper '$hamperName' has been successfully submitted.");
+                            _showWarningDialog(loc.translate('stockItem_warning_title_success'), "Package Hamper '$hamperName' has been successfully submitted.");
 
                           } catch (e) {
                             _hideLoadingDialog();
-                            _showWarningDialog("An Error Occurred", e.toString());
+                            _showWarningDialog(loc.translate('stockItem_warning_title_error'), e.toString());
                           }
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Color(0xFFFDB515),
                           minimumSize: Size(double.infinity, 48),
                         ),
-                        child: Text("Submit Hamper",
+                        child: Text(loc.translate('stockItem_submit_hamper_button'),
                             style: TextStyle(
                                 fontSize: 16, color: Colors.black)),
                       ),
@@ -711,6 +717,7 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
   }
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: Color(0xFF303030),
       body: SingleChildScrollView(
@@ -740,7 +747,7 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
                           ),
                           alignment: Alignment.center,
                           child: Text(
-                            "Package Kasih",
+                            loc.translate('stockItem_package_kasih'),
                             style: TextStyle(
                               color: isPackageKasihSelected
                                   ? Color(0xFFFDB515)
@@ -764,7 +771,7 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
                           ),
                           alignment: Alignment.center,
                           child: Text(
-                            "Package Hamper",
+                            loc.translate('stockItem_package_hamper'),
                             style: TextStyle(
                               color: !isPackageKasihSelected
                                   ? Color(0xFFFDB515)
@@ -803,6 +810,7 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
 
   // --- WIDGET BUILDER for Package Kasih List ---
   Widget buildPackageKasihList() {
+    final loc = AppLocalizations.of(context)!;
     return Container(
       margin: EdgeInsets.symmetric(horizontal: 5, vertical: 10),
       padding: EdgeInsets.symmetric(horizontal: 15, vertical: 20),
@@ -823,7 +831,7 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            "Available Packages Kasih",
+            loc.translate('stockItem_kasih_list_title'),
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -843,7 +851,7 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
               if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                 return Center(
                   child: Text(
-                    "No packages available",
+                    loc.translate('stockItem_no_packages_available'),
                     style: TextStyle(fontSize: 16, color: Colors.black),
                   ),
                 );
@@ -856,12 +864,11 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
                   final pkg = doc.data() as Map<String, dynamic>;
                   final bannerUrl = pkg["bannerUrl"] ?? "";
                   final value = pkg["price"] ?? 0.0;
-                  // This is the correct line
-                  final title = (pkg['items'] as List<dynamic>? ?? []).isNotEmpty ? pkg['items'][0]['name'] ?? 'Unnamed Package' : 'Unnamed Package';
+                  final title = (pkg['items'] as List<dynamic>? ?? []).isNotEmpty ? pkg['items'][0]['name'] ?? loc.translate('stockItem_unnamed_package') : loc.translate('stockItem_unnamed_package');
                   final items = pkg['items'] as List<dynamic>? ?? [];
                   final category = items.isNotEmpty
-                      ? items.first['category'] ?? 'No Category'
-                      : 'No Category';
+                      ? items.first['category'] ?? loc.translate('stockItem_no_category')
+                      : loc.translate('stockItem_no_category');
 
                   return Dismissible(
                     key: Key(doc.id),
@@ -870,7 +877,7 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
                       await doc.reference.delete();
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('"$title" has been deleted.'),
+                          content: Text(loc.translateWithArgs('stockItem_package_deleted', {'title': title})),
                           backgroundColor: Colors.red,
                         ),
                       );
@@ -940,7 +947,7 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
                             ),
                           ),
                           Text(
-                            "Category: $category",
+                            loc.translateWithArgs('stockItem_category_label', {'category': category}),
                             style: TextStyle(
                                 color: Colors.grey[800],
                                 fontStyle: FontStyle.italic,
@@ -949,7 +956,7 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
                           ),
                           SizedBox(height: 10),
                           Text(
-                            "Price: RM ${value.toStringAsFixed(2)}",
+                            loc.translateWithArgs('stockItem_price_label', {'price': value.toStringAsFixed(2)}),
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -971,6 +978,7 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
 
   // --- WIDGET BUILDER for Package Hamper List ---
   Widget buildPackageHamperList() {
+    final loc = AppLocalizations.of(context)!;
     return Container(
       margin: EdgeInsets.symmetric(horizontal: 5, vertical: 10),
       padding: EdgeInsets.symmetric(horizontal: 15, vertical: 20),
@@ -991,7 +999,7 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            "Available Packages Hamper",
+            loc.translate('stockItem_hamper_list_title'),
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -1011,7 +1019,7 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
               if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                 return Center(
                   child: Text(
-                    "No hampers available",
+                    loc.translate('stockItem_no_hampers_available'),
                     style: TextStyle(fontSize: 16, color: Colors.black),
                   ),
                 );
@@ -1023,7 +1031,7 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
                 children: docs.map((doc) {
                   final pkg = doc.data() as Map<String, dynamic>;
                   final bannerUrl = pkg["bannerUrl"] ?? "";
-                  final title = pkg['name'] ?? 'Unnamed Hamper';
+                  final title = pkg['name'] ?? loc.translate('stockItem_unnamed_hamper');
                   final voucherValue = pkg['voucherValue'] ?? 0;
                   final items = pkg['items'] as List<dynamic>? ?? [];
 
@@ -1034,7 +1042,7 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
                       await doc.reference.delete();
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('"$title" has been deleted.'),
+                          content: Text(loc.translateWithArgs('stockItem_package_deleted', {'title': title})),
                           backgroundColor: Colors.red,
                         ),
                       );
@@ -1112,7 +1120,7 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text("Items:", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
+                                  Text("${loc.translate('stockItem_items_label')}:", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
                                   ...items.asMap().entries.map((entry) {
                                     int idx = entry.key;
                                     Map item = entry.value;
@@ -1124,7 +1132,7 @@ class _StockItemState extends State<StockItem> with TickerProviderStateMixin {
                           ),
                           SizedBox(height: 10),
                           Text(
-                            "Voucher Value: RM $voucherValue",
+                            loc.translateWithArgs('stockItem_voucher_value_display', {'value': voucherValue.toString()}),
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,

@@ -9,288 +9,208 @@ class IssueReward extends StatefulWidget {
   _IssueRewardScreenState createState() => _IssueRewardScreenState();
 }
 
-class _IssueRewardScreenState extends State<IssueReward> {
+class _IssueRewardScreenState extends State<IssueReward> with SingleTickerProviderStateMixin {
   int _selectedIndex = 0;
-  late Stream<QuerySnapshot> _applicationsStream;
-  Map<int, bool> _expandedStates = {};
-  String selectedFilter = "All";
-  String selectedSort = "Date";
-  TextEditingController searchController = TextEditingController();
-  String searchQuery = "";
+  late TabController _tabController;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = "";
+  String _selectedSort = "Date";
 
   @override
   void initState() {
     super.initState();
-    _applicationsStream =
-        FirebaseFirestore.instance.collection('applications').snapshots();
+    _tabController = TabController(length: 4, vsync: this);
+    _searchController.addListener(() {
+      if (mounted) {
+        setState(() {
+          _searchQuery = _searchController.text.toLowerCase();
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    _searchController.dispose();
+    super.dispose();
   }
 
   void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+    if (mounted) {
+      setState(() {
+        _selectedIndex = index;
+      });
+    }
+  }
+
+  Stream<QuerySnapshot> _getApplicationsStream(int tabIndex) {
+    Query query = FirebaseFirestore.instance
+        .collection('applications')
+        .where('statusApplication', isEqualTo: 'Approve');
+
+    switch (tabIndex) {
+      case 1: // Pending
+        query = query.where('statusReward', isEqualTo: 'Pending');
+        break;
+      case 2: // Issued
+        query = query.where('statusReward', isEqualTo: 'Issued');
+        break;
+      case 3: // Redeemed
+        query = query.where('statusReward', isEqualTo: 'Redeemed');
+        break;
+    }
+
+    switch (_selectedSort) {
+      case "Name":
+        query = query.orderBy('fullname');
+        break;
+      case "Status":
+        query = query.orderBy('statusReward');
+        break;
+      default: // Date
+        query = query.orderBy('date', descending: true);
+        break;
+    }
+
+    return query.snapshots();
+  }
+
+  List<DocumentSnapshot> _filterDocsBySearch(List<DocumentSnapshot> docs) {
+    if (_searchQuery.isEmpty) {
+      return docs;
+    }
+    return docs.where((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      final fullname = (data['fullname'] as String? ?? '').toLowerCase();
+      final code = (data['applicationCode'] as String? ?? '').toLowerCase();
+      return fullname.contains(_searchQuery) || code.contains(_searchQuery);
+    }).toList();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(0xFF303030),
+      backgroundColor: const Color(0xFF303030),
       appBar: AppBar(
-        backgroundColor: Color(0xFF303030),
+        backgroundColor: const Color(0xFF303030),
         elevation: 0,
+        title: const Text(
+          "Issue Reward",
+          style: TextStyle(color: Color(0xFFFDB515), fontWeight: FontWeight.bold),
+        ),
+        centerTitle: true,
+        automaticallyImplyLeading: false,
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: const Color(0xFFFDB515),
+          labelColor: const Color(0xFFFDB515),
+          unselectedLabelColor: Colors.white70,
+          tabs: const [
+            Tab(text: "All"),
+            Tab(text: "Pending"),
+            Tab(text: "Issued"),
+            Tab(text: "Redeemed"),
+          ],
+          onTap: (index) {
+            if (mounted) setState(() {});
+          },
+        ),
       ),
       body: Column(
         children: [
-          // Header Section
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.symmetric(vertical: 15, horizontal: 16),
-            child: Column(
-              children: [
-                Text(
-                  "Issue Reward",
-                  style: TextStyle(
-                    color: Color(0xFFFDB515),
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                SizedBox(height: 15.0),
-                Text(
-                  "View and issue rewards to applicants.",
-                  style: TextStyle(
-                    color: Color(0xFFAA820C),
-                    fontSize: 14,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
-          // Search and Filter Section
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 6.0),
+            padding: const EdgeInsets.all(12.0),
             child: Row(
               children: [
-                SizedBox(
-                  width: 160,
-                  height: 40,
-                  child: TextField(
-                    controller: searchController,
-                    onChanged: (value) {
-                      setState(() {
-                        searchQuery = value.toLowerCase();
-                      });
-                    },
-                    decoration: InputDecoration(
-                      prefixIcon: ShaderMask(
-                        shaderCallback: (Rect bounds) {
-                          return LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            stops: [0.16, 0.38, 0.58, 0.88],
-                            colors: [
-                              Color(0xFFF9F295),
-                              Color(0xFFE0AA3E),
-                              Color(0xFFF9F295),
-                              Color(0xFFB88A44),
-                            ],
-                          ).createShader(bounds);
-                        },
-                        child: Icon(
-                          Icons.search_rounded,
-                          size: 25,
-                          color: Colors.white,
+                Expanded(
+                  child: SizedBox(
+                    height: 45,
+                    child: TextField(
+                      controller: _searchController,
+                      decoration: InputDecoration(
+                        hintText: "Search by name or code...",
+                        hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
+                        prefixIcon: Icon(Icons.search, color: Colors.grey[400]),
+                        filled: true,
+                        fillColor: Colors.grey[800],
+                        contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 15),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide.none,
                         ),
                       ),
-                      hintText: "Search Asnaf",
-                      hintStyle: TextStyle(fontSize: 14),
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10)),
-                      contentPadding: EdgeInsets.symmetric(
-                          vertical: 10, horizontal: 12),
+                      style: const TextStyle(color: Colors.white, fontSize: 14),
                     ),
-                    style: TextStyle(fontSize: 14),
                   ),
                 ),
-                SizedBox(width: 6),
+                const SizedBox(width: 10),
                 SizedBox(
-                  width: 105,
-                  height: 40,
+                  width: 120,
+                  height: 45,
                   child: DropdownButtonFormField<String>(
-                    value: selectedFilter,
+                    value: _selectedSort,
                     decoration: InputDecoration(
                       filled: true,
-                      fillColor: Colors.white,
+                      fillColor: Colors.grey[800],
+                      contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
                       border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10)),
-                      contentPadding:
-                      EdgeInsets.symmetric(vertical: 2, horizontal: 10),
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
                     ),
-                    dropdownColor: Colors.white,
-                    icon: Align(
-                      alignment: Alignment.centerRight,
-                      child: Icon(Icons.filter_list, color: Colors.black),
-                    ),
-                    style: TextStyle(color: Colors.black),
-                    onChanged: (String? newValue) {
-                      setState(() {
-                        selectedFilter = newValue!;
-                      });
-                    },
-                    items: ["All", "Pending", "Issued"]
-                        .map<DropdownMenuItem<String>>((String value) {
-                      return DropdownMenuItem<String>(
-                        value: value,
-                        child: Center(
-                          child: Text(value,
-                              style: TextStyle(color: Colors.black)),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-                SizedBox(width: 8),
-                SizedBox(
-                  width: 90,
-                  height: 40,
-                  child: DropdownButtonFormField<String>(
-                    value: selectedSort,
-                    decoration: InputDecoration(
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10)),
-                      contentPadding:
-                      EdgeInsets.symmetric(vertical: 2, horizontal: 12),
-                    ),
-                    dropdownColor: Colors.white,
-                    icon: Align(
-                      alignment: Alignment.centerRight,
-                      child: Icon(Icons.sort, color: Colors.black),
-                    ),
-                    style: TextStyle(color: Colors.black),
-                    onChanged: (String? newValue) {
-                      setState(() {
-                        selectedSort = newValue!;
-                      });
-                    },
+                    dropdownColor: Colors.grey[800],
+                    icon: const Icon(Icons.sort, color: Colors.white70),
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
                     items: ["Date", "Name", "Status"]
-                        .map<DropdownMenuItem<String>>((String value) {
-                      return DropdownMenuItem<String>(
-                        value: value,
-                        child: Center(
-                          child: Text(value,
-                              style: TextStyle(color: Colors.black)),
-                        ),
-                      );
-                    }).toList(),
+                        .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                        .toList(),
+                    onChanged: (v) {
+                      if (v != null && mounted) setState(() => _selectedSort = v);
+                    },
                   ),
                 ),
               ],
             ),
           ),
-          Divider(
-            thickness: 1,
-            color: Colors.white,
-            indent: 10,
-            endIndent: 10,
-          ),
-          // List of Applications Section
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: _applicationsStream,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return Center(child: CircularProgressIndicator());
-                }
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return Center(
-                    child: Text("No applications found",
-                        style: TextStyle(color: Colors.white, fontSize: 16)),
-                  );
-                }
+            child: TabBarView(
+              controller: _tabController,
+              children: List.generate(4, (tabIndex) {
+                return StreamBuilder<QuerySnapshot>(
+                  stream: _getApplicationsStream(tabIndex),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFDB515))));
+                    }
+                    if (snapshot.hasError) {
+                      return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.white)));
+                    }
+                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                      return const Center(child: Text("No applications found", style: TextStyle(color: Colors.white70)));
+                    }
 
-                // Map each document to an application object while including statusReward.
-                var applications = snapshot.data!.docs.map((doc) {
-                  var appData = doc.data() as Map<String, dynamic>;
-                  return {
-                    'fullname': appData['fullname'] ?? 'Unknown',
-                    'date': appData['date'] ?? '',
-                    'submittedBy': appData['submittedBy'] ?? 'Unknown',
-                    // Keep the statusApplication for filtering.
-                    'statusApplication': appData['statusApplication'] ?? 'Pending',
-                    // Use statusReward for display.
-                    'statusReward': appData['statusReward'] ?? 'Pending',
-                    'applicationCode': appData['applicationCode'] ?? '',
-                    'id': doc.id,
-                    'userId': appData['userId'] ?? '',
-                  };
-                }).where((app) => app['statusApplication'] == "Approve")
-                    .toList();
+                    final displayDocs = _filterDocsBySearch(snapshot.data!.docs);
 
-                if (selectedFilter != "All") {
-                  applications = applications.where((app) {
-                    return app['statusReward'].toString().toLowerCase() == selectedFilter.toLowerCase();
-                  }).toList();
-                }
-
-// Apply search query
-                if (searchQuery.isNotEmpty) {
-                  applications = applications.where((app) {
-                    return app['fullname'].toString().toLowerCase().contains(searchQuery);
-                  }).toList();
-                }
-
-// 3. Apply sorting
-                applications.sort((a, b) {
-                  if (selectedSort == "Name") {
-                    return a['fullname'].compareTo(b['fullname']);
-                  } else if (selectedSort == "Status") {
-                    // Sort by reward status, not application status
-                    return a['statusReward'].compareTo(b['statusReward']);
-                  } else { // Default to sorting by Date
-                    DateTime dateA = a['date'] != '' ? DateTime.parse(a['date']) : DateTime(1900);
-                    DateTime dateB = b['date'] != '' ? DateTime.parse(b['date']) : DateTime(1900);
-                    return dateB.compareTo(dateA); // Descending
-                  }
-                });
-
-                return ListView.builder(
-                  itemCount: applications.length,
-                  itemBuilder: (context, index) {
-                    var app = applications[index];
-                    String formattedDate = app['date'] != ''
-                        ? DateFormat("dd MMM yyyy")
-                        .format(DateTime.parse(app['date']))
-                        : 'No date provided';
-                    String userId = app['userId'] ?? '';
-                    String uniqueCode = app['applicationCode'] ?? 'N/A';
-
-                    return FutureBuilder<DocumentSnapshot>(
-                      future: FirebaseFirestore.instance
-                          .collection('users')
-                          .doc(userId)
-                          .get(),
-                      builder: (context, userSnapshot) {
-                        String photoUrl = "";
-                        if (userSnapshot.connectionState == ConnectionState.done &&
-                            userSnapshot.hasData &&
-                            userSnapshot.data!.exists) {
-                          var userData = userSnapshot.data!.data()
-                          as Map<String, dynamic>;
-                          photoUrl = userData['photoUrl'] ?? "";
-                        }
-                        return buildApplicationCard(
-                            app, formattedDate, uniqueCode, photoUrl);
+                    if (displayDocs.isEmpty) {
+                      return Center(
+                        child: Text(
+                          "No rewards in this category" + (_searchQuery.isNotEmpty ? " match your search." : "."),
+                          style: const TextStyle(color: Colors.white70),
+                          textAlign: TextAlign.center,
+                        ),
+                      );
+                    }
+                    return ListView.builder(
+                      padding: const EdgeInsets.all(8.0),
+                      itemCount: displayDocs.length,
+                      itemBuilder: (context, index) {
+                        return buildApplicationCard(displayDocs[index]);
                       },
                     );
                   },
                 );
-              },
+              }),
             ),
           ),
         ],
@@ -302,119 +222,100 @@ class _IssueRewardScreenState extends State<IssueReward> {
     );
   }
 
-  // Build the application card showing the submittedBy and the reward status.
-  Widget buildApplicationCard(Map<String, dynamic> app, String formattedDate,
-      String uniqueCode, String photoUrl) {
-    bool isExpanded = _expandedStates[app['id']] ?? false;
-    // Use statusReward for display instead of statusApplication.
-    String statusReward = app['statusReward'] ?? 'Pending';
-    String submittedBy = app['submittedBy'] ?? 'Unknown';
+  Widget buildApplicationCard(DocumentSnapshot doc) {
+    final appData = doc.data() as Map<String, dynamic>;
+    final String fullname = appData['fullname'] ?? 'Unknown';
+    final String dateStr = appData['date'] ?? '';
+    final String formattedDate = dateStr.isNotEmpty ? DateFormat("dd MMM yy").format(DateTime.parse(dateStr)) : 'No date';
+    final String uniqueCode = appData['applicationCode'] ?? 'N/A';
+    final String statusReward = appData['statusReward'] ?? 'Pending';
+    final String userId = appData['userId'] ?? '';
+    final rewardValue = appData['reward'] as String?;
+
+    Color statusColor;
+    switch (statusReward) {
+      case 'Issued':
+        statusColor = Colors.green;
+        break;
+      case 'Redeemed':
+        statusColor = Colors.blueAccent;
+        break;
+      case 'Pending':
+      default:
+        statusColor = Colors.orangeAccent;
+        break;
+    }
 
     return Card(
       color: Colors.grey[850],
       elevation: 4,
-      shape: RoundedRectangleBorder(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+      child: InkWell(
         borderRadius: BorderRadius.circular(8),
-      ),
-      child: GestureDetector(
         onTap: () {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => VoucherIssuance(
-                documentId: app['id'],
-              ),
+              builder: (context) => VoucherIssuance(documentId: doc.id),
             ),
           );
         },
-        child: Column(
-          children: [
-            ListTile(
-              leading: Row(
-                mainAxisSize: MainAxisSize.min,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        _expandedStates[app['id']] =
-                        !isExpanded;
-                      });
-                    },
-                    child: Icon(
-                      isExpanded
-                          ? Icons.keyboard_arrow_up
-                          : Icons.keyboard_arrow_down,
-                      color: Colors.white,
+                  if (userId.isNotEmpty)
+                    FutureBuilder<DocumentSnapshot>(
+                        future: FirebaseFirestore.instance.collection('users').doc(userId).get(),
+                        builder: (context, userSnapshot) {
+                          String photoUrl = "";
+                          if (userSnapshot.connectionState == ConnectionState.done && userSnapshot.hasData && userSnapshot.data!.exists) {
+                            var userData = userSnapshot.data!.data() as Map<String, dynamic>;
+                            photoUrl = userData['photoUrl'] ?? "";
+                          }
+                          return ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: photoUrl.isNotEmpty
+                                ? Image.network(photoUrl, width: 40, height: 40, fit: BoxFit.cover)
+                                : Container(width: 40, height: 40, color: Colors.grey.shade700, child: const Icon(Icons.person, color: Colors.white70)),
+                          );
+                        }),
+                  if (userId.isEmpty)
+                    Container(width: 40, height: 40, color: Colors.grey.shade700, child: const Icon(Icons.person, color: Colors.white70)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(fullname, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 4),
+                        Text("$formattedDate   $uniqueCode", style: const TextStyle(color: Colors.white70, fontSize: 14)),
+                      ],
                     ),
                   ),
-                  SizedBox(width: 8),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(5),
-                    child: photoUrl.isNotEmpty
-                        ? Image.network(
-                      photoUrl,
-                      width: 30,
-                      height: 30,
-                      fit: BoxFit.cover,
-                    )
-                        : Container(
-                      width: 30,
-                      height: 30,
-                      color: Colors.grey.shade800,
-                    ),
-                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(statusReward, style: TextStyle(color: statusColor, fontWeight: FontWeight.bold)),
+                      if (statusReward == 'Issued' && rewardValue != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4.0),
+                          child: Text(
+                            rewardValue,
+                            style: const TextStyle(color: Color(0xFFFDB515), fontSize: 14, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                    ],
+                  )
                 ],
               ),
-              title: Text(
-                app['fullname'],
-                style: TextStyle(color: Colors.white),
-              ),
-              subtitle: Row(
-                children: [
-                  Text(
-                    formattedDate,
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                  SizedBox(width: 6),
-                  Icon(
-                    Icons.circle,
-                    color: Colors.white,
-                    size: 6,
-                  ),
-                  SizedBox(width: 6),
-                  Text(
-                    uniqueCode,
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                ],
-              ),
-              trailing: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment:
-                CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    submittedBy,
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 12),
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    statusReward,
-                    style: TextStyle(
-                      color: statusReward.toLowerCase() == "pending"
-                          ? Colors.orange
-                          : statusReward.toLowerCase() == "issued"
-                          ? Colors.green
-                          : Colors.red,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

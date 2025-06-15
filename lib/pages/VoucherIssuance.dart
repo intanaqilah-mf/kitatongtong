@@ -1,8 +1,8 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
 import '../pages/reviewIssueReward.dart';
+import 'package:intl/intl.dart';
 
 class VoucherIssuance extends StatefulWidget {
   final String documentId;
@@ -15,16 +15,32 @@ class VoucherIssuance extends StatefulWidget {
 
 class _VoucherIssuanceState extends State<VoucherIssuance> {
   int _selectedIndex = 0;
-
-  // Dropdown selections
-  String selectedRewardType = "Voucher Package Kasih";
-  String selectedEligibility = "Asnaf Application";
-  String selectedRewardAmount = "RM50"; // Default for RM rewards
-  TextEditingController pointsController = TextEditingController(); // For manual points input
-
-  // New state variables for recurring feature
+  String selectedRewardAmount = "RM50";
   bool isRecurring = false;
-  String selectedRecurrence = "2 Weeks"; // Default recurrence period
+  String selectedRecurrence = "2 Weeks";
+
+  @override
+  void initState() {
+    super.initState();
+    _loadInitialData();
+  }
+
+  void _loadInitialData() async {
+    try {
+      DocumentSnapshot appSnapshot = await fetchApplicationData();
+      if (appSnapshot.exists) {
+        var appData = appSnapshot.data() as Map<String, dynamic>;
+        setState(() {
+          selectedRewardAmount = appData['reward'] ?? "RM50";
+          isRecurring = appData['isRecurring'] ?? false;
+          selectedRecurrence = appData['recurrencePeriod'] ?? "2 Weeks";
+        });
+      }
+    } catch (e) {
+      print("Error loading initial data: $e");
+    }
+  }
+
 
   void _onItemTapped(int index) {
     setState(() {
@@ -32,425 +48,317 @@ class _VoucherIssuanceState extends State<VoucherIssuance> {
     });
   }
 
-  Future<DocumentSnapshot> fetchApplicationData(String documentId) async {
-    return await FirebaseFirestore.instance.collection('applications').doc(documentId).get();
+  Future<DocumentSnapshot> fetchApplicationData() {
+    return FirebaseFirestore.instance.collection('applications').doc(widget.documentId).get();
   }
 
-  Future<DocumentSnapshot> fetchUserData(String userId) async {
-    return await FirebaseFirestore.instance.collection('users').doc(userId).get();
+  Future<DocumentSnapshot?> fetchUserData(String? userId) {
+    if (userId == null || userId.isEmpty) {
+      return Future.value(null);
+    }
+    return FirebaseFirestore.instance.collection('users').doc(userId).get();
   }
 
   void submitRewardDetails() async {
     try {
-      // Determine the correct reward value based on reward type.
-      String finalRewardValue = selectedRewardType == "Points"
-          ? pointsController.text
-          : selectedRewardAmount;
-
-      // Calculate next eligible date if recurring
       DateTime? nextEligibleDate;
       if (isRecurring) {
-        if (selectedRecurrence == "2 Weeks") {
-          nextEligibleDate = DateTime.now().add(Duration(days: 14));
-        } else if (selectedRecurrence == "1 Month") {
-          nextEligibleDate = DateTime.now().add(Duration(days: 30));
-        } else if (selectedRecurrence == "3 Month") {
-          nextEligibleDate = DateTime.now().add(Duration(days: 90));
-        } else if (selectedRecurrence == "6 Month") {
-          nextEligibleDate = DateTime.now().add(Duration(days: 180));
-        } else if (selectedRecurrence == "9 Month") {
-          nextEligibleDate = DateTime.now().add(Duration(days: 270));
-        } else if (selectedRecurrence == "1 year") {
-          nextEligibleDate = DateTime.now().add(Duration(days: 365));
+        final now = DateTime.now();
+        switch (selectedRecurrence) {
+          case "2 Weeks": nextEligibleDate = now.add(Duration(days: 14)); break;
+          case "1 Month": nextEligibleDate = now.add(Duration(days: 30)); break;
+          case "3 Months": nextEligibleDate = now.add(Duration(days: 90)); break;
+          case "6 Months": nextEligibleDate = now.add(Duration(days: 180)); break;
+          case "9 Months": nextEligibleDate = now.add(Duration(days: 270)); break;
+          case "1 Year": nextEligibleDate = now.add(Duration(days: 365)); break;
         }
       }
 
-      // Update the application document with reward details.
-      await FirebaseFirestore.instance
-          .collection('applications')
-          .doc(widget.documentId)
-          .update({
-        'rewardType': selectedRewardType,
-        'eligibilityDetails': selectedEligibility,
-        'reward': finalRewardValue,
+      DocumentSnapshot appSnapshot = await fetchApplicationData();
+      if (!appSnapshot.exists) {
+        throw Exception("Application not found");
+      }
+      var appData = appSnapshot.data() as Map<String, dynamic>;
+      String? userId = appData['userId'];
+
+      await FirebaseFirestore.instance.collection('applications').doc(widget.documentId).update({
+        'rewardType': 'Voucher Package Kasih',
+        'eligibilityDetails': 'Asnaf Application',
+        'reward': selectedRewardAmount,
         'statusReward': 'Issued',
         'isRecurring': isRecurring,
         'recurrencePeriod': isRecurring ? selectedRecurrence : null,
         'nextEligibleDate': isRecurring ? Timestamp.fromDate(nextEligibleDate!) : null,
-        'lastRedeemed': null, // Initially not redeemed
+        'lastRedeemed': null,
       });
 
-      print("Application document ${widget.documentId} updated successfully.");
-
-      // Fetch application data to retrieve the user ID.
-      DocumentSnapshot applicationSnapshot =
-      await FirebaseFirestore.instance.collection('applications').doc(widget.documentId).get();
-      if (!applicationSnapshot.exists) {
-        print("Application document not found for ID: ${widget.documentId}");
-        throw Exception("Application document not found.");
+      if (userId != null && userId.isNotEmpty) {
+        final String adminVoucherId = "admin_${DateTime.now().millisecondsSinceEpoch}";
+        await FirebaseFirestore.instance.collection('users').doc(userId).update({
+          'voucherReceived': FieldValue.arrayUnion([{
+            'voucherGranted': selectedRewardAmount,
+            'eligibility': 'Asnaf Application',
+            'rewardType': 'Voucher Package Kasih',
+            'voucherId': adminVoucherId,
+            'redeemedAt': Timestamp.now()
+          }])
+        });
       }
-      var appData = applicationSnapshot.data() as Map<String, dynamic>;
-      String userId = appData['userId'];
 
-      // Generate a unique id for the admin voucher.
-      final String adminVoucherId = "admin_${DateTime.now().millisecondsSinceEpoch}";
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Reward details updated successfully!")));
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => ReviewIssueReward()));
 
-      // Update the user's voucherReceived field with the admin voucher.
-      await FirebaseFirestore.instance.collection('users').doc(userId).update({
-        'voucherReceived': FieldValue.arrayUnion([{
-          'voucherGranted': finalRewardValue,
-          'eligibility': selectedEligibility,
-          'rewardType': selectedRewardType,
-          'voucherId': adminVoucherId,
-          'redeemedAt': Timestamp.now()
-        }])
-      });
-
-      print("User $userId voucherReceived field updated.");
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Reward details updated successfully!")),
-      );
-
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => ReviewIssueReward()),
-      );
     } catch (e) {
-      print("Error updating reward details: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Failed to update reward details.")),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Failed to update reward details: $e")));
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Color(0xFF303030),
       appBar: AppBar(
+        title: Text("Voucher Issuance", style: TextStyle(color: Color(0xFFFDB515), fontWeight: FontWeight.bold)),
         backgroundColor: Color(0xFF303030),
+        centerTitle: true,
         elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: Color(0xFFFDB515)),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            // Header Section
-            Container(
-              width: double.infinity,
-              padding: EdgeInsets.symmetric(vertical: 15, horizontal: 16),
-              child: Column(
-                children: [
-                  Text(
-                    "Voucher Issuance",
-                    style: TextStyle(
-                      color: Color(0xFFFDB515),
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  SizedBox(height: 15.0),
-                  FutureBuilder<DocumentSnapshot>(
-                    future: fetchApplicationData(widget.documentId),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return CircularProgressIndicator();
-                      }
-                      if (snapshot.hasError) {
-                        return Text('Error: ${snapshot.error}');
-                      }
-                      if (!snapshot.hasData || !snapshot.data!.exists) {
-                        return Text('No data found for this applicant.');
-                      }
-                      var applicationData = snapshot.data!;
-                      var fullname = applicationData['fullname'] ?? 'N/A';
+      body: FutureBuilder<DocumentSnapshot>(
+        future: fetchApplicationData(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFDB515))));
+          }
+          if (!snapshot.hasData || !snapshot.data!.exists) {
+            return Center(child: Text('Application not found', style: TextStyle(color: Colors.white)));
+          }
 
-                      return Text(
-                        fullname,
-                        style: TextStyle(
-                          color: Color(0xFFF1D789),
-                          fontSize: 25,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      );
-                    },
-                  ),
+          var appData = snapshot.data!.data() as Map<String, dynamic>;
+          String? userId = appData['userId'];
+
+          return FutureBuilder<DocumentSnapshot?>(
+            future: fetchUserData(userId),
+            builder: (context, userSnapshot) {
+              if (userSnapshot.connectionState == ConnectionState.waiting) {
+                return Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFDB515))));
+              }
+
+              Map<String, dynamic>? userData = userSnapshot.data?.data() as Map<String, dynamic>?;
+
+              return SingleChildScrollView(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildApplicantInfoCard(appData, userData),
+                    SizedBox(height: 24),
+                    _buildRewardSection(),
+                    SizedBox(height: 24),
+                    _buildRecurringSection(),
+                    SizedBox(height: 30),
+                    _buildSubmitButton(),
+                  ],
+                ),
+              );
+            },
+          );
+        },
+      ),
+      bottomNavigationBar: BottomNavBar(
+        selectedIndex: _selectedIndex,
+        onItemTapped: _onItemTapped,
+      ),
+    );
+  }
+
+  Widget _buildApplicantInfoCard(Map<String, dynamic> appData, Map<String, dynamic>? userData) {
+    String address = [
+      appData['addressLine1'],
+      appData['addressLine2'],
+      appData['postcode'],
+      appData['city'],
+      appData['state']
+    ].where((s) => s != null && s.isNotEmpty).join(', ');
+
+    String submittedByText;
+    if (appData['submittedBy'] is Map) {
+      submittedByText = "Submitted by Staff: ${appData['submittedBy']['name'] ?? 'N/A'}";
+    } else {
+      submittedByText = "Submitted by: ${appData['fullname']}";
+    }
+    String? photoUrl = userData?['photoUrl'];
+
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFFF9F295), Color(0xFFB88A44)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.4),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          )
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 30,
+                backgroundColor: Colors.black26,
+                backgroundImage: (photoUrl != null && photoUrl.isNotEmpty) ? NetworkImage(photoUrl) : null,
+                child: (photoUrl == null || photoUrl.isEmpty) ? Icon(Icons.person, size: 30, color: Colors.white70) : null,
+              ),
+              SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(appData['fullname'] ?? 'N/A', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black)),
+                    SizedBox(height: 4),
+                    Text(appData['applicationCode'] ?? 'No Code', style: TextStyle(fontSize: 14, color: Colors.black87)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          Divider(color: Colors.black38, height: 24),
+          _buildInfoRow(Icons.badge_outlined, "NRIC", appData['nric'] ?? 'N/A'),
+          _buildInfoRow(Icons.phone_outlined, "Mobile", "60${appData['mobileNumber'] ?? 'N/A'}"),
+          _buildInfoRow(Icons.work_outline, "Employment", appData['employmentStatus'] ?? 'N/A'),
+          if (appData['employmentStatus'] == 'Employed')
+            _buildInfoRow(Icons.attach_money_outlined, "Income", "RM ${appData['monthlyIncome'] ?? 'N/A'}"),
+          _buildInfoRow(Icons.home_outlined, "Address", address),
+          _buildInfoRow(Icons.lightbulb_outline, "Justification", appData['justificationApplication'] ?? 'N/A'),
+          SizedBox(height: 8),
+          Text(submittedByText, style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.black54)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: Colors.black87, size: 20),
+          SizedBox(width: 12),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(text: '$label: ', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
+                  TextSpan(text: value, style: TextStyle(color: Colors.black87)),
                 ],
+                style: TextStyle(fontSize: 14),
               ),
             ),
-            // Main Data Section
-            FutureBuilder<DocumentSnapshot>(
-              future: fetchApplicationData(widget.documentId),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                }
-                if (!snapshot.hasData || !snapshot.data!.exists) {
-                  return Center(child: Text('No data found for this applicant.'));
-                }
+          ),
+        ],
+      ),
+    );
+  }
 
-                var applicationData = snapshot.data!;
-                var fullname = applicationData['fullname'] ?? 'N/A';
-                var userId = applicationData['userId'];
-                var applicationCode = applicationData['applicationCode'] ?? 'No Code';
-
-                return Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Application info container
-                      Container(
-                        width: double.infinity,
-                        padding: EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            stops: [0.16, 0.38, 0.58, 0.88],
-                            colors: [
-                              Color(0xFFF9F295),
-                              Color(0xFFE0AA3E),
-                              Color(0xFFF9F295),
-                              Color(0xFFB88A44),
-                            ],
-                          ),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            FutureBuilder<DocumentSnapshot>(
-                              future: fetchUserData(userId),
-                              builder: (context, userSnapshot) {
-                                if (userSnapshot.connectionState == ConnectionState.waiting) {
-                                  return CircularProgressIndicator();
-                                }
-                                if (userSnapshot.hasError) {
-                                  return Text('Error: ${userSnapshot.error}');
-                                }
-                                if (!userSnapshot.hasData || !userSnapshot.data!.exists) {
-                                  return CircleAvatar(
-                                    radius: 50,
-                                    backgroundColor: Colors.grey,
-                                    child: Icon(Icons.person, color: Colors.white),
-                                  );
-                                }
-
-                                var userData = userSnapshot.data!;
-                                var photoUrl = userData['photoUrl'];
-
-                                return CircleAvatar(
-                                  radius: 50,
-                                  backgroundImage: NetworkImage(photoUrl ?? ''),
-                                  child: photoUrl == null
-                                      ? Icon(Icons.person, size: 50, color: Colors.white)
-                                      : null,
-                                );
-                              },
-                            ),
-                            SizedBox(height: 10),
-                            Text(
-                              applicationCode,
-                              style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w400,
-                                  color: Colors.black
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                            Text.rich(TextSpan(
-                              children: [
-                                TextSpan(text: "Full Name: ", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                                TextSpan(text: fullname, style: TextStyle(fontSize: 16)),
-                              ],
-                            )),
-                          ],
-                        ),
-                      ),
-
-                      SizedBox(height: 20),
-
-                      // Reward Type Dropdown
-                      Text("Reward Type", style: TextStyle(color: Colors.white, fontSize: 16)),
-                      SizedBox(height: 5),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: DropdownButtonFormField<String>(
-                          value: selectedRewardType,
-                          decoration: InputDecoration(border: InputBorder.none, contentPadding: EdgeInsets.all(10)),
-                          items: ["Voucher Package Kasih", "Points"].map((String value) {
-                            return DropdownMenuItem<String>(
-                              value: value,
-                              child: Text(value),
-                            );
-                          }).toList(),
-                          onChanged: (newValue) {
-                            setState(() {
-                              selectedRewardType = newValue!;
-                            });
-                          },
-                        ),
-                      ),
-
-                      SizedBox(height: 15),
-                      // Eligibility Dropdown
-                      Text("Eligibility Details", style: TextStyle(color: Colors.white, fontSize: 16)),
-                      SizedBox(height: 5),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: DropdownButtonFormField<String>(
-                          value: selectedEligibility,
-                          decoration: InputDecoration(border: InputBorder.none, contentPadding: EdgeInsets.all(10)),
-                          items: ["Asnaf Application", "Participation in event"].map((String value) {
-                            return DropdownMenuItem<String>(
-                              value: value,
-                              child: Text(value),
-                            );
-                          }).toList(),
-                          onChanged: (newValue) {
-                            setState(() {
-                              selectedEligibility = newValue!;
-                            });
-                          },
-                        ),
-                      ),
-
-                      SizedBox(height: 15),
-                      // Recurring Asnaf Radio Buttons
-                      Text("Recurring Asnaf", style: TextStyle(color: Colors.white, fontSize: 16)),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: RadioListTile<bool>(
-                              title: Text("Yes", style: TextStyle(color: Colors.white)),
-                              value: true,
-                              groupValue: isRecurring,
-                              onChanged: (bool? value) {
-                                setState(() {
-                                  isRecurring = value!;
-                                });
-                              },
-                            ),
-                          ),
-                          Expanded(
-                            child: RadioListTile<bool>(
-                              title: Text("No", style: TextStyle(color: Colors.white)),
-                              value: false,
-                              groupValue: isRecurring,
-                              onChanged: (bool? value) {
-                                setState(() {
-                                  isRecurring = value!;
-                                });
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      // Recurrence Period Dropdown (Conditional)
-                      if (isRecurring) ...[
-                        SizedBox(height: 15),
-                        Text("Recurring every", style: TextStyle(color: Colors.white, fontSize: 16)),
-                        SizedBox(height: 5),
-                        Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: DropdownButtonFormField<String>(
-                            value: selectedRecurrence,
-                            decoration: InputDecoration(border: InputBorder.none, contentPadding: EdgeInsets.all(10)),
-                            items: ["2 Weeks", "1 Month", "3 Month","6 Month","9 Month","1 year",].map((String value) {
-                              return DropdownMenuItem<String>(
-                                value: value,
-                                child: Text(value),
-                              );
-                            }).toList(),
-                            onChanged: (newValue) {
-                              setState(() {
-                                selectedRecurrence = newValue!;
-                              });
-                            },
-                          ),
-                        ),
-                      ],
-
-
-                      SizedBox(height: 15),
-                      // Reward Amount (or Points) Input
-                      Text(
-                        selectedRewardType == "Points" ? "Reward (Points)" : "Reward Amount (RM)",
-                        style: TextStyle(color: Colors.white, fontSize: 16),
-                      ),
-                      SizedBox(height: 5),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: selectedRewardType == "Points"
-                            ? TextField(
-                          controller: pointsController,
-                          keyboardType: TextInputType.number,
-                          decoration: InputDecoration(
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.all(10),
-                            hintText: "Enter points",
-                          ),
-                        )
-                            : DropdownButtonFormField<String>(
-                          value: selectedRewardAmount,
-                          decoration: InputDecoration(
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.all(10),
-                          ),
-                          items: ["RM50", "RM100", "RM150", "RM200", "RM250"].map((String value) {
-                            return DropdownMenuItem<String>(
-                              value: value,
-                              child: Text(value),
-                            );
-                          }).toList(),
-                          onChanged: (newValue) {
-                            setState(() {
-                              selectedRewardAmount = newValue!;
-                            });
-                          },
-                        ),
-                      ),
-                      SizedBox(height: 20),
-                      // Submit Button
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Color(0xFFFDB515),
-                            padding: EdgeInsets.symmetric(vertical: 12),
-                          ),
-                          onPressed: submitRewardDetails,
-                          child: Text(
-                            "Submit",
-                            style: TextStyle(color: Colors.black, fontSize: 16),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
+  Widget _buildRewardSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text("Reward Amount", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+        SizedBox(height: 8),
+        Container(
+          padding: EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: Colors.grey[800],
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: selectedRewardAmount,
+              isExpanded: true,
+              dropdownColor: Colors.grey[800],
+              icon: Icon(Icons.arrow_drop_down, color: Color(0xFFFDB515)),
+              style: TextStyle(color: Colors.white, fontSize: 16),
+              items: ["RM50", "RM100", "RM150", "RM200", "RM250"].map((String value) {
+                return DropdownMenuItem<String>(value: value, child: Text(value));
+              }).toList(),
+              onChanged: (newValue) => setState(() => selectedRewardAmount = newValue!),
             ),
-          ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRecurringSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text("Aid Recurrence", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+        SizedBox(height: 8),
+        SwitchListTile(
+          title: Text("Issue Recurring Aid", style: TextStyle(color: Colors.white)),
+          value: isRecurring,
+          onChanged: (bool value) => setState(() => isRecurring = value),
+          activeColor: Color(0xFFFDB515),
+          inactiveTrackColor: Colors.grey[600],
+          tileColor: Colors.grey[800],
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+        if (isRecurring) ...[
+          SizedBox(height: 16),
+          Text("Recurrence Period", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          SizedBox(height: 8),
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: Colors.grey[800],
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: selectedRecurrence,
+                isExpanded: true,
+                dropdownColor: Colors.grey[800],
+                icon: Icon(Icons.arrow_drop_down, color: Color(0xFFFDB515)),
+                style: TextStyle(color: Colors.white, fontSize: 16),
+                items: ["2 Weeks", "1 Month", "3 Months", "6 Months", "9 Months", "1 Year"].map((String value) {
+                  return DropdownMenuItem<String>(value: value, child: Text(value));
+                }).toList(),
+                onChanged: (newValue) => setState(() => selectedRecurrence = newValue!),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildSubmitButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: submitRewardDetails,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Color(0xFFFDB515),
+          padding: EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+        child: Text(
+          "Issue Reward",
+          style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold),
         ),
       ),
     );

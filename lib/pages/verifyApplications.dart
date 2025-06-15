@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'dart:math';
 import 'package:intl/intl.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
 import '../pages/screeningApplicants.dart';
@@ -11,279 +10,249 @@ class VerifyApplicationsScreen extends StatefulWidget {
       _VerifyApplicationsScreenState();
 }
 
-class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
+class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen>
+    with SingleTickerProviderStateMixin {
   int _selectedIndex = 0;
-  String selectedFilter = "All";
-  String selectedSort = "Date";
-  TextEditingController searchController = TextEditingController();
-  String searchQuery = "";
+  late TabController _tabController;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = "";
+  String _selectedSort = "Date";
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 4, vsync: this);
+    _searchController.addListener(() {
+      if (mounted) {
+        setState(() {
+          _searchQuery = _searchController.text.toLowerCase();
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    _searchController.dispose();
+    super.dispose();
   }
 
   void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+    if (mounted) {
+      setState(() {
+        _selectedIndex = index;
+      });
+    }
+  }
+
+  Stream<QuerySnapshot> _getApplicationsStream(int tabIndex) {
+    Query query = FirebaseFirestore.instance.collection('applications');
+
+    // Filter based on the selected tab
+    switch (tabIndex) {
+      case 1: // Pending
+        query = query.where('statusApplication', isEqualTo: 'Pending');
+        break;
+      case 2: // Verified
+        query = query.where('statusApplication', isEqualTo: 'Approve');
+        break;
+      case 3: // Rejected
+        query = query.where('statusApplication', isEqualTo: 'Reject');
+        break;
+    // Case 0 (All) does not need a filter
+    }
+
+    // Sort based on the selected sort option
+    switch (_selectedSort) {
+      case "Name":
+        query = query.orderBy('fullname');
+        break;
+      case "Status":
+        query = query.orderBy('statusApplication');
+        break;
+      default: // "Date"
+        query = query.orderBy('date', descending: true);
+        break;
+    }
+
+    return query.snapshots();
+  }
+
+  List<DocumentSnapshot> _filterDocsBySearch(List<DocumentSnapshot> docs) {
+    if (_searchQuery.isEmpty) {
+      return docs;
+    }
+    return docs.where((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      final fullname = (data['fullname'] as String? ?? '').toLowerCase();
+      return fullname.contains(_searchQuery);
+    }).toList();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(0xFF303030),
+      backgroundColor: const Color(0xFF303030),
       appBar: AppBar(
-        backgroundColor: Color(0xFF303030),
+        backgroundColor: const Color(0xFF303030),
         elevation: 0,
+        title: const Text(
+          "Verify Application",
+          style: TextStyle(
+            color: Color(0xFFFDB515),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        centerTitle: true,
+        automaticallyImplyLeading: false,
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: const Color(0xFFFDB515),
+          labelColor: const Color(0xFFFDB515),
+          unselectedLabelColor: Colors.white70,
+          tabs: const [
+            Tab(text: "All"),
+            Tab(text: "Pending"),
+            Tab(text: "Verified"),
+            Tab(text: "Rejected"),
+          ],
+          onTap: (index) {
+            if (mounted) setState(() {});
+          },
+        ),
       ),
       body: Column(
         children: [
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.symmetric(vertical: 15, horizontal: 16),
-            child: Column(
-              children: [
-                Text(
-                  "Verify Application",
-                  style: TextStyle(
-                    color: Color(0xFFFDB515),
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                SizedBox(height: 15.0),
-                Text(
-                  "Track applications you’ve submitted or managed.",
-                  style: TextStyle(
-                    color: Color(0xFFAA820C),
-                    fontSize: 14,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 6.0),
+            padding: const EdgeInsets.all(12.0),
             child: Row(
               children: [
-                SizedBox(
-                  width: 160,
-                  height: 40,
-                  child: TextField(
-                    controller: searchController,
-                    onChanged: (value) {
-                      setState(() {
-                        searchQuery = value.toLowerCase();
-                      });
-                    },
-                    decoration: InputDecoration(
-                      prefixIcon: ShaderMask(
-                        shaderCallback: (Rect bounds) {
-                          return LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            stops: [0.16, 0.38, 0.58, 0.88],
-                            colors: [
-                              Color(0xFFF9F295),
-                              Color(0xFFE0AA3E),
-                              Color(0xFFF9F295),
-                              Color(0xFFB88A44),
-                            ],
-                          ).createShader(bounds);
-                        },
-                        child: Icon(
-                          Icons.search_rounded,
-                          size: 25,
-                          color: Colors.white,
+                Expanded(
+                  child: SizedBox(
+                    height: 45,
+                    child: TextField(
+                      controller: _searchController,
+                      decoration: InputDecoration(
+                        hintText: "Search Asnaf...",
+                        hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
+                        prefixIcon: Icon(Icons.search, color: Colors.grey[400]),
+                        filled: true,
+                        fillColor: Colors.grey[800],
+                        contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 15),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide.none,
                         ),
                       ),
-                      hintText: "Search Asnaf",
-                      hintStyle: TextStyle(fontSize: 14),
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10)),
-                      contentPadding: EdgeInsets.symmetric(
-                          vertical: 10, horizontal: 12),
+                      style: const TextStyle(color: Colors.white, fontSize: 14),
                     ),
-                    style: TextStyle(fontSize: 14),
                   ),
                 ),
-                SizedBox(width: 6),
+                const SizedBox(width: 10),
                 SizedBox(
-                  width: 105,
-                  height: 40,
+                  width: 120,
+                  height: 45,
                   child: DropdownButtonFormField<String>(
-                    value: selectedFilter,
+                    value: _selectedSort,
                     decoration: InputDecoration(
                       filled: true,
-                      fillColor: Colors.white,
+                      fillColor: Colors.grey[800],
+                      contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
                       border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10)),
-                      contentPadding:
-                      EdgeInsets.symmetric(vertical: 2, horizontal: 10),
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
                     ),
-                    dropdownColor: Colors.white,
-                    icon: Align(
-                      alignment: Alignment.centerRight,
-                      child: Icon(Icons.filter_list, color: Colors.black),
-                    ),
-                    style: TextStyle(color: Colors.black),
-                    onChanged: (String? newValue) {
-                      setState(() {
-                        selectedFilter = newValue!;
-                      });
-                    },
-                    items: ["All", "Pending", "Approve", "Reject"]
-                        .map<DropdownMenuItem<String>>((String value) {
-                      return DropdownMenuItem<String>(
-                        value: value,
-                        child: Center(
-                          child:
-                          Text(value, style: TextStyle(color: Colors.black)),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-                SizedBox(width: 8),
-                SizedBox(
-                  width: 90,
-                  height: 40,
-                  child: DropdownButtonFormField<String>(
-                    value: selectedSort,
-                    decoration: InputDecoration(
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10)),
-                      contentPadding:
-                      EdgeInsets.symmetric(vertical: 2, horizontal: 12),
-                    ),
-                    dropdownColor: Colors.white,
-                    icon: Align(
-                      alignment: Alignment.centerRight,
-                      child: Icon(Icons.sort, color: Colors.black),
-                    ),
-                    style: TextStyle(color: Colors.black),
-                    onChanged: (String? newValue) {
-                      setState(() {
-                        selectedSort = newValue!;
-                      });
-                    },
+                    dropdownColor: Colors.grey[800],
+                    icon: const Icon(Icons.sort, color: Colors.white70),
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
                     items: ["Date", "Name", "Status"]
-                        .map<DropdownMenuItem<String>>((String value) {
-                      return DropdownMenuItem<String>(
-                        value: value,
-                        child: Center(
-                          child:
-                          Text(value, style: TextStyle(color: Colors.black)),
-                        ),
-                      );
-                    }).toList(),
+                        .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                        .toList(),
+                    onChanged: (v) {
+                      if (v != null && mounted) setState(() => _selectedSort = v);
+                    },
                   ),
                 ),
               ],
             ),
           ),
-          Divider(
-            thickness: 1,
-            color: Colors.white,
-            indent: 10,
-            endIndent: 10,
-          ),
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance.collection('applications').snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return Center(child: CircularProgressIndicator());
-                }
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return Center(
-                    child: Text("No applications found",
-                        style: TextStyle(color: Colors.white, fontSize: 16)),
-                  );
-                }
-
-                var applications = snapshot.data!.docs.map((doc) {
-                  var appData = doc.data() as Map<String, dynamic>;
-                  return {
-                    'fullname': appData['fullname'] ?? 'Unknown',
-                    'date': appData['date'] ?? '',
-                    'submittedBy': appData['submittedBy'], // Keep as dynamic type
-                    'statusApplication': appData['statusApplication'] ?? 'Pending',
-                    'applicationCode': appData.containsKey('applicationCode')
-                        ? appData['applicationCode']
-                        : "No Code",
-                    'id': doc.id,
-                    'userId': appData['userId'], // Keep as dynamic type
-                  };
-                }).toList();
-
-                if (selectedFilter != "All") {
-                  applications = applications.where((app) {
-                    return app['statusApplication'].toString().toLowerCase() == selectedFilter.toLowerCase();
-                  }).toList();
-                }
-
-                if (searchQuery.isNotEmpty) {
-                  applications = applications.where((app) {
-                    return app['fullname'].toString().toLowerCase().contains(searchQuery);
-                  }).toList();
-                }
-
-                applications.sort((a, b) {
-                  if (selectedSort == "Name") {
-                    return a['fullname'].compareTo(b['fullname']);
-                  } else if (selectedSort == "Status") {
-                    return a['statusApplication'].compareTo(b['statusApplication']);
-                  } else {
-                    DateTime dateA = a['date'] != '' ? DateTime.parse(a['date']) : DateTime(1900);
-                    DateTime dateB = b['date'] != '' ? DateTime.parse(b['date']) : DateTime(1900);
-                    return dateB.compareTo(dateA);
-                  }
-                });
-
-                return ListView.builder(
-                  itemCount: applications.length,
-                  itemBuilder: (context, index) {
-                    var app = applications[index];
-                    String formattedDate = app['date'] != ''
-                        ? DateFormat("dd MMM yyyy")
-                        .format(DateTime.parse(app['date']))
-                        : 'No date provided';
-
-                    String uniqueCode = app['applicationCode'] ?? 'No Code';
-                    String userId = app['userId'] ?? '';
-
-                    // **FIX:** Check if userId is valid before trying to fetch from Firestore.
-                    if (userId.isNotEmpty) {
-                      // This is an Asnaf submission, fetch the user's photo.
-                      return FutureBuilder<DocumentSnapshot>(
-                        future: FirebaseFirestore.instance.collection('users').doc(userId).get(),
-                        builder: (context, userSnapshot) {
-                          String photoUrl = "";
-                          if (userSnapshot.connectionState == ConnectionState.done &&
-                              userSnapshot.hasData &&
-                              userSnapshot.data!.exists) {
-                            var userData = userSnapshot.data!.data() as Map<String, dynamic>;
-                            photoUrl = userData['photoUrl'] ?? "";
-                          }
-                          return buildApplicationCard(app, formattedDate, uniqueCode, photoUrl);
-                        },
-                      );
-                    } else {
-                      // **FIX:** This is a Staff submission, so there's no user photo to fetch.
-                      // Build the card directly with an empty photo URL.
-                      return buildApplicationCard(app, formattedDate, uniqueCode, "");
+            child: TabBarView(
+              controller: _tabController,
+              children: List.generate(4, (tabIndex) {
+                return StreamBuilder<QuerySnapshot>(
+                  stream: _getApplicationsStream(tabIndex),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFDB515))));
                     }
+                    if (snapshot.hasError) {
+                      return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.white)));
+                    }
+                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                      return const Center(child: Text("No applications found", style: TextStyle(color: Colors.white70)));
+                    }
+
+                    final displayDocs = _filterDocsBySearch(snapshot.data!.docs);
+
+                    if (displayDocs.isEmpty) {
+                      return Center(
+                          child: Text(
+                            "No applications in this category" + (_searchQuery.isNotEmpty ? " match your search." : "."),
+                            style: const TextStyle(color: Colors.white70),
+                            textAlign: TextAlign.center,
+                          ));
+                    }
+                    return ListView.builder(
+                      padding: const EdgeInsets.all(8.0),
+                      itemCount: displayDocs.length,
+                      itemBuilder: (context, index) {
+                        final doc = displayDocs[index];
+                        final appData = doc.data() as Map<String, dynamic>;
+
+                        final app = {
+                          'fullname': appData['fullname'] ?? 'Unknown',
+                          'date': appData['date'] ?? '',
+                          'submittedBy': appData['submittedBy'],
+                          'statusApplication': appData['statusApplication'] ?? 'Pending',
+                          'applicationCode': appData.containsKey('applicationCode')
+                              ? appData['applicationCode']
+                              : "No Code",
+                          'id': doc.id,
+                          'userId': appData['userId'],
+                        };
+
+                        final formattedDate = app['date'] != ''
+                            ? DateFormat("dd MMM yyyy").format(DateTime.parse(app['date'].toString()))
+                            : 'No date provided';
+
+                        final uniqueCode = app['applicationCode']?.toString() ?? 'No Code';
+                        final userId = app['userId']?.toString() ?? '';
+
+                        if (userId.isNotEmpty) {
+                          return FutureBuilder<DocumentSnapshot>(
+                            future: FirebaseFirestore.instance.collection('users').doc(userId).get(),
+                            builder: (context, userSnapshot) {
+                              String photoUrl = "";
+                              if (userSnapshot.connectionState == ConnectionState.done &&
+                                  userSnapshot.hasData &&
+                                  userSnapshot.data!.exists) {
+                                var userData = userSnapshot.data!.data() as Map<String, dynamic>;
+                                photoUrl = userData['photoUrl'] ?? "";
+                              }
+                              return buildApplicationCard(app, formattedDate, uniqueCode, photoUrl);
+                            },
+                          );
+                        } else {
+                          return buildApplicationCard(app, formattedDate, uniqueCode, "");
+                        }
+                      },
+                    );
                   },
                 );
-              },
+              }),
             ),
           ),
         ],
@@ -300,12 +269,9 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
     var submittedByData = app['submittedBy'];
     String submittedByText;
 
-    // **FIX:** Check the type of 'submittedBy' to display the correct name.
     if (submittedByData is Map) {
-      // If it's a map (staff submission), get the name from it.
       submittedByText = submittedByData['name'] ?? 'Unknown Staff';
     } else if (submittedByData is String) {
-      // If it's a string (asnaf submission), use it directly.
       submittedByText = submittedByData;
     } else {
       submittedByText = 'Unknown';
@@ -313,12 +279,13 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
 
     return Card(
       color: Colors.grey[850],
-      margin: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 5),
       elevation: 4,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
       ),
-      child: InkWell( // Use InkWell for splash effect on tap
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
         onTap: () {
           Navigator.push(
             context,
@@ -342,40 +309,40 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
                   height: 40,
                   fit: BoxFit.cover,
                   errorBuilder: (context, error, stackTrace) =>
-                      Container(width: 40, height: 40, color: Colors.grey.shade700, child: Icon(Icons.person)),
+                      Container(width: 40, height: 40, color: Colors.grey.shade700, child: const Icon(Icons.person)),
                 )
                     : Container(
                   width: 40,
                   height: 40,
                   color: Colors.grey.shade700,
-                  child: Icon(Icons.person, color: Colors.white70),
+                  child: const Icon(Icons.person, color: Colors.white70),
                 ),
               ),
-              SizedBox(width: 12),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       app['fullname'],
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                       overflow: TextOverflow.ellipsis,
                     ),
-                    SizedBox(height: 4),
+                    const SizedBox(height: 4),
                     Row(
                       children: [
                         Text(
                           formattedDate,
-                          style: TextStyle(color: Colors.grey, fontSize: 12),
+                          style: const TextStyle(color: Colors.grey, fontSize: 12),
                         ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                        const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 4.0),
                           child: Icon(Icons.circle, color: Colors.grey, size: 5),
                         ),
                         Flexible(
                           child: Text(
                             uniqueCode,
-                            style: TextStyle(color: Colors.grey, fontSize: 12),
+                            style: const TextStyle(color: Colors.grey, fontSize: 12),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
@@ -384,18 +351,18 @@ class _VerifyApplicationsScreenState extends State<VerifyApplicationsScreen> {
                   ],
                 ),
               ),
-              SizedBox(width: 8),
+              const SizedBox(width: 8),
               Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
                     submittedByText,
-                    style: TextStyle(color: Colors.white, fontSize: 12, fontStyle: FontStyle.italic),
+                    style: const TextStyle(color: Colors.white, fontSize: 12, fontStyle: FontStyle.italic),
                   ),
-                  SizedBox(height: 4),
+                  const SizedBox(height: 4),
                   Container(
-                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       color: statusApplication == "Pending"
                           ? Colors.orange.withOpacity(0.2)

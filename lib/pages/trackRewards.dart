@@ -5,7 +5,7 @@ import 'package:projects/widgets/bottomNavBar.dart';
 import 'package:projects/pages/applicationStatus.dart';
 import 'package:projects/pages/redemptionStatus.dart';
 import 'package:projects/localization/app_localizations.dart';
-import 'package:qr_flutter/qr_flutter.dart'; // <-- ADDED: For QR Code generation
+import 'package:qr_flutter/qr_flutter.dart';
 
 class TrackRewardsScreen extends StatefulWidget {
   const TrackRewardsScreen({Key? key}) : super(key: key);
@@ -198,7 +198,6 @@ class _TrackRewardsScreenState extends State<TrackRewardsScreen>
                       itemBuilder: (context, index) {
                         final doc = displayDocs[index];
                         if (tabIndex == 3) {
-                          // USE THE NEW DETAILED CARD FOR REDEEMED TAB
                           return _buildRedeemedOrderCard(context, doc);
                         } else {
                           return _buildApplicationCard(context, doc);
@@ -224,6 +223,7 @@ class _TrackRewardsScreenState extends State<TrackRewardsScreen>
     final date = dateStr.isNotEmpty ? DateFormat("dd MMM yy").format(DateTime.parse(dateStr)) : localizations.translate('applications_no_date');
     final code = data['applicationCode'] ?? localizations.translate('applications_no_code');
     final statusReward = data['statusReward'] ?? 'N/A';
+    final rewardValue = data['reward'] as String?;
 
     Color statusColor;
     switch(statusReward) {
@@ -246,7 +246,23 @@ class _TrackRewardsScreenState extends State<TrackRewardsScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(fullname, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(fullname, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                  ),
+                  if (statusReward == 'Issued' && rewardValue != null)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8.0),
+                      child: Text(
+                        rewardValue,
+                        style: const TextStyle(color: Color(0xFFFDB515), fontSize: 14, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                ],
+              ),
               const SizedBox(height: 8),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -262,8 +278,6 @@ class _TrackRewardsScreenState extends State<TrackRewardsScreen>
     );
   }
 
-  // --- NEW WIDGETS AND LOGIC FROM trackOrder.dart ---
-
   Widget _buildRedeemedOrderCard(BuildContext context, DocumentSnapshot orderDoc) {
     final localizations = AppLocalizations.of(context);
     final data = orderDoc.data()! as Map<String, dynamic>;
@@ -272,7 +286,8 @@ class _TrackRewardsScreenState extends State<TrackRewardsScreen>
     final code = data['pickupCode'] ?? localizations.translate('track_order_not_applicable');
     final processedOrder = data['processedOrder'] ?? 'no';
     final pickedUp = data['pickedUp'] ?? 'no';
-    final userName = data['userName'] ?? 'N/A'; // Get userName for redeemed card
+    final userName = data['userName'] ?? 'N/A';
+    final orderedBy = data['orderedBy'] as String?;
 
     String statusText;
     Color statusColor;
@@ -321,6 +336,11 @@ class _TrackRewardsScreenState extends State<TrackRewardsScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(userName, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                    if (orderedBy != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2.0),
+                        child: Text("by: $orderedBy", style: TextStyle(color: Colors.grey[400], fontSize: 12, fontStyle: FontStyle.italic)),
+                      ),
                     const SizedBox(height: 4),
                     Text(localizations.translateWithArgs('track_order_pickup_code_label', {'code': code}), style: TextStyle(color: Colors.grey[400], fontSize: 13, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 4),

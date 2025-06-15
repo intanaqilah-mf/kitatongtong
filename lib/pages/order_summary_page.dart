@@ -95,15 +95,11 @@ class _OrderSummaryPageState extends State<OrderSummaryPage> {
     final localizations = AppLocalizations.of(context);
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(localizations.translate('order_summary_not_logged_in_error'))),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(localizations.translate('order_summary_not_logged_in_error'))));
       return;
     }
     if (_cart.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(localizations.translate('order_summary_cart_empty_error'))),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(localizations.translate('order_summary_cart_empty_error'))));
       return;
     }
 
@@ -112,52 +108,68 @@ class _OrderSummaryPageState extends State<OrderSummaryPage> {
     try {
       final now = Timestamp.now();
       final pickupCode = generatePickupCode(8);
-      final userDocRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
-      final userDocSnap = await userDocRef.get();
-      final userData = userDocSnap.data();
-      final userName = userData?['name'] ?? 'Unknown User';
 
       final List<Map<String, dynamic>> itemsForFirebase = [];
       _cart.forEach((key, value) {
         final item = value['data'] as Map<String, dynamic>;
         final quantity = value['quantity'] as int;
-
-        String imageUrlToSave = item['itemImageUrl']?.isNotEmpty == true
-            ? item['itemImageUrl']
-            : item['packageBannerUrl'] ?? '';
-
+        String imageUrlToSave = item['itemImageUrl']?.isNotEmpty == true ? item['itemImageUrl'] : item['packageBannerUrl'] ?? '';
         for (int i = 0; i < quantity; i++) {
           itemsForFirebase.add({
-            'name': item['name'],
-            'price': item['price'],
-            'category': item['category'],
-            'imageUrl': imageUrlToSave,
+            'name': item['name'], 'price': item['price'], 'category': item['category'], 'imageUrl': imageUrlToSave,
           });
         }
       });
 
-      // --- MODIFICATION START ---
       String? applicationId;
       String? applicationCode;
+      String finalUserName;
+      String finalUserId;
+      String? orderedBy;
+      String? orderedById;
 
-      if (widget.voucherReceived.containsKey('docId')) {
+      final currentUserDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      // Safely cast the data to a Map
+      final currentUserData = currentUserDoc.data() as Map<String, dynamic>?;
+      final currentUserRole = currentUserData?['role'] as String?;
+      final currentUserName = currentUserData?['name'] as String?;
+
+      bool isShoppingForAsnaf = widget.voucherReceived.containsKey('docId');
+
+      if (isShoppingForAsnaf) {
         applicationId = widget.voucherReceived['docId'] as String?;
+        Map<String, dynamic>? appDocData;
         if (applicationId != null) {
           final appDocRef = FirebaseFirestore.instance.collection('applications').doc(applicationId);
           final appDoc = await appDocRef.get();
           if (appDoc.exists) {
-            applicationCode = appDoc.data()?['applicationCode'] as String?;
-            // IMPORTANT: Update the application status to 'Redeemed'
+            // Safely cast the application data to a Map
+            appDocData = appDoc.data() as Map<String, dynamic>?;
+            applicationCode = appDocData?['applicationCode'] as String?;
             await appDocRef.update({'statusReward': 'Redeemed'});
           }
         }
-      }
-      // --- MODIFICATION END ---
 
+        final asnafUserId = appDocData?['userId'];
+        final asnafFullName = appDocData?['fullname'] ?? 'Unknown Asnaf';
+
+        finalUserName = asnafFullName;
+        finalUserId = asnafUserId ?? 'unknown';
+
+        if (currentUserRole != 'asnaf') {
+          orderedBy = currentUserName;
+          orderedById = user.uid;
+        }
+      } else {
+        finalUserName = currentUserName ?? 'Unknown User';
+        finalUserId = user.uid;
+      }
 
       await FirebaseFirestore.instance.collection('redeemedKasih').add({
-        'userId': user.uid,
-        'userName': userName,
+        'userId': finalUserId,
+        'userName': finalUserName,
+        'orderedBy': orderedBy,
+        'orderedById': orderedById,
         'voucherValue': widget.voucherValue,
         'valueRedeemed': _totalCartValue,
         'pickupCode': pickupCode,
@@ -166,36 +178,24 @@ class _OrderSummaryPageState extends State<OrderSummaryPage> {
         'processedOrder': 'no',
         'redeemedAt': now,
         'redeemType': 'itemSelection',
-        // These fields will now be populated correctly IF docId is passed in.
         'applicationId': applicationId,
         'applicationCode': applicationCode,
       });
 
-
-      if (widget.voucherReceived.containsKey('voucherId')) {
+      if (!isShoppingForAsnaf && widget.voucherReceived.containsKey('voucherId')) {
         final targetVoucherId = widget.voucherReceived['voucherId'];
-        List<dynamic> vouchers = List<dynamic>.from(userData?['voucherReceived'] ?? []);
+        // Use the already fetched currentUserData map
+        List<dynamic> vouchers = List<dynamic>.from(currentUserData?['voucherReceived'] ?? []);
         vouchers.removeWhere((v) => v is Map && v['voucherId'] == targetVoucherId);
-        await userDocRef.update({'voucherReceived': vouchers});
+        await currentUserDoc.reference.update({'voucherReceived': vouchers});
       }
-      // The logic to update the application is now handled above, so we don't need to delete it here.
 
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => SuccessRedeem()),
-            (Route<dynamic> route) => false,
-      );
+      Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => SuccessRedeem()), (Route<dynamic> route) => false);
 
     } catch (e) {
-      if(mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(localizations.translateWithArgs('order_summary_checkout_failed_error', {'error': e.toString()}))),
-        );
-      }
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(localizations.translateWithArgs('order_summary_checkout_failed_error', {'error': e.toString()}))));
     } finally {
-      if(mounted) {
-        setState(() => _isLoading = false);
-      }
+      if(mounted) setState(() => _isLoading = false);
     }
   }
 

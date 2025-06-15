@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:projects/pages/redeem_voucher_items_page.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
 import '../pages/HomePage.dart';
 import 'package:intl/intl.dart';
@@ -34,6 +35,7 @@ class _ApplicationStatusPageState extends State<ApplicationStatusPage> {
   Widget build(BuildContext context) {
     final localizations = AppLocalizations.of(context);
     return Scaffold(
+      backgroundColor: const Color(0xFF303030),
       body: StreamBuilder<DocumentSnapshot>(
         stream: FirebaseFirestore.instance
             .collection('applications')
@@ -52,12 +54,13 @@ class _ApplicationStatusPageState extends State<ApplicationStatusPage> {
 
           final data = snapshot.data!.data()! as Map<String, dynamic>;
           final fullName = data['fullname'] ?? localizations.translate('status_unknown_name');
+          final asnafUserId = data['userId'] as String?;
           final appCode = data['applicationCode'] ?? localizations.translate('status_unknown_code');
           final statusApplication = data['statusApplication'] ?? localizations.translate('applications_status_pending');
           final statusReward = data['statusReward'] as String?;
           final date = data['date'] as String?;
           final reasonStatus = data['reasonStatus'] ?? localizations.translate('status_no_reason');
-          final reward = data['reward'] ?? localizations.translate('status_default_reward');
+          final reward = data['reward'] as String? ?? localizations.translate('status_default_reward');
 
           String completedSubtitle;
           if (statusApplication == "Approve") {
@@ -191,28 +194,69 @@ class _ApplicationStatusPageState extends State<ApplicationStatusPage> {
                 showLine: false,
               ),
 
-              SizedBox(height: 100),
+              Spacer(),
 
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => HomePage()),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFFFDB515),
-                    minimumSize: Size(double.infinity, 48),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pushAndRemoveUntil(
+                            context,
+                            MaterialPageRoute(builder: (_) => HomePage()),
+                                (route) => false,
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Color(0xFFFDB515),
+                          minimumSize: Size(double.infinity, 48),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: Text(
+                          localizations.translate('ok'),
+                          style: TextStyle(fontSize: 16, color: Colors.white),
+                        ),
+                      ),
                     ),
-                  ),
-                  child: Text(
-                    localizations.translate('ok'),
-                    style: TextStyle(fontSize: 16, color: Colors.white),
-                  ),
+                    if (statusReward == 'Issued') ...[
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            final rewardValueString = reward.replaceAll(RegExp(r'[^0-9.]'), '');
+                            final double rewardValue = double.tryParse(rewardValueString) ?? 0.0;
+
+                            if (rewardValue > 0 && asnafUserId != null) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => RedeemVoucherWithItemsPage(
+                                  voucherValue: rewardValue,
+                                  voucherReceived: {
+                                    'docId': widget.documentId,
+                                  },
+                                )),
+                              );
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            minimumSize: Size(double.infinity, 48),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: Text(
+                            "Shop for Asnaf", // Consider adding to localization
+                            style: TextStyle(fontSize: 16, color: Colors.white),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ],
@@ -243,7 +287,7 @@ class _ApplicationStatusPageState extends State<ApplicationStatusPage> {
       if (statusApp == "Reject") {
         return Colors.red;
       }
-      if (statusReward == "Issued") {
+      if (statusReward == "Issued" || statusReward == "Redeemed") {
         return Colors.green;
       }
       if(statusApp == "Approve"){

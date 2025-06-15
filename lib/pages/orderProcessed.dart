@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:projects/localization/app_localizations.dart';
+import 'package:projects/pages/redemptionStatus.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../pages/updateOrder.dart';
@@ -257,7 +258,7 @@ class _OrderCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final localizations = AppLocalizations.of(context);
     final data = orderDoc.data()! as Map<String, dynamic>;
-    final dateFormat = DateFormat("dd MMM yyyy, kk:mm a");
+    final dateFormat = DateFormat("dd MMM kk:mm a");
     final date = data['redeemedAt'] != null
         ? dateFormat.format((data['redeemedAt'] as Timestamp).toDate())
         : localizations.translate('track_order_no_date');
@@ -303,14 +304,23 @@ class _OrderCard extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       elevation: 2,
       child: InkWell(
-        onTap: isPending ? () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => UpdateOrder(documentId: orderDoc.id),
-            ),
-          );
-        } : null,
+        onTap: () {
+          if (isReady) { // Navigate to RedemptionStatus if ready for pickup
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => RedemptionStatus(documentId: orderDoc.id),
+              ),
+            );
+          } else if (isPending) { // Navigate to UpdateOrder if pending
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => UpdateOrder(documentId: orderDoc.id),
+              ),
+            );
+          }
+        },
         borderRadius: BorderRadius.circular(10),
         child: Padding(
           padding: const EdgeInsets.all(12.0),

@@ -743,7 +743,13 @@ class AppLocalizations {
       "viewReports_chatbot_title": "BI Assistant",
       "viewReports_chatbot_hint": "Ask about the data...",
       "viewReports_chatbot_error": "Sorry, I couldn't get a response.",
-      "viewReports_chatbot_generic_error": "Error: @error"
+      "viewReports_chatbot_generic_error": "Error: @error",
+
+      "notifications_title": "Notifications",
+      "notifications_error_loading": "Error loading notifications:",
+      "notifications_none": "No notifications",
+      "notifications_no_date": "No date",
+      "notifications_no_message": "No message content"
     },
     'ms': {
       // General
@@ -1474,7 +1480,13 @@ class AppLocalizations {
       "viewReports_chatbot_title": "Pembantu BI",
       "viewReports_chatbot_hint": "Tanya mengenai data...",
       "viewReports_chatbot_error": "Maaf, saya tidak dapat memberikan respons.",
-      "viewReports_chatbot_generic_error": "Ralat: @error"
+      "viewReports_chatbot_generic_error": "Ralat: @error",
+
+      "notifications_title": "Pemberitahuan",
+      "notifications_error_loading": "Ralat memuatkan pemberitahuan:",
+      "notifications_none": "Tiada pemberitahuan",
+      "notifications_no_date": "Tiada tarikh",
+      "notifications_no_message": "Tiada kandungan mesej"
     },
   };
 

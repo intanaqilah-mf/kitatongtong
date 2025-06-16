@@ -106,6 +106,27 @@ class _VoucherIssuanceState extends State<VoucherIssuance> {
           }])
         });
       }
+      final submittedBy = appData['submittedBy'];
+      String? recipientId;
+
+      if (submittedBy is Map && submittedBy.containsKey('uid')) {
+        recipientId = submittedBy['uid']; // Staff's UID
+      } else if (submittedBy == 'system') {
+        recipientId = appData['userId']; // Asnaf's UID
+      }
+
+      if (recipientId != null) {
+        String appCode = appData['applicationCode'] ?? 'your';
+        String message = "A reward of $selectedRewardAmount has been issued for application #$appCode.";
+
+        await FirebaseFirestore.instance.collection('notifications').add({
+          'createdAt': FieldValue.serverTimestamp(),
+          'recipients': [recipientId], // Target the specific user
+          'message': message,
+          'type': 'voucher_issued',
+          'referenceId': widget.documentId,
+        });
+      }
 
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(loc.translate('voucherIssuance_update_success'))));
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => ReviewIssueReward()));

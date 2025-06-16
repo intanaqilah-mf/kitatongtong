@@ -66,10 +66,42 @@ class _UpdateOrderState extends State<UpdateOrder> {
     }
 
     try {
-      await FirebaseFirestore.instance
+      DocumentReference orderRef = FirebaseFirestore.instance
           .collection('redeemedKasih')
-          .doc(widget.documentId)
-          .update({'processedOrder': 'yes'});
+          .doc(widget.documentId);
+
+      await orderRef.update({'processedOrder': 'yes'});
+
+      final orderSnapshot = await orderRef.get();
+      if (orderSnapshot.exists) {
+        final orderData = orderSnapshot.data() as Map<String, dynamic>;
+        final pickupCode = orderData['pickupCode'] ?? 'an order';
+        final asnafName = orderData['userName'] ?? 'a user';
+
+        String message = "Order for $asnafName (#$pickupCode) has been processed and is now ready for pickup.";
+
+        // Notify both Admin and Staff roles
+        await FirebaseFirestore.instance.collection('notifications').add({
+          'createdAt': FieldValue.serverTimestamp(),
+          'recipients': ['ROLE_ADMIN', 'ROLE_STAFF'],
+          'message': message,
+          'type': 'order_processed',
+          'referenceId': widget.documentId,
+        });
+
+        // Also notify the Asnaf specifically
+        final recipientId = orderData['userId'];
+        if (recipientId != null) {
+          String asnafMessage = "Your order (#$pickupCode) has been processed and is ready for pickup!";
+          await FirebaseFirestore.instance.collection('notifications').add({
+            'createdAt': FieldValue.serverTimestamp(),
+            'recipients': [recipientId],
+            'message': asnafMessage,
+            'type': 'order_processed',
+            'referenceId': widget.documentId,
+          });
+        }
+      }
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(loc.translate('update_order_success_message'))),

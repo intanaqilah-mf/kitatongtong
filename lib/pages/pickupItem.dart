@@ -143,10 +143,50 @@ class _PickUpItemState extends State<PickUpItem> {
     setState(() { _isLoading = true; });
 
     try {
-      await FirebaseFirestore.instance.collection("redeemedKasih").doc(docIdToUpdate!).update({
+      DocumentReference orderRef = FirebaseFirestore.instance.collection("redeemedKasih").doc(docIdToUpdate!);
+      await orderRef.update({
         "pickedUp": "yes",
         "pickedUpAt": FieldValue.serverTimestamp(),
       });
+
+      final orderSnapshot = await orderRef.get();
+      if (orderSnapshot.exists) {
+        final orderData = orderSnapshot.data() as Map<String, dynamic>;
+        final asnafId = orderData['userId'];
+        final asnafName = orderData['userName'] ?? 'The user';
+        final pickupCode = orderData['pickupCode'] ?? 'an order';
+
+        String message = "Order (#$pickupCode) has been successfully picked up by $asnafName.";
+
+        // Notify Admin
+        await FirebaseFirestore.instance.collection('notifications').add({
+          'createdAt': FieldValue.serverTimestamp(),
+          'recipients': ['ROLE_ADMIN'],
+          'message': message,
+          'type': 'order_pickup',
+          'referenceId': docIdToUpdate!,
+        });
+
+        // Notify Staff
+        await FirebaseFirestore.instance.collection('notifications').add({
+          'createdAt': FieldValue.serverTimestamp(),
+          'recipients': ['ROLE_STAFF'],
+          'message': message,
+          'type': 'order_pickup',
+          'referenceId': docIdToUpdate!,
+        });
+
+        // Notify Asnaf
+        if(asnafId != null){
+          await FirebaseFirestore.instance.collection('notifications').add({
+            'createdAt': FieldValue.serverTimestamp(),
+            'recipients': [asnafId],
+            'message': "You have successfully picked up your order (#$pickupCode). Thank you!",
+            'type': 'order_pickup',
+            'referenceId': docIdToUpdate!,
+          });
+        }
+      }
 
       Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => pickupSuccess(
         name: _asnafNameController.text,

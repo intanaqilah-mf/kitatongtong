@@ -129,7 +129,7 @@ class _ApplyAidState extends State<ApplyAid> {
       data['date'] = now.toIso8601String();
       data['applicationCode'] = applicationCode;
       data['statusApplication'] = "Pending";
-
+      String submitterName = fullnameController.text;
       // Correctly handle submission based on the user's role
       if (userRole == 'staff') {
         final currentUser = FirebaseAuth.instance.currentUser;
@@ -138,11 +138,9 @@ class _ApplyAidState extends State<ApplyAid> {
           return;
         }
         final String staffUserId = currentUser.uid;
-
-        // Get staff's name directly from their user profile at the time of submission
         final staffDoc = await FirebaseFirestore.instance.collection('users').doc(staffUserId).get();
         final String staffName = staffDoc.data()?['name'] ?? 'Unknown Staff';
-
+        submitterName = staffName;
         data['submittedBy'] = {
           'uid': staffUserId,
           'name': staffName
@@ -155,16 +153,16 @@ class _ApplyAidState extends State<ApplyAid> {
         data['submittedBy'] = 'system';
       }
 
-      // Add the application to the collection
-      await FirebaseFirestore.instance.collection("applications").add(data);
+      final newApplicationRef = await FirebaseFirestore.instance.collection("applications").add(data);
+      String notificationMessage = "A new aid application ($applicationCode) was submitted by $submitterName and requires verification.";
 
-      // Add a notification for the admin
-      await FirebaseFirestore.instance.collection("notifications").add({
-        'recipientRole': 'Admin',
-        'applicantId': data['userId'], // This will be null for staff submissions, which is correct
-        'applicantName': fullnameController.text, // This is always the applicant's name
-        'applicationCode': applicationCode,
-        'createdAt': now,
+      // Notify Admins
+      await FirebaseFirestore.instance.collection('notifications').add({
+        'createdAt': FieldValue.serverTimestamp(),
+        'recipients': ['ROLE_ADMIN'], // Target all admins
+        'message': notificationMessage,
+        'type': 'new_application',
+        'referenceId': newApplicationRef.id, // Link to the new application
       });
 
       if (!mounted) return;

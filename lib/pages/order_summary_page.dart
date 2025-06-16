@@ -165,7 +165,7 @@ class _OrderSummaryPageState extends State<OrderSummaryPage> {
         finalUserId = user.uid;
       }
 
-      await FirebaseFirestore.instance.collection('redeemedKasih').add({
+      final orderRef = await FirebaseFirestore.instance.collection('redeemedKasih').add({
         'userId': finalUserId,
         'userName': finalUserName,
         'orderedBy': orderedBy,
@@ -180,6 +180,27 @@ class _OrderSummaryPageState extends State<OrderSummaryPage> {
         'redeemType': 'itemSelection',
         'applicationId': applicationId,
         'applicationCode': applicationCode,
+      });
+
+      String submitterName = orderedBy ?? finalUserName; // If staff ordered, use their name, else use Asnaf's.
+      String notificationMessage = "A new order (#$pickupCode) was submitted by $submitterName and requires processing.";
+
+      // Notify Admins
+      await FirebaseFirestore.instance.collection('notifications').add({
+        'createdAt': FieldValue.serverTimestamp(),
+        'recipients': ['ROLE_ADMIN'],
+        'message': notificationMessage,
+        'type': 'new_order',
+        'referenceId': orderRef.id,
+      });
+
+      // Notify Staff
+      await FirebaseFirestore.instance.collection('notifications').add({
+        'createdAt': FieldValue.serverTimestamp(),
+        'recipients': ['ROLE_STAFF'],
+        'message': notificationMessage,
+        'type': 'new_order',
+        'referenceId': orderRef.id,
       });
 
       if (!isShoppingForAsnaf && widget.voucherReceived.containsKey('voucherId')) {

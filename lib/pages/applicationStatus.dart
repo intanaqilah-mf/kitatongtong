@@ -79,187 +79,187 @@ class _ApplicationStatusPageState extends State<ApplicationStatusPage> {
           final color2 = _getStatusColor(stage: 2, statusApp: statusApplication, statusReward: statusReward);
           final color3 = _getStatusColor(stage: 3, statusApp: statusApplication, statusReward: statusReward);
 
-          return Column(
-            children: [
-              Container(
-                width: double.infinity,
-                padding: EdgeInsets.symmetric(vertical: 25, horizontal: 16),
-                child: Column(
-                  children: [
-                    SizedBox(height: 50),
-                    Text(
-                      localizations.translate('status_page_title'),
-                      style: TextStyle(
-                        color: Color(0xFFFDB515),
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
+          return SingleChildScrollView(
+            child: Column(
+              children: [
+                Container(
+                  width: double.infinity,
+                  padding: EdgeInsets.symmetric(vertical: 25, horizontal: 16),
+                  child: Column(
+                    children: [
+                      SizedBox(height: 50),
+                      Text(
+                        localizations.translate('status_page_title'),
+                        style: TextStyle(
+                          color: Color(0xFFFDB515),
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                    SizedBox(height: 20),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            children: [
-                              Text(
-                                localizations.translate('status_label_app_code'),
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
+                      SizedBox(height: 20),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              children: [
+                                Text(
+                                  localizations.translate('status_label_app_code'),
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
-                              ),
-                              SizedBox(height: 4),
-                              Text(
-                                "$appCode",
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
+                                SizedBox(height: 4),
+                                Text(
+                                  "$appCode",
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
-                        Expanded(
-                          child: Column(
-                            children: [
-                              Text(
-                                localizations.translate('status_label_full_name'),
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
+                          Expanded(
+                            child: Column(
+                              children: [
+                                Text(
+                                  localizations.translate('status_label_full_name'),
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
-                              ),
-                              SizedBox(height: 4),
-                              Text(
-                                fullName,
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
+                                SizedBox(height: 4),
+                                Text(
+                                  fullName,
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 15),
-                    Container(
-                      width: double.infinity,
-                      height: 2,
-                      decoration: BoxDecoration(
-                        color: Color(0xFF303030),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black54,
-                            blurRadius: 4,
-                            spreadRadius: 1,
-                            offset: Offset(0, 2),
+                              ],
+                            ),
                           ),
                         ],
                       ),
-                    ),
-                    SizedBox(height: 50),
-                  ],
-                ),
-              ),
-
-              statusTile(
-                title: localizations.translate('status_title_submitted'),
-                subtitle: localizations.translateWithArgs('status_subtitle_submitted', {'date': _formatDate(date)}),
-                iconPath: "assets/applicationStatus1.png",
-                circleColor: color1,
-                showLine: true,
-                lineColor: color1,
-              ),
-
-              statusTile(
-                title: localizations.translate('status_title_reviewed'),
-                subtitle: completedSubtitle,
-                iconPath: "assets/applicationStatus3.png",
-                circleColor: color2,
-                showLine: true,
-                lineColor: color3,
-              ),
-
-              statusTile(
-                title: localizations.translate('status_title_rewards_issued'),
-                subtitle: rewardSubtitle,
-                iconPath: "assets/reward.png",
-                circleColor: color3,
-                showLine: false,
-              ),
-
-              Spacer(),
-
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.pushAndRemoveUntil(
-                            context,
-                            MaterialPageRoute(builder: (_) => HomePage()),
-                                (route) => false,
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Color(0xFFFDB515),
-                          minimumSize: Size(double.infinity, 48),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: Text(
-                          localizations.translate('ok'),
-                          style: TextStyle(fontSize: 16, color: Colors.white),
+                      SizedBox(height: 15),
+                      Container(
+                        width: double.infinity,
+                        height: 2,
+                        decoration: BoxDecoration(
+                          color: Color(0xFF303030),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black54,
+                              blurRadius: 4,
+                              spreadRadius: 1,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
                         ),
                       ),
-                    ),
-                    if (statusReward == 'Issued') ...[
-                      SizedBox(width: 10),
+                      SizedBox(height: 50),
+                    ],
+                  ),
+                ),
+
+                statusTile(
+                  title: localizations.translate('status_title_submitted'),
+                  subtitle: localizations.translateWithArgs('status_subtitle_submitted', {'date': _formatDate(date)}),
+                  iconPath: "assets/applicationStatus1.png",
+                  circleColor: color1,
+                  showLine: true,
+                  lineColor: color1,
+                ),
+
+                statusTile(
+                  title: localizations.translate('status_title_reviewed'),
+                  subtitle: completedSubtitle,
+                  iconPath: "assets/applicationStatus3.png",
+                  circleColor: color2,
+                  showLine: true,
+                  lineColor: color3,
+                ),
+
+                statusTile(
+                  title: localizations.translate('status_title_rewards_issued'),
+                  subtitle: rewardSubtitle,
+                  iconPath: "assets/reward.png",
+                  circleColor: color3,
+                  showLine: false,
+                ),
+
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 40, 20, 20),
+                  child: Row(
+                    children: [
                       Expanded(
                         child: ElevatedButton(
                           onPressed: () {
-                            final rewardValueString = reward.replaceAll(RegExp(r'[^0-9.]'), '');
-                            final double rewardValue = double.tryParse(rewardValueString) ?? 0.0;
-
-                            if (rewardValue > 0 && asnafUserId != null) {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => RedeemVoucherWithItemsPage(
-                                  voucherValue: rewardValue,
-                                  voucherReceived: {
-                                    'docId': widget.documentId,
-                                  },
-                                )),
-                              );
-                            }
+                            Navigator.pushAndRemoveUntil(
+                              context,
+                              MaterialPageRoute(builder: (_) => HomePage()),
+                                  (route) => false,
+                            );
                           },
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
+                            backgroundColor: Color(0xFFFDB515),
                             minimumSize: Size(double.infinity, 48),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
                           child: Text(
-                            "Shop for Asnaf", // Consider adding to localization
+                            localizations.translate('ok'),
                             style: TextStyle(fontSize: 16, color: Colors.white),
                           ),
                         ),
                       ),
+                      if (statusReward == 'Issued') ...[
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () {
+                              final rewardValueString = reward.replaceAll(RegExp(r'[^0-9.]'), '');
+                              final double rewardValue = double.tryParse(rewardValueString) ?? 0.0;
+
+                              if (rewardValue > 0 && asnafUserId != null) {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (_) => RedeemVoucherWithItemsPage(
+                                    voucherValue: rewardValue,
+                                    voucherReceived: {
+                                      'docId': widget.documentId,
+                                    },
+                                  )),
+                                );
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              minimumSize: Size(double.infinity, 48),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: Text(
+                              "Shop for Asnaf", // Consider adding to localization
+                              style: TextStyle(fontSize: 16, color: Colors.white),
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           );
         },
       ),

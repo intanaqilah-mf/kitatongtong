@@ -65,11 +65,41 @@ class _ScreeningApplicantsState extends State<ScreeningApplicants> {
     }
 
     try {
-      await FirebaseFirestore.instance.collection('applications').doc(widget.documentId).update({
+      DocumentReference applicationRef = FirebaseFirestore.instance.collection('applications').doc(widget.documentId);
+
+      await applicationRef.update({
         'statusApplication': finalStatus,
         'reasonStatus': reasonController.text,
         'statusReward': rewardStatus,
       });
+      final appSnapshot = await applicationRef.get();
+      if (appSnapshot.exists) {
+        final appData = appSnapshot.data() as Map<String, dynamic>;
+        final submittedBy = appData['submittedBy'];
+        String? recipientId;
+
+        if (submittedBy is Map && submittedBy.containsKey('uid')) {
+          // Submitted by a Staff member
+          recipientId = submittedBy['uid'];
+        } else if (submittedBy == 'system') {
+          // Submitted by Asnaf
+          recipientId = appData['userId'];
+        }
+
+        if (recipientId != null) {
+          String appCode = appData['applicationCode'] ?? 'your';
+          String statusMessage = finalStatus.toLowerCase(); // "approve", "reject"
+          String message = "Your application $appCode has been $statusMessage.";
+
+          await FirebaseFirestore.instance.collection('notifications').add({
+            'createdAt': FieldValue.serverTimestamp(),
+            'recipients': [recipientId], // Target the specific user
+            'message': message,
+            'type': 'application_status',
+            'referenceId': widget.documentId,
+          });
+        }
+      }
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(loc.translate('screening_update_success'))),

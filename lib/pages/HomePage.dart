@@ -10,7 +10,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:projects/pages/EventDetailPage.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:projects/localization/app_localizations.dart';
-import '../../main.dart'; // Import main.dart to access MyApp.setLocale
+import '../../main.dart';
+import 'dart:async';
 
 class HomePage extends StatefulWidget {
   @override
@@ -22,13 +23,46 @@ class _HomePageState extends State<HomePage> {
   String? userRole;
   Map<String, List<DocumentSnapshot>> sectionEvents = {};
   Locale _currentLocale = Locale('en');
+  StreamSubscription? _notificationSubscription;
+  bool _isBannerVisible = false;
+  String _bannerMessage = '';
+  Timer? _bannerTimer;
+  Timestamp? _appStartTime;
+
+  StreamSubscription<User?>? _authStateSubscription;
 
   @override
   void initState() {
     super.initState();
-    _getUserRole();
-    _fetchSections();
+    // This listener will trigger whenever a user logs in or out.
+    _authStateSubscription = FirebaseAuth.instance.authStateChanges().listen((User? user) {
+      if (user == null) {
+        // User is signed out, cancel any existing notification listeners.
+        _notificationSubscription?.cancel();
+        if (mounted) {
+          setState(() {
+            userRole = null;
+          });
+        }
+      } else {
+        // User is signed in, initialize everything for this user.
+        _initializeForUser(user);
+      }
+    });
   }
+
+  // This function now bundles all user-specific setup.
+  void _initializeForUser(User user) {
+    // ---- THE CRITICAL FIX IS HERE ----
+    // Reset the start time for the new user's session. This ensures we check
+    // for notifications that have arrived since THIS user logged in.
+    _appStartTime = Timestamp.now();
+
+    _getUserRole(user.uid);
+    _fetchSections();
+    _initializeNotificationListener(user);
+  }
+
 
   @override
   void didChangeDependencies() {
@@ -36,31 +70,90 @@ class _HomePageState extends State<HomePage> {
     _currentLocale = Localizations.localeOf(context);
   }
 
-  Future<void> _getUserRole() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      final doc =
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
-      if (doc.exists) {
+  @override
+  void dispose() {
+    _authStateSubscription?.cancel();
+    _notificationSubscription?.cancel();
+    _bannerTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _getUserRole(String userId) async {
+    final doc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
+    if (mounted && doc.exists) {
+      setState(() {
+        userRole = doc.data()?['role'] ?? 'asnaf';
+      });
+    }
+  }
+
+  Future<void> _initializeNotificationListener(User user) async {
+    // Cancel any previous listener before creating a new one
+    await _notificationSubscription?.cancel();
+
+    final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+    if (!mounted || !userDoc.exists) return;
+
+    final data = userDoc.data() as Map<String, dynamic>;
+    final currentUserRole = data['role'] ?? 'asnaf';
+    final userId = user.uid;
+
+    Query<Map<String, dynamic>> query = FirebaseFirestore.instance.collection('notifications');
+
+    if (currentUserRole == 'staff') {
+      query = query.where('recipients', arrayContainsAny: ['ROLE_STAFF', userId]);
+    } else if (currentUserRole == 'admin') {
+      query = query.where('recipients', arrayContains: 'ROLE_ADMIN');
+    } else {
+      query = query.where('recipients', arrayContains: userId);
+    }
+
+    _notificationSubscription = query.snapshots().listen((snapshot) {
+      if (!mounted) return;
+      for (var change in snapshot.docChanges) {
+        if (change.type == DocumentChangeType.added) {
+          final notificationData = change.doc.data();
+          if (notificationData != null) {
+            final message = notificationData['message'] as String? ?? 'You have a new notification.';
+            _showNotificationBanner(message);
+          }
+        }
+      }
+    });
+  }
+
+  void _showNotificationBanner(String message) {
+    if (!mounted) return;
+    _bannerTimer?.cancel();
+    setState(() {
+      _bannerMessage = message;
+      _isBannerVisible = true;
+    });
+    _bannerTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) {
         setState(() {
-          userRole = doc.data()?['role'] ?? 'asnaf';
+          _isBannerVisible = false;
         });
       }
-    }
+    });
   }
 
   Future<void> _fetchSections() async {
     QuerySnapshot snapshot =
     await FirebaseFirestore.instance.collection("event").get();
-
+    final newSectionEvents = <String, List<DocumentSnapshot>>{};
     for (var doc in snapshot.docs) {
       String section = doc["sectionEvent"] ?? "Upcoming Activities";
-      if (!sectionEvents.containsKey(section)) {
-        sectionEvents[section] = [];
+      if (!newSectionEvents.containsKey(section)) {
+        newSectionEvents[section] = [];
       }
-      sectionEvents[section]!.add(doc);
+      newSectionEvents[section]!.add(doc);
     }
-    setState(() {});
+    if (mounted) {
+      setState(() {
+        sectionEvents = newSectionEvents;
+      });
+    }
   }
 
   void _onItemTapped(int index) {
@@ -120,214 +213,271 @@ class _HomePageState extends State<HomePage> {
     }
 
     final _widgetOptions = <Widget>[
-      SingleChildScrollView(
-        child: Column(
-          children: [
-            Container(
-              padding: EdgeInsets.only(top: 60),
-              child: Column(
-                children: [
-                  Container(
-                    margin: EdgeInsets.symmetric(horizontal: 15, vertical: 1),
-                    padding: EdgeInsets.symmetric(horizontal: 15),
-                    height: 50,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Container(
-                            height: 50,
-                            child: TextFormField(
-                              decoration: InputDecoration(
-                                border: InputBorder.none,
-                                hintText: getSearchHint(),
-                              ),
-                            ),
-                          ),
+      Stack(
+        children: [
+          SingleChildScrollView(
+            child: Column(
+              children: [
+                Container(
+                  padding: EdgeInsets.only(top: 60),
+                  child: Column(
+                    children: [
+                      Container(
+                        margin: EdgeInsets.symmetric(horizontal: 15, vertical: 1),
+                        padding: EdgeInsets.symmetric(horizontal: 15),
+                        height: 50,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(10),
                         ),
-                        ShaderMask(
-                          shaderCallback: (Rect bounds) {
-                            return LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              stops: [0.16, 0.38, 0.58, 0.88],
-                              colors: [
-                                Color(0xFFF9F295),
-                                Color(0xFFE0AA3E),
-                                Color(0xFFF9F295),
-                                Color(0xFFB88A44),
-                              ],
-                            ).createShader(bounds);
-                          },
-                          child: Icon(
-                            Icons.search_rounded,
-                            size: 35,
-                            color: Colors.white,
-                          ),
-                        ),
-                        SizedBox(width: 10),
-                        // Language Toggle
-                        Row(
+                        child: Row(
                           children: [
-                            GestureDetector(
-                              onTap: () => MyApp.setLocale(context, const Locale('en', '')),
-                              child: Text(
-                                'ENG',
-                                style: TextStyle(
-                                  color: _currentLocale.languageCode == 'en' ? Colors.blue : Colors.grey,
-                                  fontWeight: FontWeight.bold,
+                            Expanded(
+                              child: Container(
+                                height: 50,
+                                child: TextFormField(
+                                  decoration: InputDecoration(
+                                    border: InputBorder.none,
+                                    hintText: getSearchHint(),
+                                  ),
                                 ),
                               ),
                             ),
-                            const Text(' | ', style: TextStyle(color: Colors.grey)),
-                            GestureDetector(
-                              onTap: () => MyApp.setLocale(context, const Locale('ms', '')),
-                              child: Text(
-                                'BM',
-                                style: TextStyle(
-                                  color: _currentLocale.languageCode == 'ms' ? Colors.blue : Colors.grey,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                            ShaderMask(
+                              shaderCallback: (Rect bounds) {
+                                return LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  stops: [0.16, 0.38, 0.58, 0.88],
+                                  colors: [
+                                    Color(0xFFF9F295),
+                                    Color(0xFFE0AA3E),
+                                    Color(0xFFF9F295),
+                                    Color(0xFFB88A44),
+                                  ],
+                                ).createShader(bounds);
+                              },
+                              child: Icon(
+                                Icons.search_rounded,
+                                size: 35,
+                                color: Colors.white,
                               ),
                             ),
-                          ],
-                        )
-                      ],
-                    ),
-                  ),
-                  userRole == null ? CircularProgressIndicator() : _getDashboard(),
-                  UserPoints(),
-                  Container(
-                    margin: EdgeInsets.symmetric(horizontal: 15, vertical: 1),
-                    padding: EdgeInsets.symmetric(horizontal: 15),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        stops: [0.16, 0.38, 0.58, 0.88],
-                        colors: [
-                          Color(0xFFF9F295),
-                          Color(0xFFE0AA3E),
-                          Color(0xFFF9F295),
-                          Color(0xFFB88A44),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          child: Text(
-                            AppLocalizations.of(context).translate('upcoming_activities'),
-                            style: TextStyle(
-                              fontSize: 25,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black,
-                            ),
-                          ),
-                        ),
-                        Container(
-                          height: 230,
-                          child: ListView.builder(
-                            scrollDirection: Axis.horizontal,
-                            itemCount: validUpcomingEvents.length,
-                            itemBuilder: (context, index) {
-                              var eventData = validUpcomingEvents[index].data() as Map<String, dynamic>;
-                              var eventDoc = validUpcomingEvents[index];
-
-                              return GestureDetector(
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => EventDetailPage(event: eventDoc),
-                                    ),
-                                  );
-                                },
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                                  child: Container(
-                                    width: 160,
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        ClipRRect(
-                                          borderRadius: BorderRadius.circular(8),
-                                          child: Image.network(
-                                            eventData["bannerUrl"] ?? '',
-                                            height: 100,
-                                            width: double.infinity,
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (context, error, stackTrace) => Container(height: 100, color: Colors.grey.shade300, child: Icon(Icons.image_not_supported)),
-                                          ),
-                                        ),
-                                        SizedBox(height: 4),
-                                        SizedBox(
-                                          height: 36,
-                                          child: Text(
-                                            eventData["eventName"] ?? "Unknown",
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 14,
-                                              color: Colors.black,
-                                            ),
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                        SizedBox(height: 4),
-                                        Text(
-                                          AppLocalizations.of(context).translateWithArgs('get_points', {'points': eventData["points"]?.toString() ?? "0"}),
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 13,
-                                            color: Colors.black,
-                                          ),
-                                        ),
-                                        SizedBox(height: 4),
-                                        Row(
-                                          children: [
-                                            Icon(Icons.calendar_today, color: Colors.red, size: 14),
-                                            SizedBox(width: 4),
-                                            Expanded(
-                                              child: Text(
-                                                eventData["eventEndDate"] ?? "",
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w500,
-                                                  color: Colors.black87,
-                                                ),
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        SizedBox(height: 4),
-                                        _buildLocationRow(eventData['location']),
-                                      ],
+                            SizedBox(width: 10),
+                            Row(
+                              children: [
+                                GestureDetector(
+                                  onTap: () => MyApp.setLocale(context, const Locale('en', '')),
+                                  child: Text(
+                                    'ENG',
+                                    style: TextStyle(
+                                      color: _currentLocale.languageCode == 'en' ? Colors.blue : Colors.grey,
+                                      fontWeight: FontWeight.bold,
                                     ),
                                   ),
                                 ),
-                              );
-                            },
+                                const Text(' | ', style: TextStyle(color: Colors.grey)),
+                                GestureDetector(
+                                  onTap: () => MyApp.setLocale(context, const Locale('ms', '')),
+                                  child: Text(
+                                    'BM',
+                                    style: TextStyle(
+                                      color: _currentLocale.languageCode == 'ms' ? Colors.blue : Colors.grey,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            )
+                          ],
+                        ),
+                      ),
+                      userRole == null ? CircularProgressIndicator() : _getDashboard(),
+                      UserPoints(),
+                      Container(
+                        margin: EdgeInsets.symmetric(horizontal: 15, vertical: 1),
+                        padding: EdgeInsets.symmetric(horizontal: 15),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            stops: [0.16, 0.38, 0.58, 0.88],
+                            colors: [
+                              Color(0xFFF9F295),
+                              Color(0xFFE0AA3E),
+                              Color(0xFFF9F295),
+                              Color(0xFFB88A44),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              child: Text(
+                                AppLocalizations.of(context).translate('upcoming_activities'),
+                                style: TextStyle(
+                                  fontSize: 25,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black,
+                                ),
+                              ),
+                            ),
+                            Container(
+                              height: 230,
+                              child: ListView.builder(
+                                scrollDirection: Axis.horizontal,
+                                itemCount: validUpcomingEvents.length,
+                                itemBuilder: (context, index) {
+                                  var eventData = validUpcomingEvents[index].data() as Map<String, dynamic>;
+                                  var eventDoc = validUpcomingEvents[index];
+
+                                  return GestureDetector(
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => EventDetailPage(event: eventDoc),
+                                        ),
+                                      );
+                                    },
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                                      child: Container(
+                                        width: 160,
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            ClipRRect(
+                                              borderRadius: BorderRadius.circular(8),
+                                              child: Image.network(
+                                                eventData["bannerUrl"] ?? '',
+                                                height: 100,
+                                                width: double.infinity,
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (context, error, stackTrace) => Container(height: 100, color: Colors.grey.shade300, child: Icon(Icons.image_not_supported)),
+                                              ),
+                                            ),
+                                            SizedBox(height: 4),
+                                            SizedBox(
+                                              height: 36,
+                                              child: Text(
+                                                eventData["eventName"] ?? "Unknown",
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 14,
+                                                  color: Colors.black,
+                                                ),
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                            SizedBox(height: 4),
+                                            Text(
+                                              AppLocalizations.of(context).translateWithArgs('get_points', {'points': eventData["points"]?.toString() ?? "0"}),
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 13,
+                                                color: Colors.black,
+                                              ),
+                                            ),
+                                            SizedBox(height: 4),
+                                            Row(
+                                              children: [
+                                                Icon(Icons.calendar_today, color: Colors.red, size: 14),
+                                                SizedBox(width: 4),
+                                                Expanded(
+                                                  child: Text(
+                                                    eventData["eventEndDate"] ?? "",
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      fontWeight: FontWeight.w500,
+                                                      color: Colors.black87,
+                                                    ),
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            SizedBox(height: 4),
+                                            _buildLocationRow(eventData['location']),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                            ...sectionEvents.entries
+                                .where((entry) => entry.key != "Upcoming Activities")
+                                .map((entry) => _buildSectionRow(entry.key, entry.value)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Align(
+            alignment: Alignment.topCenter,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 400),
+              transitionBuilder: (Widget child, Animation<double> animation) {
+                return SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0, -1),
+                    end: Offset.zero,
+                  ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
+                  child: child,
+                );
+              },
+              child: _isBannerVisible
+                  ? SafeArea(
+                child: Material(
+                  color: Colors.transparent,
+                  child: Container(
+                    key: ValueKey<String>(_bannerMessage),
+                    width: double.infinity,
+                    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFDB515),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.3),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.notifications_active, color: Colors.black),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            _bannerMessage,
+                            style: const TextStyle(
+                              color: Colors.black,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
-                        ...sectionEvents.entries
-                            .where((entry) => entry.key != "Upcoming Activities")
-                            .map((entry) => _buildSectionRow(entry.key, entry.value)),
                       ],
                     ),
                   ),
-                ],
-              ),
+                ),
+              )
+                  : const SizedBox.shrink(),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
       Center(child: Text(AppLocalizations.of(context).translate('search_page'))),
       Center(child: Text(AppLocalizations.of(context).translate('shopping_page'))),

@@ -197,6 +197,22 @@ class _RedeemVoucherWithItemsPageState extends State<RedeemVoucherWithItemsPage>
 
   void _incrementQuantity(Map<String, dynamic> item) {
     final localizations = AppLocalizations.of(context);
+    final double itemPrice = (item['price'] as num).toDouble();
+
+    if ((_totalCartValue + itemPrice) > widget.voucherValue) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.redAccent,
+          content: Text(
+            localizations.translateWithArgs(
+              'order_summary_exceed_voucher_error',
+              { 'limit': widget.voucherValue.toStringAsFixed(2) },
+            ),
+          ),
+        ),
+      );
+      return;                      // 🚫 bail out – nothing is added
+    }
     final itemId = item['id'] as String;
     final itemGroup = item['item_group'] as String;
     final itemCategory = item['category'] as String;
@@ -250,12 +266,12 @@ class _RedeemVoucherWithItemsPageState extends State<RedeemVoucherWithItemsPage>
     }
 
     setState(() {
-      if (_cart.containsKey(itemId)) {
+      if (isInCart) {
         _cart[itemId]!['quantity']++;
       } else {
-        _cart[itemId] = {'data': item, 'quantity': 1};
+        _cart[itemId] = { 'data': item, 'quantity': 1 };
       }
-      _recalculateTotals();
+      _recalculateTotals();   // this keeps _displayableItems in sync
     });
   }
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // Added for staff user ID
 import 'package:projects/pages/redeem_voucher_items_page.dart';
 import 'package:projects/widgets/bottomNavBar.dart';
 import '../pages/HomePage.dart';
@@ -229,15 +230,33 @@ class _ApplicationStatusPageState extends State<ApplicationStatusPage> {
                               final rewardValueString = reward.replaceAll(RegExp(r'[^0-9.]'), '');
                               final double rewardValue = double.tryParse(rewardValueString) ?? 0.0;
 
-                              if (rewardValue > 0 && asnafUserId != null) {
+                              if (rewardValue > 0) {
+                                final currentUser = FirebaseAuth.instance.currentUser;
+
+                                Map<String, dynamic> voucherData = {
+                                  'docId': widget.documentId,
+                                  'asnafUserId': asnafUserId,
+                                  'asnafFullName': fullName,
+                                  'voucherValue': rewardValue, // **FIXED: Added voucher value to the map**
+                                };
+
+                                if (asnafUserId == null && currentUser != null) {
+                                  voucherData['orderedById'] = currentUser.uid;
+                                }
+
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(builder: (_) => RedeemVoucherWithItemsPage(
                                     voucherValue: rewardValue,
-                                    voucherReceived: {
-                                      'docId': widget.documentId,
-                                    },
+                                    voucherReceived: voucherData,
                                   )),
+                                );
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Reward is not available or has no value.'),
+                                    backgroundColor: Colors.red,
+                                  ),
                                 );
                               }
                             },
@@ -249,7 +268,7 @@ class _ApplicationStatusPageState extends State<ApplicationStatusPage> {
                               ),
                             ),
                             child: Text(
-                              "Shop for Asnaf", // Consider adding to localization
+                              "Shop for Asnaf",
                               style: TextStyle(fontSize: 16, color: Colors.white),
                             ),
                           ),

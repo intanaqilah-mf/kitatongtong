@@ -59,18 +59,26 @@ class _OrderSummaryPageState extends State<OrderSummaryPage> {
     final itemData = _cart[itemId]!['data'] as Map<String, dynamic>;
     final itemPrice = itemData['price'] as double;
 
-    if ((_totalCartValue + itemPrice) <= widget.voucherValue) {
-      setState(() {
-        _cart[itemId]!['quantity']++;
-        _recalculateTotals();
-      });
-    } else {
+    if ((_totalCartValue + itemPrice) > widget.voucherValue) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            backgroundColor: Colors.redAccent,
-            content: Text(localizations.translate('order_summary_exceed_voucher_error'))),
+          backgroundColor: Colors.redAccent,
+          content: Text(
+            localizations.translateWithArgs(
+              'order_summary_exceed_voucher_error',
+              { 'limit': widget.voucherValue.toStringAsFixed(2) },
+            ),
+          ),
+        ),
       );
+      return;                       // <<< important: bail out
     }
+
+    // otherwise allow the “+”
+    setState(() {
+      _cart[itemId]!['quantity']++;
+      _recalculateTotals();
+    });
   }
 
   void _decrementQuantity(String itemId) {

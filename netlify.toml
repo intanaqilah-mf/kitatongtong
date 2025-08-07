@@ -1,4 +1,6 @@
 # CORRECTED netlify.toml
+
 [build]
 publish = "build/web"
-command = "git clone https://github.com/flutter/flutter.git --depth 1 && ./flutter/bin/flutter --version && ./flutter/bin/flutter pub get && ./flutter/bin/flutter build web --release"
+# IMPORTANT: Replace 3.22.2 with YOUR Flutter version from the 'flutter --version' command
+command = "git clone -b  3.32.1 https://github.com/flutter/flutter.git --depth 1 && ./flutter/bin/flutter --version && ./flutter/bin/flutter pub get && ./flutter/bin/flutter build web --release"

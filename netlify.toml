@@ -1,0 +1,12 @@
+# Netlify build configuration file
+[build]
+# Directory to publish (needs to match the flutter build output)
+publish = "build/web"
+
+# Build command that installs flutter and builds the web app
+command = """
+  git clone https://github.com/flutter/flutter.git --depth 1
+  && ./flutter/bin/flutter --version
+  && ./flutter/bin/flutter pub get
+  && ./flutter/bin/flutter build web --release
+  """

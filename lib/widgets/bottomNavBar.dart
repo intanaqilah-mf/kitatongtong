@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:projects/pages/HomePage.dart';
-import 'package:projects/pages/ProfilePage.dart';
+import 'package:projects/pages/profilepage.dart';
 import 'package:projects/pages/stockItem.dart';
 import 'package:projects/pages/notifications.dart';
 import 'package:projects/pages/orderProcessed.dart';
